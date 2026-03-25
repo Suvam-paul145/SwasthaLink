@@ -1,0 +1,59 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+:root {
+  --background: #071325;
+  --surface-low: #101c2e;
+  --surface-high: #1f2a3d;
+  --surface-highest: #2a3548;
+  --text: #d7e3fc;
+  --muted: #859490;
+  --primary: #4fdbc8;
+  --primary-container: #14b8a6;
+  --error: #ffb4ab;
+  --error-container: #93000a;
+}
+
+@layer base {
+  body {
+    min-height: 100vh;
+    overflow-x: hidden;
+    color: #d7e3fc;
+    font-family: "Inter", "Noto Sans Bengali", sans-serif;
+    background-color: #071325;
+    background-image: radial-gradient(circle at top right, #14b8a615, transparent),
+      radial-gradient(circle at bottom left, #071325, #004d4d20);
+  }
+
+  ::selection {
+    background: rgb(79 219 200 / 0.3);
+  }
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.glass-card {
+  background: rgb(255 255 255 / 0.05);
+  backdrop-filter: blur(40px);
+  border: 1px solid rgb(255 255 255 / 0.05);
+}
+
+.ethereal-bg {
+  background: radial-gradient(circle at top right, #14b8a615, transparent),
+              radial-gradient(circle at bottom left, #071325, #004d4d20),
+              #071325;
+}
+
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.35s;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.bilingual-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
