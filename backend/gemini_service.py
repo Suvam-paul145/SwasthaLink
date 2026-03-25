@@ -30,7 +30,7 @@ from prompts import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize Gemini API
+# Initialize Gemini API (google-generativeai SDK)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     logger.warning("GEMINI_API_KEY not found in environment variables")
