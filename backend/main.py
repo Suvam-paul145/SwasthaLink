@@ -5,6 +5,7 @@ FastAPI application with all routes and CORS configuration
 
 import os
 import logging
+from typing import Optional
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -19,7 +20,12 @@ from models import (
     QuizSubmitRequest,
     QuizSubmitResponse,
     HealthResponse,
-    UploadResponse
+    UploadResponse,
+    # Prescription RAG models
+    PrescriptionExtractResponse,
+    PrescriptionApproveRequest,
+    PrescriptionRejectRequest,
+    PrescriptionPatientViewResponse,
 )
 
 # Import services
@@ -54,6 +60,17 @@ from s3_service import (
     S3ServiceError
 )
 from rate_alert_service import rate_alert_service
+
+# Prescription RAG service
+from prescription_rag_service import (
+    extract_prescription_data,
+    create_prescription_record,
+    list_pending_records,
+    approve_record,
+    reject_record,
+    get_record,
+    get_approved_record,
+)
 
 # Load environment variables
 load_dotenv()
@@ -498,6 +515,229 @@ async def whatsapp_sandbox_info():
         "instructions": get_sandbox_instructions(),
         "sandbox_number": os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
     }
+
+
+# ---------------------------------------------------------------------------
+# Prescription RAG pipeline endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/api/prescriptions/extract", response_model=PrescriptionExtractResponse)
+async def extract_prescription(
+    file: UploadFile = File(...),
+    doctor_id: str = Form(...),
+):
+    """
+    Extract structured information from a handwritten prescription.
+
+    Doctor uploads an image or PDF. The endpoint:
+    1. Validates the file type.
+    2. Runs OCR via Gemini Vision.
+    3. Runs RAG extraction to identify doctor name, patient details and medications.
+    4. Creates a pending-admin-review record.
+    """
+    try:
+        allowed_types = ["application/pdf", "image/jpeg", "image/png", "image/jpg"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file type: {file.content_type}. Allowed: PDF, JPG, PNG",
+            )
+
+        if not doctor_id or not doctor_id.strip():
+            raise HTTPException(status_code=400, detail="doctor_id is required")
+
+        logger.info(f"Prescription upload by doctor {doctor_id}: {file.filename}")
+
+        file_content = await file.read()
+
+        # Optional S3 storage for audit trail
+        s3_key: Optional[str] = None
+        try:
+            s3_result = await upload_file(
+                file_content=file_content,
+                filename=file.filename,
+                session_id=f"rx_{doctor_id}",
+                content_type=file.content_type,
+            )
+            s3_key = s3_result.get("s3_key")
+            rate_alert_service.track_usage("s3", context="/api/prescriptions/extract")
+        except S3ServiceError as exc:
+            logger.warning(f"S3 upload failed (non-critical): {exc}")
+
+        # OCR
+        ocr_text = await extract_text_from_image(
+            image_data=file_content,
+            mime_type=file.content_type,
+        )
+        rate_alert_service.track_usage("gemini", context="ocr:/api/prescriptions/extract")
+
+        # RAG extraction
+        extracted_data = await extract_prescription_data(ocr_text)
+        rate_alert_service.track_usage("gemini", context="rag:/api/prescriptions/extract")
+
+        # Persist record
+        record = create_prescription_record(
+            extracted_data=extracted_data,
+            doctor_id=doctor_id.strip(),
+            s3_key=s3_key,
+        )
+
+        logger.info(f"Prescription record created: {record.prescription_id}")
+
+        return PrescriptionExtractResponse(
+            prescription_id=record.prescription_id,
+            status=record.status.value,
+            extracted_data=record.extracted_data,
+        )
+
+    except GeminiServiceError as exc:
+        logger.error(f"Gemini error during prescription extraction: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        logger.error(f"Unexpected error during prescription extraction: {exc}")
+        logger.exception(exc)
+        raise HTTPException(status_code=500, detail=f"Prescription extraction failed: {str(exc)}")
+
+
+@app.get("/api/prescriptions/pending")
+async def get_pending_prescriptions():
+    """
+    List all prescriptions awaiting admin review.
+
+    Returns a list of pending records so the admin can inspect extracted
+    data and approve or reject each one.
+    """
+    try:
+        records = list_pending_records()
+        return {
+            "count": len(records),
+            "items": [r.model_dump() for r in records],
+        }
+    except Exception as exc:
+        logger.error(f"Error fetching pending prescriptions: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch pending prescriptions")
+
+
+@app.post("/api/prescriptions/{prescription_id}/approve")
+async def approve_prescription(
+    prescription_id: str,
+    request: PrescriptionApproveRequest,
+):
+    """
+    Admin approves a pending prescription.
+
+    The record is marked as approved and becomes visible to the patient
+    via the patient-view endpoint.
+    """
+    try:
+        record = approve_record(prescription_id, request.admin_id)
+        if record is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Prescription {prescription_id} not found",
+            )
+        logger.info(f"Prescription {prescription_id} approved by admin {request.admin_id}")
+        return {
+            "prescription_id": record.prescription_id,
+            "status": record.status.value,
+            "reviewed_at": record.reviewed_at,
+            "message": "Prescription approved and delivered to patient",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error approving prescription {prescription_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to approve prescription")
+
+
+@app.post("/api/prescriptions/{prescription_id}/reject")
+async def reject_prescription(
+    prescription_id: str,
+    request: PrescriptionRejectRequest,
+):
+    """
+    Admin rejects a pending prescription with a reason.
+
+    The record is marked as rejected and is not accessible via the
+    patient-view endpoint.
+    """
+    try:
+        record = reject_record(prescription_id, request.admin_id, request.reason)
+        if record is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Prescription {prescription_id} not found",
+            )
+        logger.info(f"Prescription {prescription_id} rejected by admin {request.admin_id}")
+        return {
+            "prescription_id": record.prescription_id,
+            "status": record.status.value,
+            "reviewed_at": record.reviewed_at,
+            "rejection_reason": record.rejection_reason,
+            "message": "Prescription rejected",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error rejecting prescription {prescription_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to reject prescription")
+
+
+@app.get(
+    "/api/prescriptions/{prescription_id}/patient-view",
+    response_model=PrescriptionPatientViewResponse,
+)
+async def get_patient_prescription_view(prescription_id: str):
+    """
+    Return an approved prescription in patient-readable format.
+
+    Only approved prescriptions are accessible here.  Pending or rejected
+    records return 404 / 403 respectively so patients never see unreviewed
+    data.
+    """
+    try:
+        # Use public API to check record existence and status
+        raw = get_record(prescription_id)
+        if raw is None:
+            raise HTTPException(status_code=404, detail="Prescription not found")
+
+        if raw.status.value == "pending_admin_review":
+            raise HTTPException(
+                status_code=403,
+                detail="Prescription is awaiting admin approval",
+            )
+        if raw.status.value == "rejected":
+            raise HTTPException(
+                status_code=403,
+                detail="Prescription was rejected by admin",
+            )
+
+        record = get_approved_record(prescription_id)
+        if record is None:
+            raise HTTPException(status_code=403, detail="Prescription is not approved")
+
+        data = record.extracted_data
+        return PrescriptionPatientViewResponse(
+            prescription_id=record.prescription_id,
+            doctor_name=data.doctor_name or "Your doctor",
+            patient_name=data.patient_name or "Patient",
+            patient_age=data.patient_age,
+            prescription_date=data.prescription_date,
+            diagnosis=data.diagnosis,
+            medications=data.medications,
+            notes=data.notes,
+            approved_at=record.reviewed_at,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error fetching patient view for {prescription_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve prescription")
 
 
 # Error handlers

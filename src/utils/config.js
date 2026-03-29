@@ -14,6 +14,13 @@ export const API_ENDPOINTS = {
   SUBMIT_QUIZ: '/api/quiz/submit',
   UPLOAD: '/api/upload',
 
+  // Prescription RAG pipeline endpoints
+  PRESCRIPTION_EXTRACT: '/api/prescriptions/extract',
+  PRESCRIPTIONS_PENDING: '/api/prescriptions/pending',
+  PRESCRIPTION_APPROVE: (id) => `/api/prescriptions/${id}/approve`,
+  PRESCRIPTION_REJECT: (id) => `/api/prescriptions/${id}/reject`,
+  PRESCRIPTION_PATIENT_VIEW: (id) => `/api/prescriptions/${id}/patient-view`,
+
   // Utility endpoints
   HEALTH: '/api/health',
   SESSION_COUNT: '/api/sessions/count',
