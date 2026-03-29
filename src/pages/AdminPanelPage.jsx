@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import MedicalHeart3D from '../components/MedicalHeart3D';
 import DNA3DHelix from '../components/DNA3DHelix';
 import FloatingMedicalCube from '../components/FloatingMedicalCube';
@@ -5,6 +6,274 @@ import VitalSignsChart from '../components/VitalSignsChart';
 import ComprehensionScoreChart from '../components/ComprehensionScoreChart';
 import ProcessingStatusDoughnut from '../components/ProcessingStatusDoughnut';
 import ReadmissionRiskChart from '../components/ReadmissionRiskChart';
+import api from '../services/api';
+
+// ---------------------------------------------------------------------------
+// Prescription queue panel (doctor → admin → patient pipeline)
+// ---------------------------------------------------------------------------
+
+function PrescriptionQueuePanel() {
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [actionStatus, setActionStatus] = useState({}); // { [id]: 'approving'|'rejecting'|'done' }
+  const [rejectReason, setRejectReason] = useState('');
+  const [adminId, setAdminId] = useState('');
+
+  const fetchPending = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await api.getPendingPrescriptions();
+      setRecords(data.items || []);
+    } catch (err) {
+      setError(err.message || 'Failed to load pending prescriptions');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPending();
+  }, [fetchPending]);
+
+  const handleApprove = async (id) => {
+    if (!adminId.trim()) {
+      alert('Please enter your Admin ID before approving.');
+      return;
+    }
+    setActionStatus((s) => ({ ...s, [id]: 'approving' }));
+    try {
+      await api.approvePrescription(id, adminId.trim());
+      setRecords((prev) => prev.filter((r) => r.prescription_id !== id));
+      if (selected?.prescription_id === id) setSelected(null);
+    } catch (err) {
+      alert(`Approval failed: ${err.message}`);
+    } finally {
+      setActionStatus((s) => ({ ...s, [id]: 'done' }));
+    }
+  };
+
+  const handleReject = async (id) => {
+    if (!adminId.trim()) {
+      alert('Please enter your Admin ID before rejecting.');
+      return;
+    }
+    if (!rejectReason.trim()) {
+      alert('Please enter a rejection reason.');
+      return;
+    }
+    setActionStatus((s) => ({ ...s, [id]: 'rejecting' }));
+    try {
+      await api.rejectPrescription(id, adminId.trim(), rejectReason.trim());
+      setRecords((prev) => prev.filter((r) => r.prescription_id !== id));
+      if (selected?.prescription_id === id) setSelected(null);
+      setRejectReason('');
+    } catch (err) {
+      alert(`Rejection failed: ${err.message}`);
+    } finally {
+      setActionStatus((s) => ({ ...s, [id]: 'done' }));
+    }
+  };
+
+  return (
+    <div className="col-span-12 glass-card rounded-xl overflow-hidden border border-white/5">
+      {/* Panel header */}
+      <div className="p-6 border-b border-white/5 flex justify-between items-center">
+        <div>
+          <h3 className="text-lg font-headline font-bold text-white flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary">medication</span>
+            Prescription Review Queue
+          </h3>
+          <p className="text-sm text-slate-400 mt-1">
+            Handwritten prescriptions extracted via RAG — approve or reject before patient delivery
+          </p>
+        </div>
+        <button
+          onClick={fetchPending}
+          className="p-2 hover:bg-white/5 rounded-full transition-all text-slate-400"
+          title="Refresh"
+        >
+          <span className="material-symbols-outlined">refresh</span>
+        </button>
+      </div>
+
+      {/* Admin ID row */}
+      <div className="px-6 py-3 border-b border-white/5 flex items-center gap-3 bg-white/[0.02]">
+        <span className="material-symbols-outlined text-sm text-slate-400">badge</span>
+        <input
+          type="text"
+          placeholder="Enter your Admin ID to enable actions…"
+          value={adminId}
+          onChange={(e) => setAdminId(e.target.value)}
+          className="flex-1 bg-transparent border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none"
+        />
+      </div>
+
+      {loading && (
+        <div className="p-8 text-center text-slate-400 text-sm">
+          <span className="material-symbols-outlined animate-spin text-primary text-2xl">progress_activity</span>
+          <p className="mt-2">Loading prescriptions…</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-6 text-sm text-error-container bg-error/10 flex items-center gap-3">
+          <span className="material-symbols-outlined text-error">error</span>
+          {error}
+        </div>
+      )}
+
+      {!loading && !error && records.length === 0 && (
+        <div className="p-8 text-center text-slate-500 text-sm">
+          <span className="material-symbols-outlined text-3xl mb-2 block text-slate-600">check_circle</span>
+          No prescriptions pending review
+        </div>
+      )}
+
+      {!loading && records.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-x divide-white/5">
+          {/* Left — list */}
+          <div className="overflow-y-auto max-h-[480px] p-4 space-y-3">
+            {records.map((rec) => {
+              const d = rec.extracted_data;
+              const busy = actionStatus[rec.prescription_id] === 'approving'
+                        || actionStatus[rec.prescription_id] === 'rejecting';
+              return (
+                <div
+                  key={rec.prescription_id}
+                  onClick={() => !busy && setSelected(rec)}
+                  className={`p-4 rounded-xl border cursor-pointer transition-all ${
+                    selected?.prescription_id === rec.prescription_id
+                      ? 'bg-primary/10 border-primary/30'
+                      : 'bg-surface-container-low hover:bg-surface-container-high border-white/5'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="text-sm font-bold text-white">
+                      {d.patient_name || 'Unknown Patient'}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 bg-yellow-500/20 text-yellow-300 rounded-full uppercase font-bold">
+                      Pending
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 space-y-0.5">
+                    {d.patient_id && <p>ID: {d.patient_id}</p>}
+                    {d.doctor_name && <p>Dr. {d.doctor_name}</p>}
+                    {d.medications?.length > 0 && (
+                      <p>{d.medications.length} medication{d.medications.length !== 1 ? 's' : ''} extracted</p>
+                    )}
+                    <p className="text-slate-600">
+                      {new Date(rec.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Right — detail / action pane */}
+          <div className="p-6 flex flex-col gap-4">
+            {!selected ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm gap-2">
+                <span className="material-symbols-outlined text-3xl text-slate-600">touch_app</span>
+                Select a prescription to review
+              </div>
+            ) : (
+              <>
+                <h4 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Extracted Data
+                </h4>
+
+                <div className="space-y-2 text-sm text-slate-300 flex-1 overflow-y-auto">
+                  {[
+                    ['Doctor', selected.extracted_data.doctor_name],
+                    ['Patient Name', selected.extracted_data.patient_name],
+                    ['Patient ID', selected.extracted_data.patient_id],
+                    ['Age', selected.extracted_data.patient_age],
+                    ['Date', selected.extracted_data.prescription_date],
+                    ['Diagnosis', selected.extracted_data.diagnosis],
+                  ].map(([label, value]) =>
+                    value ? (
+                      <div key={label} className="flex gap-2">
+                        <span className="text-slate-500 w-28 shrink-0">{label}:</span>
+                        <span className="text-white">{value}</span>
+                      </div>
+                    ) : null
+                  )}
+
+                  {selected.extracted_data.medications?.length > 0 && (
+                    <div>
+                      <p className="text-slate-500 mb-1">Medications:</p>
+                      <ul className="space-y-1 pl-2">
+                        {selected.extracted_data.medications.map((m, i) => (
+                          <li key={i} className="text-xs text-white bg-white/5 rounded px-3 py-1.5">
+                            <span className="font-semibold">{m.name}</span>
+                            {m.strength && ` ${m.strength}`}
+                            {m.form && ` ${m.form}`}
+                            {m.frequency && ` — ${m.frequency}`}
+                            {m.duration && ` × ${m.duration}`}
+                            {m.instructions && (
+                              <span className="text-slate-400"> ({m.instructions})</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {selected.extracted_data.notes && (
+                    <div className="flex gap-2">
+                      <span className="text-slate-500 w-28 shrink-0">Notes:</span>
+                      <span className="text-white">{selected.extracted_data.notes}</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <span className="text-slate-500 w-28 shrink-0">Confidence:</span>
+                    <span className="text-white">
+                      {Math.round((selected.extracted_data.extraction_confidence || 0) * 100)}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* Reject reason input */}
+                <input
+                  type="text"
+                  placeholder="Rejection reason (required to reject)…"
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  className="w-full bg-surface-container-highest border border-white/10 rounded-lg px-4 py-2 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none"
+                />
+
+                {/* Action buttons */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleApprove(selected.prescription_id)}
+                    disabled={actionStatus[selected.prescription_id] === 'approving'}
+                    className="flex-1 py-3 bg-primary text-on-primary font-bold rounded-xl flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(79,219,200,0.3)] transition-all disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-lg">check_circle</span>
+                    {actionStatus[selected.prescription_id] === 'approving' ? 'Approving…' : 'Approve & Send'}
+                  </button>
+                  <button
+                    onClick={() => handleReject(selected.prescription_id)}
+                    disabled={actionStatus[selected.prescription_id] === 'rejecting'}
+                    className="flex-1 py-3 bg-error/20 text-error font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-error/30 transition-all disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-lg">cancel</span>
+                    {actionStatus[selected.prescription_id] === 'rejecting' ? 'Rejecting…' : 'Reject'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function AdminPanelPage() {
   return (
@@ -83,6 +352,9 @@ function AdminPanelPage() {
               <span className="text-[10px] text-primary uppercase font-bold tracking-widest">Systems Nominal</span>
             </div>
           </div>
+
+          {/* Prescription Review Queue — RAG pipeline */}
+          <PrescriptionQueuePanel />
 
           {/* Patient List Sidebar */}
           <div className="col-span-12 lg:col-span-4 glass-card rounded-xl overflow-hidden flex flex-col max-h-[700px] border border-white/5">
