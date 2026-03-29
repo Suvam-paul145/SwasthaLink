@@ -6,6 +6,7 @@ const navItems = [
   { to: "/family-dashboard", icon: "family_restroom", label: "Family Hub" },
   { to: "/clarity-hub", icon: "visibility", label: "Clarity Center" },
   { to: "/admin-panel", icon: "admin_panel_settings", label: "Admin Panel" },
+  { to: "/doctor-panel", icon: "stethoscope", label: "Doctor Panel" },
   { to: "/showcase", icon: "view_in_ar", label: "3D Showcase" },
   { to: "/settings", icon: "settings", label: "Settings" },
 ];

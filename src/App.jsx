@@ -6,6 +6,7 @@ import DetailedClarityHubPage from "./pages/DetailedClarityHubPage";
 import FamilyDashboardPage from "./pages/FamilyDashboardPage";
 import SettingsPage from "./pages/SettingsPage";
 import ComponentShowcasePage from "./pages/ComponentShowcasePage";
+import DoctorPanelPage from "./pages/DoctorPanelPage";
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/family-dashboard" element={<FamilyDashboardPage />} />
         <Route path="/family-hub" element={<Navigate to="/family-dashboard" replace />} />
         <Route path="/admin-panel" element={<AdminPanelPage />} />
+        <Route path="/doctor-panel" element={<DoctorPanelPage />} />
         <Route path="/patients" element={<Navigate to="/admin-panel" replace />} />
         <Route path="/showcase" element={<ComponentShowcasePage />} />
         <Route path="/settings" element={<SettingsPage />} />

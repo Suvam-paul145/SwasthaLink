@@ -1,6 +1,112 @@
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 function DetailedClarityHubPage() {
+  const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceLanguage, setVoiceLanguage] = useState("Both");
+  const [activeMode, setActiveMode] = useState("Care Plan");
+  const [voiceTimeline, setVoiceTimeline] = useState([
+    {
+      id: "voice-welcome",
+      speaker: "assistant",
+      title: "Ready to assist",
+      content: "Tap the mic to explain your treatment in simple language.",
+      translation: "সহজ ভাষায় চিকিৎসা পরিকল্পনা বুঝতে মাইক আইকনে ট্যাপ করুন।"
+    }
+  ]);
+
+  const assistantModes = useMemo(
+    () => ["Care Plan", "Medicine", "Diet", "Emergency"],
+    []
+  );
+
+  const voiceShortcuts = useMemo(
+    () => [
+      { icon: "medication", label: "Next dose" },
+      { icon: "schedule", label: "Set reminder" },
+      { icon: "local_hospital", label: "Urgent signs" },
+      { icon: "translate", label: "বাংলা only" },
+    ],
+    []
+  );
+
+  const pushAssistantResponse = (shortcutLabel) => {
+    const responses = {
+      "Next dose": {
+        title: "Medication update",
+        content: "Insulin 10 units at 8:00 PM, BP tablet after dinner.",
+        translation: "রাত ৮টায় ইনসুলিন ১০ ইউনিট, রাতের খাবারের পর BP ট্যাবলেট।"
+      },
+      "Set reminder": {
+        title: "Reminder draft",
+        content: "I can remind at 7:30 PM and 9:00 PM for medicine and sugar check.",
+        translation: "ওষুধ ও সুগার চেকের জন্য ৭:৩০ PM এবং ৯:০০ PM রিমাইন্ডার সেট করা যাবে।"
+      },
+      "Urgent signs": {
+        title: "Immediate care",
+        content: "Severe chest pain, breathlessness, or sugar above 300 needs emergency support.",
+        translation: "তীব্র বুক ব্যথা, শ্বাসকষ্ট বা ৩০০-এর বেশি সুগার হলে দ্রুত জরুরি সহায়তা নিন।"
+      },
+      "বাংলা only": {
+        title: "Language switched",
+        content: "Voice responses can now focus on Bengali-first instructions.",
+        translation: "এখন থেকে ভয়েস নির্দেশনা বাংলা-প্রধানভাবে দেওয়া হবে।"
+      },
+      default: {
+        title: "CareGuide",
+        content: "Your care summary is ready. Say 'repeat slowly' for a calmer pace.",
+        translation: "আপনার কেয়ার সারাংশ প্রস্তুত। ধীরে শুনতে চাইলে বলুন 'repeat slowly'।"
+      }
+    };
+
+    const response = responses[shortcutLabel] ?? responses.default;
+    setVoiceTimeline((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-assistant`,
+        speaker: "assistant",
+        title: response.title,
+        content: response.content,
+        translation: response.translation,
+      },
+    ]);
+  };
+
+  const handleShortcut = (shortcut) => {
+    setVoiceTimeline((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-user`,
+        speaker: "user",
+        title: "You asked",
+        content: shortcut.label,
+      },
+    ]);
+    pushAssistantResponse(shortcut.label);
+  };
+
+  const toggleListening = () => {
+    const nextListening = !isListening;
+    setIsListening(nextListening);
+
+    if (nextListening) {
+      setVoiceTimeline((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-user-voice`,
+          speaker: "user",
+          title: "Voice input",
+          content: "Explain my night routine in short steps.",
+        },
+      ]);
+      window.setTimeout(() => {
+        pushAssistantResponse("default");
+        setIsListening(false);
+      }, 1300);
+    }
+  };
+
   return (
     <div className="p-12 relative z-10 max-w-7xl mx-auto">
       {/* Header Section */}
@@ -167,18 +273,152 @@ function DetailedClarityHubPage() {
         </Link>
       </div>
 
-      {/* Floating Assistant Action */}
-      <button className="fixed bottom-12 right-12 w-20 h-20 bg-primary text-on-primary rounded-full shadow-[0_20px_40px_rgba(20,184,166,0.3)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 group border-4 border-surface">
-        <div className="absolute inset-0 rounded-full border-4 border-primary/40 animate-ping"></div>
-        <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>record_voice_over</span>
-        {/* Tooltip (Bilingual) */}
-        <div className="absolute bottom-full right-0 mb-6 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all pointer-events-none">
-          <div className="glass-card px-4 py-2 rounded-xl whitespace-nowrap flex flex-col gap-0.5 items-end">
-            <span className="text-xs font-bold text-white">Voice Assistant</span>
-            <span className="text-[10px] text-teal-400">ভয়েস অ্যাসিস্ট্যান্ট</span>
+      {/* Floating Voice Assistant */}
+      <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 flex flex-col items-end gap-4">
+        <div
+          className={`w-[min(420px,calc(100vw-1.5rem))] h-[min(620px,calc(100vh-7rem))] rounded-[2rem] border border-teal-300/20 bg-gradient-to-b from-[#0b1c2c]/95 via-[#10263a]/95 to-[#0a1a2a]/95 shadow-[0_24px_80px_rgba(20,184,166,0.35)] backdrop-blur-2xl overflow-hidden transition-all duration-500 ${
+            isVoicePanelOpen
+              ? "translate-y-0 opacity-100 scale-100 pointer-events-auto"
+              : "translate-y-8 opacity-0 scale-95 pointer-events-none"
+          }`}
+        >
+          <div className="relative h-full flex flex-col">
+            <div className="absolute -top-20 -right-16 h-44 w-44 rounded-full bg-teal-300/20 blur-3xl"></div>
+            <div className="absolute -bottom-24 -left-14 h-56 w-56 rounded-full bg-cyan-400/15 blur-3xl"></div>
+
+            <header className="relative px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${isListening ? "bg-gradient-to-br from-rose-300 to-orange-300 shadow-rose-900/40" : "bg-gradient-to-br from-teal-300 to-cyan-500 shadow-teal-900/40"}`}>
+                  <span className="material-symbols-outlined text-[#08383a]" style={{ fontVariationSettings: "'FILL' 1" }}>graphic_eq</span>
+                  <span className={`absolute -right-1 -bottom-1 w-3 h-3 rounded-full border-2 border-[#0c1d2a] ${isListening ? "bg-rose-400 animate-pulse" : "bg-emerald-400"}`}></span>
+                </div>
+                <div>
+                  <p className="text-white text-sm font-bold tracking-wide">Voice Assistant</p>
+                  <p className="text-teal-200/90 text-xs">Clear guidance in real time</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsVoicePanelOpen(false)}
+                className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
+                aria-label="Close voice assistant"
+              >
+                <span className="material-symbols-outlined text-slate-200 text-[20px]">close</span>
+              </button>
+            </header>
+
+            <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02] space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-[0.18em] text-teal-200/80">Assistant Mode</p>
+                <div className="flex items-center gap-1 rounded-xl bg-white/5 border border-white/10 p-1">
+                  {["Both", "EN", "BN"].map((lang) => (
+                    <button
+                      key={lang}
+                      onClick={() => setVoiceLanguage(lang)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold tracking-wider transition-all ${voiceLanguage === lang ? "bg-teal-300 text-[#053739]" : "text-slate-300 hover:bg-white/10"}`}
+                    >
+                      {lang}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {assistantModes.map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => setActiveMode(mode)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${activeMode === mode ? "bg-teal-400/20 border-teal-300/40 text-teal-100" : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10"}`}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {voiceShortcuts.map((shortcut) => (
+                  <button
+                    key={shortcut.label}
+                    onClick={() => handleShortcut(shortcut)}
+                    className="rounded-xl border border-white/10 bg-white/5 hover:bg-teal-400/20 hover:border-teal-300/40 transition-all px-3 py-2 flex items-center gap-2 text-left"
+                  >
+                    <span className="material-symbols-outlined text-teal-200 text-[18px]">{shortcut.icon}</span>
+                    <span className="text-xs text-white font-medium leading-tight">{shortcut.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <section className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+              {voiceTimeline.map((entry) => (
+                <div
+                  key={entry.id}
+                  className={`max-w-[90%] rounded-2xl px-4 py-3 shadow-lg ${entry.speaker === "assistant" ? "bg-white/10 border border-white/10 text-slate-100" : "bg-teal-500/80 text-slate-950 ml-auto"}`}
+                >
+                  <p className="text-[11px] uppercase tracking-[0.16em] font-semibold opacity-80 mb-1">{entry.title}</p>
+                  <p className="text-sm leading-relaxed">{entry.content}</p>
+                  {entry.translation && voiceLanguage !== "EN" ? (
+                    <p className="text-xs mt-1 text-teal-100/90">{entry.translation}</p>
+                  ) : null}
+                </div>
+              ))}
+
+              {isListening ? (
+                <div className="max-w-[65%] rounded-2xl px-4 py-3 bg-white/10 border border-white/10 text-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-rose-300/90 animate-bounce"></span>
+                    <span className="w-2 h-2 rounded-full bg-rose-300/90 animate-bounce [animation-delay:120ms]"></span>
+                    <span className="w-2 h-2 rounded-full bg-rose-300/90 animate-bounce [animation-delay:240ms]"></span>
+                  </div>
+                  <p className="text-[11px] mt-2 text-rose-100/90">Listening to your voice...</p>
+                </div>
+              ) : null}
+            </section>
+
+            <footer className="p-4 border-t border-white/10 bg-white/[0.03]">
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <button className="rounded-xl bg-white/5 hover:bg-white/10 transition-colors py-2 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1">
+                  <span className="material-symbols-outlined text-[18px]">volume_up</span>
+                  Replay
+                </button>
+                <button className="rounded-xl bg-white/5 hover:bg-white/10 transition-colors py-2 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1">
+                  <span className="material-symbols-outlined text-[18px]">summarize</span>
+                  Summarize
+                </button>
+                <button className="rounded-xl bg-white/5 hover:bg-white/10 transition-colors py-2 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1">
+                  <span className="material-symbols-outlined text-[18px]">save</span>
+                  Save note
+                </button>
+              </div>
+
+              <button
+                onClick={toggleListening}
+                className={`w-full rounded-2xl px-4 py-3 font-bold tracking-wide shadow-lg transition-all duration-300 flex items-center justify-center gap-2 ${isListening ? "bg-gradient-to-r from-rose-400 to-orange-300 text-[#3b1010] shadow-rose-900/40" : "bg-gradient-to-r from-teal-300 to-cyan-400 text-[#043437] shadow-teal-900/40 hover:scale-[1.01]"}`}
+              >
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isListening ? "stop_circle" : "mic"}</span>
+                {isListening ? "Stop Listening" : "Start Voice Assistant"}
+              </button>
+            </footer>
           </div>
         </div>
-      </button>
+
+        <button
+          onClick={() => setIsVoicePanelOpen((prev) => !prev)}
+          className="relative w-20 h-20 rounded-full bg-gradient-to-br from-teal-300 via-teal-400 to-cyan-500 text-[#043437] shadow-[0_20px_40px_rgba(20,184,166,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border-4 border-surface"
+          aria-label="Toggle voice assistant"
+        >
+          <span className="absolute inset-0 rounded-full border-4 border-teal-200/35 animate-ping"></span>
+          <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+            {isVoicePanelOpen ? "graphic_eq" : "record_voice_over"}
+          </span>
+
+          {!isVoicePanelOpen ? (
+            <span className="absolute bottom-full right-0 mb-5 px-3 py-2 rounded-xl bg-[#173542]/95 border border-white/10 text-right shadow-lg">
+              <span className="block text-xs font-bold text-white leading-tight">Voice Assistant</span>
+              <span className="block text-[10px] text-teal-300 leading-tight">ভয়েস অ্যাসিস্ট্যান্ট</span>
+            </span>
+          ) : null}
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,6 +1,97 @@
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 function ClarityHubPage() {
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [isAssistantTyping, setIsAssistantTyping] = useState(false);
+  const [chatInput, setChatInput] = useState("");
+  const [chatMessages, setChatMessages] = useState([
+    {
+      id: "welcome",
+      sender: "assistant",
+      text: "Hi Rahat, I can help with medicines, diet, warning signs, and follow-up steps.",
+      subtext: "হাই রাহাত, আমি ওষুধ, খাবার, বিপদের লক্ষণ এবং ফলো-আপ বুঝিয়ে দিতে পারি।"
+    },
+  ]);
+
+  const quickActions = useMemo(
+    () => [
+      { icon: "medication", label: "Medication plan" },
+      { icon: "restaurant", label: "Diet tips" },
+      { icon: "warning", label: "Danger signs" },
+      { icon: "event", label: "Follow-up dates" },
+    ],
+    []
+  );
+
+  const respondToPrompt = (promptLabel) => {
+    const cannedResponses = {
+      "Medication plan": {
+        text: "Next dose: insulin 10 units at 8:00 PM, then BP tablet after dinner. I can set reminders for both.",
+        subtext: "পরের ডোজ: রাত ৮টায় ইনসুলিন ১০ ইউনিট, তারপর রাতের খাবারের পরে BP ট্যাবলেট। চাইলে রিমাইন্ডার সেট করে দিই।"
+      },
+      "Diet tips": {
+        text: "Tonight, choose low-salt meals, avoid sugary drinks, and drink 2 glasses of water before sleep.",
+        subtext: "আজ রাতের খাবারে কম লবণ রাখুন, মিষ্টি পানীয় এড়িয়ে চলুন, ঘুমানোর আগে ২ গ্লাস পানি পান করুন।"
+      },
+      "Danger signs": {
+        text: "If sugar is above 300, severe dizziness, chest pain, or breathlessness appears, contact emergency care immediately.",
+        subtext: "শর্করা ৩০০-এর বেশি হলে, তীব্র মাথা ঘোরা, বুক ব্যথা বা শ্বাসকষ্ট হলে দ্রুত জরুরি সেবা নিন।"
+      },
+      "Follow-up dates": {
+        text: "Your next review is in 3 days. Bring BP/sugar logs and current medication strips.",
+        subtext: "আপনার পরবর্তী রিভিউ ৩ দিনের মধ্যে। BP/শর্করার রেকর্ড এবং বর্তমান ওষুধের স্ট্রিপ সাথে আনুন।"
+      },
+      custom: {
+        text: "I noted your question. Want a short answer, step-by-step guide, or Bengali-only explanation?",
+        subtext: "আপনার প্রশ্ন নোট করা হয়েছে। সংক্ষিপ্ত উত্তর, ধাপে ধাপে গাইড, নাকি শুধু বাংলা ব্যাখ্যা চান?"
+      },
+    };
+
+    const response = cannedResponses[promptLabel] ?? cannedResponses.custom;
+    setIsAssistantTyping(true);
+    window.setTimeout(() => {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: `${Date.now()}-assistant`,
+          sender: "assistant",
+          text: response.text,
+          subtext: response.subtext,
+        },
+      ]);
+      setIsAssistantTyping(false);
+    }, 800);
+  };
+
+  const handleQuickAction = (action) => {
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-user`,
+        sender: "user",
+        text: action.label,
+      },
+    ]);
+    respondToPrompt(action.label);
+  };
+
+  const handleSend = () => {
+    const trimmed = chatInput.trim();
+    if (!trimmed) return;
+
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-user`,
+        sender: "user",
+        text: trimmed,
+      },
+    ]);
+    setChatInput("");
+    respondToPrompt("custom");
+  };
+
   return (
     <div className="p-12 relative z-10">
       {/* Header Section */}
@@ -133,11 +224,130 @@ function ClarityHubPage() {
         </Link>
       </div>
 
-      {/* Contextual TTS Floating Button */}
-      <button className="fixed bottom-12 right-12 w-20 h-20 bg-primary-container/80 backdrop-blur-xl text-on-primary-container rounded-full shadow-[0_20px_40px_rgba(20,184,166,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 border border-primary/20 group">
-        <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping"></div>
-        <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>record_voice_over</span>
-      </button>
+      {/* Floating Assistant Widget */}
+      <div className="fixed bottom-5 right-5 sm:bottom-8 sm:right-8 z-50 flex flex-col items-end gap-4">
+        <div
+          className={`w-[min(390px,calc(100vw-1.5rem))] h-[min(590px,calc(100vh-7rem))] rounded-[2rem] border border-teal-300/25 bg-gradient-to-b from-slate-900/95 via-[#0f2230]/95 to-[#071b2a]/95 shadow-[0_20px_70px_rgba(20,184,166,0.35)] backdrop-blur-2xl overflow-hidden transition-all duration-500 ${
+            isAssistantOpen
+              ? "translate-y-0 opacity-100 scale-100 pointer-events-auto"
+              : "translate-y-8 opacity-0 scale-95 pointer-events-none"
+          }`}
+        >
+          <div className="relative h-full flex flex-col">
+            <div className="absolute -top-16 -right-16 h-40 w-40 rounded-full bg-teal-300/20 blur-3xl"></div>
+            <div className="absolute -bottom-20 -left-20 h-48 w-48 rounded-full bg-cyan-400/15 blur-3xl"></div>
+
+            <header className="relative px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="relative w-11 h-11 rounded-2xl bg-gradient-to-br from-teal-300 to-cyan-500 flex items-center justify-center shadow-lg shadow-teal-900/40">
+                  <span className="material-symbols-outlined text-[#08383a]" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
+                  <span className="absolute -right-1 -bottom-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0c1d2a]"></span>
+                </div>
+                <div>
+                  <p className="text-white text-sm font-bold tracking-wide">CareGuide Assistant</p>
+                  <p className="text-teal-200/90 text-xs">Online • Bilingual Support</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center" aria-label="More actions">
+                  <span className="material-symbols-outlined text-slate-200 text-[20px]">more_horiz</span>
+                </button>
+                <button
+                  onClick={() => setIsAssistantOpen(false)}
+                  className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
+                  aria-label="Close assistant"
+                >
+                  <span className="material-symbols-outlined text-slate-200 text-[20px]">close</span>
+                </button>
+              </div>
+            </header>
+
+            <div className="relative px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-teal-200/80 mb-2">Quick Actions</p>
+              <div className="grid grid-cols-2 gap-2">
+                {quickActions.map((action) => (
+                  <button
+                    key={action.label}
+                    onClick={() => handleQuickAction(action)}
+                    className="rounded-xl border border-white/10 bg-white/5 hover:bg-teal-400/20 hover:border-teal-300/40 transition-all px-3 py-2 flex items-center gap-2 text-left"
+                  >
+                    <span className="material-symbols-outlined text-teal-200 text-[18px]">{action.icon}</span>
+                    <span className="text-xs text-white font-medium leading-tight">{action.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <section className="relative flex-1 overflow-y-auto px-4 py-4 space-y-3">
+              {chatMessages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`max-w-[88%] rounded-2xl px-4 py-3 shadow-lg ${
+                    message.sender === "assistant"
+                      ? "bg-white/10 border border-white/10 text-slate-100"
+                      : "bg-teal-500/85 text-slate-950 ml-auto"
+                  }`}
+                >
+                  <p className="text-sm leading-relaxed">{message.text}</p>
+                  {message.subtext ? <p className="text-xs mt-1 text-teal-100/90">{message.subtext}</p> : null}
+                </div>
+              ))}
+
+              {isAssistantTyping ? (
+                <div className="max-w-[60%] rounded-2xl px-4 py-3 bg-white/10 border border-white/10 text-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-teal-200/80 animate-bounce"></span>
+                    <span className="w-2 h-2 rounded-full bg-teal-200/80 animate-bounce [animation-delay:100ms]"></span>
+                    <span className="w-2 h-2 rounded-full bg-teal-200/80 animate-bounce [animation-delay:200ms]"></span>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+
+            <footer className="relative p-3 border-t border-white/10 bg-white/[0.03]">
+              <div className="flex items-end gap-2">
+                <button className="w-10 h-10 shrink-0 rounded-xl bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center" aria-label="Attach file">
+                  <span className="material-symbols-outlined text-slate-200">attach_file</span>
+                </button>
+
+                <div className="flex-1 rounded-2xl border border-white/15 bg-[#112638]/90 px-3 py-2 focus-within:border-teal-300/60 transition-colors">
+                  <textarea
+                    rows={1}
+                    value={chatInput}
+                    onChange={(event) => setChatInput(event.target.value)}
+                    placeholder="Ask anything about your care plan..."
+                    className="w-full bg-transparent resize-none outline-none text-sm text-white placeholder:text-slate-400"
+                  />
+                </div>
+
+                <button className="w-10 h-10 shrink-0 rounded-xl bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center" aria-label="Voice input">
+                  <span className="material-symbols-outlined text-slate-200">mic</span>
+                </button>
+
+                <button
+                  onClick={handleSend}
+                  className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-teal-300 to-cyan-400 text-[#043437] shadow-lg shadow-teal-800/40 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+                  aria-label="Send message"
+                >
+                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
+                </button>
+              </div>
+            </footer>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setIsAssistantOpen((prev) => !prev)}
+          className="relative w-20 h-20 rounded-full bg-gradient-to-br from-teal-300 via-teal-400 to-cyan-500 text-[#043437] shadow-[0_20px_40px_rgba(20,184,166,0.45)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border border-white/35"
+          aria-label="Toggle care assistant"
+        >
+          <span className="absolute inset-0 rounded-full border-4 border-teal-200/30 animate-ping"></span>
+          <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
+            {isAssistantOpen ? "chat" : "record_voice_over"}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
