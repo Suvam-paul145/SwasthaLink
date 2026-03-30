@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function DetailedClarityHubPage() {
+  const { user } = useAuth();
+  const patientName = user?.name || "Patient";
   const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceLanguage, setVoiceLanguage] = useState("Both");
@@ -114,7 +117,7 @@ function DetailedClarityHubPage() {
         <div className="space-y-4">
           <span className="text-primary font-bold tracking-widest uppercase text-xs">Clarity Hub</span>
           <div className="flex flex-col gap-0.5">
-            <h2 className="text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">Welcome back, Rahat.</h2>
+            <h2 className="text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">Welcome back, {patientName}.</h2>
             <span className="text-3xl text-teal-400/80 font-headline font-medium">আবার স্বাগতম, রাহাত।</span>
           </div>
         </div>

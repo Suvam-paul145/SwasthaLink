@@ -1,7 +1,11 @@
 import MedicalHeart3D from '../components/MedicalHeart3D';
 import VitalSignsChart from '../components/VitalSignsChart';
+import { useAuth } from '../context/AuthContext';
 
 function FamilyDashboardPage() {
+  const { user } = useAuth();
+  const patientName = user?.name || 'Patient';
+
   return (
     <div className="p-8 relative z-10">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(79,219,200,0.15)_0%,transparent_70%)] -z-10 pointer-events-none"></div>
@@ -18,7 +22,7 @@ function FamilyDashboardPage() {
             </div>
             <h1 className="text-4xl md:text-5xl font-headline font-extrabold tracking-tight text-on-surface text-white">Family Dashboard</h1>
             <p className="text-slate-400 text-lg max-w-xl font-light">
-              Real-time recovery tracking for <span className="text-white font-semibold">Amitav Rahman</span>. Everything is under professional care.
+              Real-time recovery tracking for <span className="text-white font-semibold">{patientName}</span>. Everything is under professional care.
             </p>
           </div>
           <div className="flex gap-4 w-full md:w-auto">

@@ -1,7 +1,11 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function ClarityHubPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const patientName = user?.name || "Patient";
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isAssistantTyping, setIsAssistantTyping] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -20,6 +24,33 @@ function ClarityHubPage() {
       { icon: "restaurant", label: "Diet tips" },
       { icon: "warning", label: "Danger signs" },
       { icon: "event", label: "Follow-up dates" },
+    ],
+    []
+  );
+
+  const rolePanels = useMemo(
+    () => [
+      {
+        id: "doctor",
+        title: "Doctor Panel",
+        subtitle: "Upload and extract prescriptions",
+        route: "/doctor-panel",
+        icon: "stethoscope",
+      },
+      {
+        id: "admin",
+        title: "Admin Panel",
+        subtitle: "Review extracted prescriptions",
+        route: "/admin-panel",
+        icon: "admin_panel_settings",
+      },
+      {
+        id: "patient",
+        title: "Patient Panel",
+        subtitle: "View patient dashboard",
+        route: "/family-dashboard",
+        icon: "personal_injury",
+      },
     ],
     []
   );
@@ -99,7 +130,7 @@ function ClarityHubPage() {
         <div className="space-y-4">
           <span className="text-primary font-bold tracking-widest uppercase text-xs">Clarity Hub</span>
           <h2 className="text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">
-            Welcome back, Rahat.<br />
+            Welcome back, {patientName}.<br />
             <span className="text-teal-400/80 font-normal">আবার স্বাগতম, রাহাত।</span>
           </h2>
         </div>
@@ -113,6 +144,30 @@ function ClarityHubPage() {
           </div>
         </div>
       </header>
+
+      <section className="mb-10 glass-card rounded-2xl border border-white/10 p-4 lg:p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Role Access</p>
+            <p className="text-sm text-slate-300 mt-1">Select Doctor, Admin, or Patient to open the matching panel.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
+            {rolePanels.map((panel) => (
+              <button
+                key={panel.id}
+                onClick={() => navigate(panel.route)}
+                className="rounded-xl border border-white/15 bg-white/[0.04] hover:bg-teal-400/20 hover:border-teal-300/40 transition-all px-4 py-3 text-left"
+              >
+                <div className="flex items-center gap-2 text-teal-200">
+                  <span className="material-symbols-outlined text-[20px]">{panel.icon}</span>
+                  <span className="text-sm font-bold text-white">{panel.title}</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">{panel.subtitle}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Bento Grid Layout */}
       <div className="grid grid-cols-12 gap-8 items-start">
@@ -353,3 +408,4 @@ function ClarityHubPage() {
 }
 
 export default ClarityHubPage;
+

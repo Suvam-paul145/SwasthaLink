@@ -7,12 +7,25 @@ Supports both sandbox (development) and production WhatsApp Business API
 import os
 import logging
 from typing import Dict, Any, Optional
-from twilio.rest import Client
-from twilio.base.exceptions import TwilioRestException
+
+try:
+    from twilio.rest import Client
+    from twilio.base.exceptions import TwilioRestException
+    TWILIO_SDK_AVAILABLE = True
+except ImportError:
+    Client = None
+
+    class TwilioRestException(Exception):
+        """Fallback exception when Twilio SDK is not installed."""
+
+    TWILIO_SDK_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+if not TWILIO_SDK_AVAILABLE:
+    logger.warning("Twilio SDK not installed. Install with: pip install twilio")
 
 # Load Twilio credentials from environment
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -21,7 +34,9 @@ TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238
 
 # Initialize Twilio client
 twilio_client = None
-if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
+if not TWILIO_SDK_AVAILABLE:
+    logger.warning("Twilio client disabled because Twilio SDK is unavailable")
+elif TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
     try:
         twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         logger.info("Twilio client initialized successfully")
@@ -96,6 +111,11 @@ async def send_whatsapp_message(phone_number: str, message: str) -> Dict[str, An
         TwilioServiceError: If Twilio client is not initialized or critical error occurs
     """
     try:
+        if not TWILIO_SDK_AVAILABLE:
+            raise TwilioServiceError(
+                "Twilio SDK is not installed. Run `pip install twilio` or install from requirements.txt."
+            )
+
         # Validate Twilio client
         if not twilio_client:
             raise TwilioServiceError(
@@ -241,6 +261,9 @@ def get_message_status(message_sid: str) -> Dict[str, Any]:
         Dict with message status info
     """
     try:
+        if not TWILIO_SDK_AVAILABLE:
+            raise TwilioServiceError("Twilio SDK is not installed")
+
         if not twilio_client:
             raise TwilioServiceError("Twilio client not initialized")
 
@@ -272,6 +295,13 @@ def check_twilio_health() -> Dict[str, Any]:
         Dict with status information
     """
     try:
+        if not TWILIO_SDK_AVAILABLE:
+            return {
+                "status": "down",
+                "message": "Twilio SDK package not installed",
+                "available": False
+            }
+
         if not twilio_client:
             return {
                 "status": "down",

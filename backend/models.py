@@ -158,6 +158,42 @@ class HealthResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Authentication models
+# ---------------------------------------------------------------------------
+
+class AuthLoginRequest(BaseModel):
+    """Role-based login request"""
+    role: Literal["patient", "doctor", "admin"]
+    email: str = Field(..., min_length=5, max_length=320, description="User email address")
+    password: str = Field(..., min_length=6, max_length=128, description="Account password")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        trimmed = value.strip().lower()
+        if "@" not in trimmed or "." not in trimmed.split("@")[-1]:
+            raise ValueError("Invalid email format")
+        return trimmed
+
+
+class AuthUser(BaseModel):
+    """Authenticated user profile"""
+    id: Optional[str] = None
+    name: str
+    email: str
+    role: Literal["patient", "doctor", "admin"]
+
+
+class AuthLoginResponse(BaseModel):
+    """Login response payload"""
+    success: bool = True
+    message: str = "Login successful"
+    user: AuthUser
+    access_token: Optional[str] = None
+    is_demo: bool = False
+
+
+# ---------------------------------------------------------------------------
 # Prescription RAG pipeline models
 # ---------------------------------------------------------------------------
 

@@ -1,13 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import api, { validators } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 function DoctorPanelPage() {
+  const { user } = useAuth();
   const [analysisMode, setAnalysisMode] = useState("Simplified View");
   const [uploadStatus, setUploadStatus] = useState("Idle");
+  const [uploadError, setUploadError] = useState("");
+  const [uploadMessage, setUploadMessage] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [extractionResult, setExtractionResult] = useState(null);
+  const [isDemoExtraction, setIsDemoExtraction] = useState(false);
+  const [isDropZoneActive, setIsDropZoneActive] = useState(false);
   const [deliveryMode, setDeliveryMode] = useState("WhatsApp + PDF");
   const [feedbackFocus, setFeedbackFocus] = useState("Medication Safety");
   const [feedbackDraft, setFeedbackDraft] = useState(
     "Use more conversational Bengali for elderly caregiver context and keep medication timing bold."
   );
+  const fileInputRef = useRef(null);
 
   const patientDirectory = useMemo(
     () => [
@@ -71,11 +81,64 @@ function DoctorPanelPage() {
     setSelectedDoctorId(selectedReview.doctorId);
   }, [selectedReview]);
 
-  const handleUploadPrescription = () => {
-    setUploadStatus("Uploading");
-    window.setTimeout(() => {
+  useEffect(() => {
+    if (!user?.name) return;
+    const matchedDoctor = doctorDirectory.find(
+      (doctor) => doctor.name.toLowerCase() === user.name.toLowerCase()
+    );
+    if (matchedDoctor) {
+      setSelectedDoctorId(matchedDoctor.id);
+    }
+  }, [doctorDirectory, user?.name]);
+
+  const applySelectedFile = (file) => {
+    if (!file) return;
+    setSelectedFile(file);
+    setUploadStatus("Idle");
+    setUploadError("");
+    setUploadMessage("");
+  };
+
+  const handleSelectFile = (event) => {
+    const file = event.target.files?.[0];
+    applySelectedFile(file);
+  };
+
+  const handleFileDrop = (event) => {
+    event.preventDefault();
+    setIsDropZoneActive(false);
+    const file = event.dataTransfer?.files?.[0];
+    applySelectedFile(file);
+  };
+
+  const handleUploadPrescription = async () => {
+    if (!selectedFile) {
+      setUploadError("Please select a prescription file before uploading.");
+      setUploadStatus("Failed");
+      return;
+    }
+
+    try {
+      validators.validateFile(selectedFile);
+      setUploadStatus("Uploading");
+      setUploadError("");
+      setUploadMessage("");
+
+      const response = await api.extractPrescription(selectedFile, selectedDoctor.id, {
+        doctorName: selectedDoctor.name,
+        patientName: selectedPatient.name,
+        patientId: selectedPatient.id,
+        patientAge: `${selectedPatient.age} years`,
+      });
+
+      setExtractionResult(response);
+      setIsDemoExtraction(Boolean(response.demo_mode));
       setUploadStatus("Uploaded");
-    }, 900);
+      setUploadMessage(response.message || "Prescription extraction completed and queued for review.");
+    } catch (error) {
+      setUploadStatus("Failed");
+      setUploadError(error.message || "Upload failed. Please try again.");
+    }
   };
 
   return (
@@ -86,6 +149,9 @@ function DoctorPanelPage() {
           <h2 className="text-4xl lg:text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">
             Clinical Review Command Desk
           </h2>
+          <p className="text-sm text-teal-200">
+            Signed in as: <span className="font-semibold text-white">{user?.name || "Doctor"}</span>
+          </p>
           <p className="text-slate-300 max-w-3xl">
             Approve pending discharge summaries, run analysis mode checks, upload prescriptions, and deliver feedback to keep patient communication safe and clear.
           </p>
@@ -345,16 +411,48 @@ function DoctorPanelPage() {
                   <span className="w-1 h-1 rounded-full bg-slate-600"></span>
                   <span className="font-semibold text-white">Doctor:</span> {selectedDoctor.name}
                 </div>
-                <div className="rounded-2xl border-2 border-dashed border-teal-300/40 bg-teal-400/5 p-6 text-center">
+                <div
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setIsDropZoneActive(true);
+                  }}
+                  onDragLeave={() => setIsDropZoneActive(false)}
+                  onDrop={handleFileDrop}
+                  className={`rounded-2xl border-2 border-dashed p-6 text-center transition-all ${
+                    isDropZoneActive
+                      ? "border-teal-200 bg-teal-400/15 shadow-[0_0_20px_rgba(45,212,191,0.25)]"
+                      : "border-teal-300/40 bg-teal-400/5"
+                  }`}
+                >
                   <span className="material-symbols-outlined text-4xl text-teal-200">cloud_upload</span>
                   <p className="text-sm text-slate-100 mt-2">Drag and drop prescription PDF or image</p>
                   <p className="text-xs text-slate-400 mt-1">Supports JPG, PNG, PDF up to 10MB</p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/png,image/jpeg"
+                    onChange={handleSelectFile}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="mt-4 px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white font-semibold hover:bg-white/15 transition-all"
+                  >
+                    Choose File
+                  </button>
+                  {selectedFile ? (
+                    <p className="text-xs text-teal-200 mt-3 break-all">
+                      Selected: {selectedFile.name}
+                    </p>
+                  ) : null}
                 </div>
                 <button
                   onClick={handleUploadPrescription}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-300 to-cyan-400 text-[#06383a] font-bold hover:shadow-[0_12px_28px_rgba(20,184,166,0.35)] transition-all"
+                  disabled={uploadStatus === "Uploading"}
+                  className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-300 to-cyan-400 text-[#06383a] font-bold hover:shadow-[0_12px_28px_rgba(20,184,166,0.35)] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Upload Prescription
+                  {uploadStatus === "Uploading" ? "Extracting Document..." : "Upload Prescription"}
                 </button>
                 <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 flex items-center justify-between">
                   <span className="text-xs text-slate-300">Upload status</span>
@@ -364,16 +462,62 @@ function DoctorPanelPage() {
                         ? "bg-emerald-500/20 text-emerald-200"
                         : uploadStatus === "Uploading"
                           ? "bg-amber-500/20 text-amber-200"
+                          : uploadStatus === "Failed"
+                            ? "bg-rose-500/20 text-rose-200"
                           : "bg-slate-500/20 text-slate-200"
                     }`}
                   >
                     {uploadStatus}
                   </span>
                 </div>
+                {uploadMessage ? (
+                  <div className="rounded-xl bg-emerald-500/10 border border-emerald-300/30 px-4 py-3 text-xs text-emerald-100">
+                    {uploadMessage}
+                  </div>
+                ) : null}
+                {uploadError ? (
+                  <div className="rounded-xl bg-rose-500/10 border border-rose-300/30 px-4 py-3 text-xs text-rose-100">
+                    {uploadError}
+                  </div>
+                ) : null}
                 <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 flex items-center justify-between">
                   <span className="text-xs text-slate-300">Delivery option</span>
                   <span className="text-xs font-semibold text-teal-200">{deliveryMode}</span>
                 </div>
+                {extractionResult?.extracted_data ? (
+                  <div className="rounded-xl bg-[#0f2334] border border-white/10 px-4 py-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold uppercase tracking-wider text-white">Extraction Summary</p>
+                      {isDemoExtraction ? (
+                        <span className="text-[10px] uppercase tracking-wider bg-amber-500/20 text-amber-200 px-2 py-1 rounded-full">
+                          Demo Data
+                        </span>
+                      ) : (
+                        <span className="text-[10px] uppercase tracking-wider bg-emerald-500/20 text-emerald-200 px-2 py-1 rounded-full">
+                          Live Data
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-300">
+                      Prescription ID: <span className="text-white">{extractionResult.prescription_id}</span>
+                    </p>
+                    <p className="text-xs text-slate-300">
+                      Patient: <span className="text-white">{extractionResult.extracted_data.patient_name || "Unknown"}</span>
+                    </p>
+                    <p className="text-xs text-slate-300">
+                      Doctor: <span className="text-white">{extractionResult.extracted_data.doctor_name || selectedDoctor.name}</span>
+                    </p>
+                    <p className="text-xs text-slate-300">
+                      Medications extracted: <span className="text-white">{extractionResult.extracted_data.medications?.length || 0}</span>
+                    </p>
+                    <p className="text-xs text-slate-300">
+                      Confidence:{" "}
+                      <span className="text-white">
+                        {Math.round((extractionResult.extracted_data.extraction_confidence || 0) * 100)}%
+                      </span>
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </div>
 

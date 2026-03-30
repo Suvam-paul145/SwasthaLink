@@ -1,24 +1,24 @@
 # Core FastAPI dependencies
-fastapi==0.111.0
-uvicorn[standard]==0.30.0
-python-dotenv==1.0.0
-pydantic==2.7.0
+fastapi>=0.111.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
+python-dotenv>=1.0.0,<2.0.0
+pydantic>=2.10.0,<3.0.0
 
 # AI/ML
-google-generativeai==0.7.0
+google-genai>=0.8.0,<2.0.0
 
 # WhatsApp/Twilio
-twilio==9.0.4
+twilio>=9.0.4,<10.0.0
 
 # Database
-supabase==2.3.0
+supabase>=2.3.0,<3.0.0
 
 # AWS Services
-boto3==1.34.0
+boto3>=1.34.0,<2.0.0
 
 # HTTP Client
-# Must satisfy both FastAPI (>=0.23.0) and supabase (>=0.24.0,<0.25.0)
-httpx>=0.24.0,<0.25.0
+# Shared dependency used by multiple SDKs (Gemini + Supabase)
+httpx>=0.28.1,<1.0.0
 
 # File handling
 python-multipart==0.0.9

@@ -7,6 +7,7 @@ import ComprehensionScoreChart from '../components/ComprehensionScoreChart';
 import ProcessingStatusDoughnut from '../components/ProcessingStatusDoughnut';
 import ReadmissionRiskChart from '../components/ReadmissionRiskChart';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 // ---------------------------------------------------------------------------
 // Prescription queue panel (doctor → admin → patient pipeline)
@@ -16,6 +17,7 @@ function PrescriptionQueuePanel() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [selected, setSelected] = useState(null);
   const [actionStatus, setActionStatus] = useState({}); // { [id]: 'approving'|'rejecting'|'done' }
   const [rejectReason, setRejectReason] = useState('');
@@ -27,8 +29,10 @@ function PrescriptionQueuePanel() {
     try {
       const data = await api.getPendingPrescriptions();
       setRecords(data.items || []);
+      setIsDemoMode(Boolean(data.demo_mode));
     } catch (err) {
       setError(err.message || 'Failed to load pending prescriptions');
+      setIsDemoMode(false);
     } finally {
       setLoading(false);
     }
@@ -45,7 +49,8 @@ function PrescriptionQueuePanel() {
     }
     setActionStatus((s) => ({ ...s, [id]: 'approving' }));
     try {
-      await api.approvePrescription(id, adminId.trim());
+      const response = await api.approvePrescription(id, adminId.trim());
+      if (response?.demo_mode) setIsDemoMode(true);
       setRecords((prev) => prev.filter((r) => r.prescription_id !== id));
       if (selected?.prescription_id === id) setSelected(null);
     } catch (err) {
@@ -66,7 +71,8 @@ function PrescriptionQueuePanel() {
     }
     setActionStatus((s) => ({ ...s, [id]: 'rejecting' }));
     try {
-      await api.rejectPrescription(id, adminId.trim(), rejectReason.trim());
+      const response = await api.rejectPrescription(id, adminId.trim(), rejectReason.trim());
+      if (response?.demo_mode) setIsDemoMode(true);
       setRecords((prev) => prev.filter((r) => r.prescription_id !== id));
       if (selected?.prescription_id === id) setSelected(null);
       setRejectReason('');
@@ -89,6 +95,12 @@ function PrescriptionQueuePanel() {
           <p className="text-sm text-slate-400 mt-1">
             Handwritten prescriptions extracted via RAG — approve or reject before patient delivery
           </p>
+          {isDemoMode ? (
+            <p className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-full bg-amber-500/20 text-amber-200 text-[11px] font-semibold uppercase tracking-wider">
+              <span className="material-symbols-outlined text-[14px]">science</span>
+              Demo Mode Active
+            </p>
+          ) : null}
         </div>
         <button
           onClick={fetchPending}
@@ -276,6 +288,8 @@ function PrescriptionQueuePanel() {
 }
 
 function AdminPanelPage() {
+  const { user } = useAuth();
+
   return (
     <div className="relative min-h-screen">
       {/* Topbar Navigation */}
@@ -304,8 +318,12 @@ function AdminPanelPage() {
           <button className="p-2 hover:bg-white/5 rounded-full transition-all text-slate-400">
             <span className="material-symbols-outlined">translate</span>
           </button>
+          <div className="hidden md:block text-right">
+            <p className="text-xs text-slate-400 uppercase tracking-[0.14em]">Admin</p>
+            <p className="text-sm font-semibold text-white">{user?.name || 'Administrator'}</p>
+          </div>
           <img 
-            alt="Doctor profile" 
+            alt="Admin profile" 
             className="w-10 h-10 rounded-full border border-teal-400/30" 
             src="https://lh3.googleusercontent.com/aida-public/AB6AXuDwM0cW-D52oN2c7XGlXm7aeiqS2SjdXilTmlkCLeJ67TyeurvI1LWyMjS9kh2wpQ7Oa5KTSdCob1sT6cAyWdA6DZOWt4YLXzJl7rFeYhTqezWIgGSyPm5gQhB3Yz36oR55laa1KrN0EGl4683YKm6iw3BymQB2ULV-wpY3BFOaeXiqHn-MdpRHZ8Ww5AZ3nP5ILIVaFKfHBPVgTSOAmMLtTmHre3Mp9k2y-xb7OIhekp-27VPOWTymDMCX-GC3rXetXCeEQMWKRA"
           />
@@ -524,3 +542,4 @@ function AdminPanelPage() {
 }
 
 export default AdminPanelPage;
+

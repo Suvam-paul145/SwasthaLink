@@ -13,6 +13,7 @@ export const API_ENDPOINTS = {
   SEND_WHATSAPP: '/api/send-whatsapp',
   SUBMIT_QUIZ: '/api/quiz/submit',
   UPLOAD: '/api/upload',
+  AUTH_LOGIN: '/api/auth/login',
 
   // Prescription RAG pipeline endpoints
   PRESCRIPTION_EXTRACT: '/api/prescriptions/extract',

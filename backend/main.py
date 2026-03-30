@@ -11,6 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 
+# Load environment variables early (before service imports)
+load_dotenv()
+
 # Import models
 from models import (
     ProcessRequest,
@@ -21,6 +24,9 @@ from models import (
     QuizSubmitResponse,
     HealthResponse,
     UploadResponse,
+    # Auth models
+    AuthLoginRequest,
+    AuthLoginResponse,
     # Prescription RAG models
     PrescriptionExtractResponse,
     PrescriptionApproveRequest,
@@ -60,6 +66,7 @@ from s3_service import (
     S3ServiceError
 )
 from rate_alert_service import rate_alert_service
+from auth_service import login_user, AuthServiceError
 
 # Prescription RAG service
 from prescription_rag_service import (
@@ -71,9 +78,6 @@ from prescription_rag_service import (
     get_record,
     get_approved_record,
 )
-
-# Load environment variables
-load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -117,6 +121,37 @@ async def root():
         "docs": "/docs",
         "health": "/api/health"
     }
+
+
+# Role-based login endpoint
+@app.post("/api/auth/login", response_model=AuthLoginResponse)
+async def auth_login(request: AuthLoginRequest):
+    """
+    Authenticate by role + email + password.
+
+    Uses Supabase auth when configured, and falls back to demo users in local
+    development.
+    """
+    try:
+        result = login_user(
+            email=request.email,
+            password=request.password,
+            role=request.role,
+        )
+
+        return AuthLoginResponse(
+            success=True,
+            message="Login successful",
+            user=result["user"],
+            access_token=result.get("access_token"),
+            is_demo=result.get("is_demo", False),
+        )
+
+    except AuthServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"Unexpected auth error: {exc}")
+        raise HTTPException(status_code=500, detail="Login failed")
 
 
 # Health check endpoint

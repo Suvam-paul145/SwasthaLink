@@ -9,7 +9,23 @@ import json
 import re
 import logging
 from typing import Dict, Any, Optional
-import google.generativeai as genai
+
+try:
+    from google import genai
+    from google.genai import types
+    GENAI_SDK = "google.genai"
+except ImportError:
+    genai = None
+    types = None
+    GENAI_SDK = None
+
+if GENAI_SDK is None:
+    try:
+        import google.generativeai as genai
+        GENAI_SDK = "google.generativeai"
+    except ImportError:
+        genai = None
+        GENAI_SDK = None
 
 from models import (
     ProcessResponse,
@@ -30,12 +46,131 @@ from prompts import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+MODEL_NAME = "gemini-2.5-flash"
+
 # Initialize Gemini API (google-generativeai SDK)
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+genai_client = None
+
+if GENAI_SDK is None:
+    logger.warning("No Gemini SDK installed. Install `google-genai` (recommended) or `google-generativeai`.")
 if not GEMINI_API_KEY:
     logger.warning("GEMINI_API_KEY not found in environment variables")
 else:
-    genai.configure(api_key=GEMINI_API_KEY)
+    if GENAI_SDK == "google.genai":
+        genai_client = genai.Client(api_key=GEMINI_API_KEY)
+    elif GENAI_SDK == "google.generativeai":
+        genai.configure(api_key=GEMINI_API_KEY)
+
+
+def _build_new_sdk_config(
+    generation_config: Optional[Dict[str, Any]] = None,
+    system_instruction: Optional[str] = None,
+    safety_settings: Optional[list[Dict[str, Any]]] = None,
+):
+    """Build GenerateContentConfig for google.genai SDK."""
+    config_payload: Dict[str, Any] = {
+        "temperature": 0.3,
+        "max_output_tokens": 4096,
+    }
+
+    if generation_config:
+        config_payload.update(generation_config)
+
+    if system_instruction:
+        config_payload["system_instruction"] = system_instruction
+
+    if safety_settings:
+        config_payload["safety_settings"] = safety_settings
+
+    return types.GenerateContentConfig(**config_payload)
+
+
+def _generate_text(
+    prompt: str,
+    generation_config: Optional[Dict[str, Any]] = None,
+    safety_settings: Optional[list[Dict[str, Any]]] = None,
+    system_instruction: Optional[str] = None,
+    model_name: str = MODEL_NAME,
+) -> str:
+    """Generate text using whichever Gemini SDK is available."""
+    if not GEMINI_API_KEY:
+        raise GeminiServiceError("Gemini API key not configured")
+
+    if GENAI_SDK == "google.genai":
+        if not genai_client:
+            raise GeminiServiceError("Gemini client not initialized")
+
+        config = _build_new_sdk_config(
+            generation_config=generation_config,
+            safety_settings=safety_settings,
+            system_instruction=system_instruction,
+        )
+
+        response = genai_client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=config,
+        )
+        return (getattr(response, "text", None) or "").strip()
+
+    if GENAI_SDK == "google.generativeai":
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config,
+            safety_settings=safety_settings,
+            system_instruction=system_instruction,
+        )
+        response = model.generate_content(prompt)
+        return (getattr(response, "text", None) or "").strip()
+
+    raise GeminiServiceError(
+        "Gemini SDK not installed. Install `google-genai` (recommended)."
+    )
+
+
+def _generate_multimodal_text(
+    prompt: str,
+    image_data: bytes,
+    mime_type: str,
+    generation_config: Optional[Dict[str, Any]] = None,
+    model_name: str = MODEL_NAME,
+) -> str:
+    """Generate text for multimodal input (prompt + image/pdf)."""
+    if not GEMINI_API_KEY:
+        raise GeminiServiceError("Gemini API key not configured")
+
+    if GENAI_SDK == "google.genai":
+        if not genai_client:
+            raise GeminiServiceError("Gemini client not initialized")
+
+        config = _build_new_sdk_config(generation_config=generation_config)
+
+        response = genai_client.models.generate_content(
+            model=model_name,
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=image_data, mime_type=mime_type),
+            ],
+            config=config,
+        )
+        return (getattr(response, "text", None) or "").strip()
+
+    if GENAI_SDK == "google.generativeai":
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config,
+        )
+        image_part = {
+            "mime_type": mime_type,
+            "data": image_data,
+        }
+        response = model.generate_content([prompt, image_part])
+        return (getattr(response, "text", None) or "").strip()
+
+    raise GeminiServiceError(
+        "Gemini SDK not installed. Install `google-genai` (recommended)."
+    )
 
 
 class GeminiServiceError(Exception):
@@ -193,18 +328,6 @@ async def process_discharge_summary(
         GeminiServiceError: If AI processing fails
     """
     try:
-        # Validate API key
-        if not GEMINI_API_KEY:
-            raise GeminiServiceError("Gemini API key not configured")
-
-        # Initialize model
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash-exp",  # Using Gemini 2.5 Flash for speed
-            generation_config=GENERATION_CONFIG,
-            safety_settings=SAFETY_SETTINGS,
-            system_instruction=SYSTEM_INSTRUCTION
-        )
-
         # Build prompt
         if re_explain and previous_simplified:
             prompt = format_re_explain_prompt(
@@ -223,18 +346,22 @@ async def process_discharge_summary(
 
         # Call Gemini API
         logger.info("Calling Gemini API...")
-        response = model.generate_content(prompt)
+        response_text = _generate_text(
+            prompt=prompt,
+            generation_config=GENERATION_CONFIG,
+            safety_settings=SAFETY_SETTINGS,
+            system_instruction=SYSTEM_INSTRUCTION,
+        )
 
         # Check if response was blocked
-        if not response.text:
+        if not response_text:
             logger.error("Gemini response was blocked or empty")
-            logger.error(f"Response: {response}")
             raise GeminiServiceError("Gemini API returned empty response. Content may have been blocked.")
 
-        logger.info(f"Gemini response received: {len(response.text)} chars")
+        logger.info(f"Gemini response received: {len(response_text)} chars")
 
         # Extract and parse JSON
-        data = _extract_json_from_response(response.text)
+        data = _extract_json_from_response(response_text)
 
         # Build and validate response
         result = _validate_and_build_response(data)
@@ -267,32 +394,21 @@ async def extract_text_from_image(image_data: bytes, mime_type: str) -> str:
         GeminiServiceError: If OCR fails
     """
     try:
-        if not GEMINI_API_KEY:
-            raise GeminiServiceError("Gemini API key not configured")
-
-        # Initialize vision model
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash-exp",
-            generation_config={"temperature": 0.1},  # Very low for OCR accuracy
-        )
-
-        # Prepare image part
-        image_part = {
-            "mime_type": mime_type,
-            "data": image_data
-        }
-
         # Get OCR prompt
         prompt = format_ocr_prompt()
 
         # Call API with image
         logger.info(f"Calling Gemini Vision API for OCR ({mime_type})...")
-        response = model.generate_content([prompt, image_part])
+        extracted_text = _generate_multimodal_text(
+            prompt=prompt,
+            image_data=image_data,
+            mime_type=mime_type,
+            generation_config={"temperature": 0.1},
+        )
 
-        if not response.text:
+        if not extracted_text:
             raise GeminiServiceError("Gemini Vision returned empty response")
 
-        extracted_text = response.text.strip()
         logger.info(f"OCR completed: extracted {len(extracted_text)} characters")
 
         return extracted_text
@@ -313,23 +429,18 @@ async def validate_bengali_quality(bengali_text: str) -> Dict[str, Any]:
         Dict with validation results
     """
     try:
-        if not GEMINI_API_KEY:
-            raise GeminiServiceError("Gemini API key not configured")
-
-        model = genai.GenerativeModel(
-            model_name="gemini-2.0-flash-exp",
-            generation_config={"temperature": 0.2}
-        )
-
         from prompts import BENGALI_VALIDATION_PROMPT
         prompt = BENGALI_VALIDATION_PROMPT.format(bengali_text=bengali_text)
 
-        response = model.generate_content(prompt)
+        response_text = _generate_text(
+            prompt=prompt,
+            generation_config={"temperature": 0.2},
+        )
 
-        if not response.text:
+        if not response_text:
             raise GeminiServiceError("Bengali validation returned empty response")
 
-        validation_result = _extract_json_from_response(response.text)
+        validation_result = _extract_json_from_response(response_text)
         return validation_result
 
     except Exception as e:
@@ -360,10 +471,12 @@ def check_gemini_health() -> Dict[str, Any]:
             }
 
         # Try a minimal API call
-        model = genai.GenerativeModel(model_name="gemini-2.0-flash-exp")
-        response = model.generate_content("Say 'ok'")
+        response_text = _generate_text(
+            prompt="Say 'ok'",
+            generation_config={"temperature": 0},
+        )
 
-        if response.text:
+        if response_text:
             return {
                 "status": "ok",
                 "message": "Gemini API is healthy",

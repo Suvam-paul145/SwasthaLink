@@ -72,3 +72,4 @@ backend\.env.example
 backend\.env
 .env
 .env.example
+.claude
