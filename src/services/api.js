@@ -219,6 +219,76 @@ const api = {
       method: 'GET',
     });
   },
+
+  // -------------------------------------------------------------------------
+  // Prescription RAG pipeline
+  // -------------------------------------------------------------------------
+
+  /**
+   * Upload a handwritten prescription and trigger RAG extraction.
+   * @param {File} file - Prescription image or PDF
+   * @param {string} doctorId - ID of the uploading doctor
+   * @returns {Promise<Object>} Extracted prescription data + record ID
+   */
+  extractPrescription: async (file, doctorId) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('doctor_id', doctorId);
+
+    return apiRequest(API_ENDPOINTS.PRESCRIPTION_EXTRACT, {
+      method: 'POST',
+      body: formData,
+      headers: {}, // Let browser set Content-Type for multipart/form-data
+    });
+  },
+
+  /**
+   * Fetch all prescriptions pending admin review.
+   * @returns {Promise<Object>} { count, items }
+   */
+  getPendingPrescriptions: async () => {
+    return apiRequest(API_ENDPOINTS.PRESCRIPTIONS_PENDING, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Approve a prescription (admin action).
+   * @param {string} prescriptionId - UUID of the prescription record
+   * @param {string} adminId - ID of the approving admin
+   * @returns {Promise<Object>} Updated status
+   */
+  approvePrescription: async (prescriptionId, adminId) => {
+    return apiRequest(API_ENDPOINTS.PRESCRIPTION_APPROVE(prescriptionId), {
+      method: 'POST',
+      body: JSON.stringify({ admin_id: adminId }),
+    });
+  },
+
+  /**
+   * Reject a prescription (admin action).
+   * @param {string} prescriptionId - UUID of the prescription record
+   * @param {string} adminId - ID of the rejecting admin
+   * @param {string} reason - Reason for rejection
+   * @returns {Promise<Object>} Updated status
+   */
+  rejectPrescription: async (prescriptionId, adminId, reason) => {
+    return apiRequest(API_ENDPOINTS.PRESCRIPTION_REJECT(prescriptionId), {
+      method: 'POST',
+      body: JSON.stringify({ admin_id: adminId, reason }),
+    });
+  },
+
+  /**
+   * Retrieve patient-readable view for an approved prescription.
+   * @param {string} prescriptionId - UUID of the prescription record
+   * @returns {Promise<Object>} Patient-facing prescription data
+   */
+  getPatientPrescriptionView: async (prescriptionId) => {
+    return apiRequest(API_ENDPOINTS.PRESCRIPTION_PATIENT_VIEW(prescriptionId), {
+      method: 'GET',
+    });
+  },
 };
 
 /**
