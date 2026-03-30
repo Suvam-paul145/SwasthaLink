@@ -702,6 +702,151 @@ const api = {
       };
     }
   },
+
+  // -------------------------------------------------------------------------
+  // Patient signup & OTP
+  // -------------------------------------------------------------------------
+
+  /**
+   * Register a new patient account.
+   * @param {Object} data - Signup data
+   * @param {string} data.name - Full name
+   * @param {string} data.email - Email address
+   * @param {string} data.password - Password
+   * @param {string} data.phone - WhatsApp phone in E.164 format
+   * @returns {Promise<Object>} Signup result
+   */
+  signup: async (data) => {
+    try {
+      return await apiRequest(API_ENDPOINTS.AUTH_SIGNUP, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+    } catch (error) {
+      if (!shouldUseDemoFallback(error)) {
+        throw error;
+      }
+      // Demo fallback: simulate successful signup
+      const demoId = `demo-patient-${Date.now()}`;
+      return {
+        success: true,
+        message: 'Demo signup successful. Please verify your phone.',
+        user_id: demoId,
+        is_demo: true,
+      };
+    }
+  },
+
+  /**
+   * Send OTP to a phone number.
+   * @param {string} phone - E.164 phone number
+   * @param {string} channel - 'whatsapp' or 'sms'
+   * @returns {Promise<Object>} OTP send result
+   */
+  sendOtp: async (phone, channel = 'whatsapp') => {
+    try {
+      return await apiRequest(API_ENDPOINTS.AUTH_SEND_OTP, {
+        method: 'POST',
+        body: JSON.stringify({ phone, channel }),
+      });
+    } catch (error) {
+      if (!shouldUseDemoFallback(error)) {
+        throw error;
+      }
+      return {
+        success: true,
+        message: `Demo OTP (123456) sent to ${phone}`,
+        demo_mode: true,
+      };
+    }
+  },
+
+  /**
+   * Verify OTP code.
+   * @param {string} phone - E.164 phone number
+   * @param {string} code - OTP code
+   * @returns {Promise<Object>} Verification result
+   */
+  verifyOtp: async (phone, code) => {
+    try {
+      return await apiRequest(API_ENDPOINTS.AUTH_VERIFY_OTP, {
+        method: 'POST',
+        body: JSON.stringify({ phone, code }),
+      });
+    } catch (error) {
+      if (!shouldUseDemoFallback(error)) {
+        throw error;
+      }
+      const verified = code === '123456';
+      return {
+        success: true,
+        verified,
+        status: verified ? 'approved' : 'pending',
+        demo_mode: true,
+      };
+    }
+  },
+
+  // -------------------------------------------------------------------------
+  // Doctor / Patient prescription lists
+  // -------------------------------------------------------------------------
+
+  /**
+   * Get all prescriptions uploaded by a specific doctor.
+   * @param {string} doctorId - Doctor ID
+   * @returns {Promise<Object>} { count, items }
+   */
+  getDoctorPrescriptions: async (doctorId) => {
+    try {
+      return await apiRequest(API_ENDPOINTS.PRESCRIPTIONS_BY_DOCTOR(doctorId), {
+        method: 'GET',
+      });
+    } catch (error) {
+      if (!shouldUseDemoFallback(error)) {
+        throw error;
+      }
+      const records = loadDemoStore().filter((r) => r.doctor_id === doctorId);
+      return { count: records.length, items: records, demo_mode: true };
+    }
+  },
+
+  /**
+   * Get all approved prescriptions for a patient.
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Object>} { count, items }
+   */
+  getPatientPrescriptions: async (patientId) => {
+    try {
+      return await apiRequest(API_ENDPOINTS.PRESCRIPTIONS_FOR_PATIENT(patientId), {
+        method: 'GET',
+      });
+    } catch (error) {
+      if (!shouldUseDemoFallback(error)) {
+        throw error;
+      }
+      const records = loadDemoStore().filter(
+        (r) => r.status === 'approved' && r.extracted_data?.patient_id === patientId
+      );
+      return { count: records.length, items: records, demo_mode: true };
+    }
+  },
+
+  /**
+   * Get list of registered patients (for doctor dropdowns).
+   * @returns {Promise<Object>} { count, items }
+   */
+  getPatients: async () => {
+    try {
+      return await apiRequest(API_ENDPOINTS.PATIENTS_LIST, {
+        method: 'GET',
+      });
+    } catch (error) {
+      if (!shouldUseDemoFallback(error)) {
+        throw error;
+      }
+      return { count: 0, items: [], demo_mode: true };
+    }
+  },
 };
 
 /**

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { getDashboardRouteForRole, ROLE_OPTIONS } from '../utils/auth';
 
@@ -120,6 +120,16 @@ function LoginPage() {
           <p>Patient: <span className="text-slate-200">patient@swasthalink.demo / Patient@123</span></p>
           <p>Doctor: <span className="text-slate-200">doctor@swasthalink.demo / Doctor@123</span></p>
           <p>Admin: <span className="text-slate-200">admin@swasthalink.demo / Admin@123</span></p>
+        </div>
+
+        <div className="mt-4 text-center text-sm text-slate-400">
+          New patient?{' '}
+          <Link
+            to="/signup"
+            className="text-teal-300 hover:text-teal-200 font-medium transition-colors"
+          >
+            Create an account
+          </Link>
         </div>
       </div>
     </div>

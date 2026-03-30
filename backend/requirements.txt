@@ -11,7 +11,8 @@ google-genai>=0.8.0,<2.0.0
 twilio>=9.0.4,<10.0.0
 
 # Database
-supabase>=2.3.0,<3.0.0
+# Pinned for Python 3.14 compatibility (newer releases pull pyiceberg builds on Windows)
+supabase==2.8.1
 
 # AWS Services
 boto3>=1.34.0,<2.0.0

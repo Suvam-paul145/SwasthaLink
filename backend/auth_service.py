@@ -211,3 +211,87 @@ def login_user(email: str, password: str, role: str) -> Dict[str, Any]:
 
     raise AuthServiceError("Invalid email, password, or role", status_code=401)
 
+
+def signup_patient(name: str, email: str, password: str, phone: str) -> Dict[str, Any]:
+    """
+    Create a new patient account.
+
+    1. Creates a Supabase Auth user (email + password).
+    2. Inserts a profiles row with role='patient'.
+    3. Returns user info (phone verification is done separately via OTP).
+    """
+    if not name or not email or not password or not phone:
+        raise AuthServiceError("Name, email, password, and phone are required", status_code=400)
+
+    normalized_email = email.strip().lower()
+
+    # Demo fallback when Supabase is not available
+    if not supabase_client:
+        demo_id = f"demo-patient-{abs(hash(normalized_email)) % 10000}"
+        return {
+            "user_id": demo_id,
+            "user": {
+                "id": demo_id,
+                "name": name.strip(),
+                "email": normalized_email,
+                "role": "patient",
+                "phone": phone,
+                "phone_verified": False,
+            },
+            "is_demo": True,
+        }
+
+    try:
+        # Create Supabase Auth user
+        auth_response = supabase_client.auth.sign_up({
+            "email": normalized_email,
+            "password": password,
+            "options": {
+                "data": {
+                    "full_name": name.strip(),
+                    "role": "patient",
+                    "phone": phone,
+                },
+            },
+        })
+
+        auth_user = getattr(auth_response, "user", None)
+        if auth_user is None:
+            raise AuthServiceError("Failed to create account — please try again", status_code=500)
+
+        user_id = getattr(auth_user, "id", None)
+
+        # Insert profiles row
+        try:
+            supabase_client.table("profiles").insert({
+                "user_id": user_id,
+                "full_name": name.strip(),
+                "email": normalized_email,
+                "role": "patient",
+                "phone": phone,
+                "phone_verified": False,
+            }).execute()
+        except Exception as profile_exc:
+            logger.warning(f"Profile insert failed (may already exist): {profile_exc}")
+
+        return {
+            "user_id": user_id,
+            "user": {
+                "id": user_id,
+                "name": name.strip(),
+                "email": normalized_email,
+                "role": "patient",
+                "phone": phone,
+                "phone_verified": False,
+            },
+            "is_demo": False,
+        }
+
+    except AuthServiceError:
+        raise
+    except Exception as exc:
+        error_msg = str(exc)
+        if "already registered" in error_msg.lower() or "duplicate" in error_msg.lower():
+            raise AuthServiceError("An account with this email already exists", status_code=409)
+        logger.error(f"Signup failed: {exc}")
+        raise AuthServiceError(f"Signup failed: {error_msg}", status_code=500)

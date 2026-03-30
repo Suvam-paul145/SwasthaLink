@@ -27,23 +27,52 @@ logger = logging.getLogger(__name__)
 if not TWILIO_SDK_AVAILABLE:
     logger.warning("Twilio SDK not installed. Install with: pip install twilio")
 
+
+def _read_env(*names: str) -> Optional[str]:
+    """Read the first non-empty env var from a list, trimming accidental spaces."""
+    for name in names:
+        raw_value = os.getenv(name)
+        if raw_value is None:
+            continue
+
+        value = raw_value.strip()
+        if value:
+            return value
+
+    return None
+
 # Load Twilio credentials from environment
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_WHATSAPP_NUMBER = os.getenv("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
+TWILIO_ACCOUNT_SID = _read_env("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = _read_env("TWILIO_AUTH_TOKEN")
+TWILIO_API_KEY_SID = _read_env("TWILIO_API_KEY_SID", "TWILIO_API_KEY")
+TWILIO_API_KEY_SECRET = _read_env("TWILIO_API_KEY_SECRET", "TWILIO_API_SECRET")
+TWILIO_WHATSAPP_NUMBER = _read_env("TWILIO_WHATSAPP_NUMBER") or "whatsapp:+14155238886"
 
 # Initialize Twilio client
 twilio_client = None
+TWILIO_AUTH_MODE = "unconfigured"
 if not TWILIO_SDK_AVAILABLE:
     logger.warning("Twilio client disabled because Twilio SDK is unavailable")
+elif TWILIO_ACCOUNT_SID and TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET:
+    try:
+        twilio_client = Client(TWILIO_API_KEY_SID, TWILIO_API_KEY_SECRET, TWILIO_ACCOUNT_SID)
+        TWILIO_AUTH_MODE = "api_key"
+        logger.info("Twilio client initialized successfully using API Key authentication")
+    except Exception as e:
+        logger.error(f"Failed to initialize Twilio client with API Key: {e}")
 elif TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN:
     try:
         twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        logger.info("Twilio client initialized successfully")
+        TWILIO_AUTH_MODE = "auth_token"
+        logger.info("Twilio client initialized successfully using Account SID/Auth Token")
     except Exception as e:
         logger.error(f"Failed to initialize Twilio client: {e}")
 else:
-    logger.warning("Twilio credentials not found in environment variables")
+    logger.warning(
+        "Twilio credentials not found. Set either "
+        "(TWILIO_ACCOUNT_SID + TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET) "
+        "or (TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN)."
+    )
 
 
 class TwilioServiceError(Exception):
@@ -119,7 +148,9 @@ async def send_whatsapp_message(phone_number: str, message: str) -> Dict[str, An
         # Validate Twilio client
         if not twilio_client:
             raise TwilioServiceError(
-                "Twilio client not initialized. Check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN."
+                "Twilio client not initialized. Check either "
+                "(TWILIO_ACCOUNT_SID + TWILIO_API_KEY_SID + TWILIO_API_KEY_SECRET) "
+                "or (TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN)."
             )
 
         # Format numbers
@@ -309,6 +340,16 @@ def check_twilio_health() -> Dict[str, Any]:
                 "available": False
             }
 
+        if TWILIO_AUTH_MODE == "api_key":
+            # /Accounts endpoint requires Main key access. For Standard/Restricted keys,
+            # treat successful client initialization as healthy credential setup.
+            return {
+                "status": "ok",
+                "message": "Twilio client initialized (API key mode)",
+                "available": True,
+                "auth_mode": TWILIO_AUTH_MODE,
+            }
+
         # Try to fetch account info
         account = twilio_client.api.accounts(TWILIO_ACCOUNT_SID).fetch()
 
@@ -317,14 +358,16 @@ def check_twilio_health() -> Dict[str, Any]:
                 "status": "ok",
                 "message": "Twilio service is healthy",
                 "available": True,
-                "account_status": account.status
+                "account_status": account.status,
+                "auth_mode": TWILIO_AUTH_MODE,
             }
         else:
             return {
                 "status": "degraded",
                 "message": f"Twilio account status: {account.status}",
                 "available": False,
-                "account_status": account.status
+                "account_status": account.status,
+                "auth_mode": TWILIO_AUTH_MODE,
             }
 
     except Exception as e:

@@ -9,27 +9,65 @@ import os
 import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
-from supabase import create_client, Client
 import uuid
+
+try:
+    from supabase import create_client
+    SUPABASE_SDK_AVAILABLE = True
+except ImportError:
+    create_client = None
+    SUPABASE_SDK_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+if not SUPABASE_SDK_AVAILABLE:
+    logger.warning("Supabase SDK not installed. Install with: pip install supabase==2.8.1")
+
+
+def _read_env(*names: str) -> Optional[str]:
+    """Read the first non-empty env var from a list, trimming accidental spaces."""
+    for name in names:
+        raw_value = os.getenv(name)
+        if raw_value is None:
+            continue
+
+        value = raw_value.strip()
+        if value:
+            return value
+
+    return None
+
 # Load Supabase credentials
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = _read_env("VITE_SUPABASE_URL", "SUPABASE_URL")
+SUPABASE_KEY = _read_env(
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_KEY",
+    "SUPABASE_ANON_KEY",
+    "VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY",
+)
 
 # Initialize Supabase client
-supabase_client: Optional[Client] = None
-if SUPABASE_URL and SUPABASE_KEY:
+supabase_client: Optional[Any] = None
+if not SUPABASE_SDK_AVAILABLE:
+    logger.warning("Supabase client disabled because Supabase SDK is unavailable")
+elif SUPABASE_URL and SUPABASE_KEY:
     try:
         supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
         logger.info("Supabase client initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize Supabase client: {e}")
+        if SUPABASE_KEY.startswith("sb_publishable_"):
+            logger.warning(
+                "Detected a publishable Supabase key. For backend server operations, "
+                "prefer SUPABASE_SERVICE_ROLE_KEY (or a valid anon key with proper RLS policies)."
+            )
 else:
-    logger.warning("Supabase credentials not found in environment variables")
+    logger.warning(
+        "Supabase credentials not found. Set SUPABASE_URL + SUPABASE_KEY, "
+        "or VITE_SUPABASE_URL + VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY."
+    )
 
 
 class SupabaseServiceError(Exception):
@@ -555,6 +593,40 @@ CREATE POLICY "Allow all access for development events" ON session_events
     WITH CHECK (true);
 
 -- For production, restrict access appropriately
+
+-- Prescriptions table (prescription workflow records)
+CREATE TABLE IF NOT EXISTS prescriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    prescription_id TEXT UNIQUE NOT NULL,
+    status TEXT CHECK (status IN ('pending_admin_review', 'approved', 'rejected')) DEFAULT 'pending_admin_review',
+    doctor_id TEXT NOT NULL,
+    patient_id TEXT,
+    patient_name TEXT,
+    patient_age TEXT,
+    patient_gender TEXT,
+    doctor_name TEXT,
+    prescription_date TEXT,
+    diagnosis TEXT,
+    notes TEXT,
+    medications JSONB DEFAULT '[]'::jsonb,
+    extraction_confidence FLOAT DEFAULT 0.5,
+    s3_key TEXT,
+    admin_id TEXT,
+    reviewed_at TIMESTAMPTZ,
+    rejection_reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_prescriptions_status ON prescriptions(status);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_doctor_id ON prescriptions(doctor_id);
+CREATE INDEX IF NOT EXISTS idx_prescriptions_patient_id ON prescriptions(patient_id);
+
+ALTER TABLE prescriptions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow all access for development prescriptions" ON prescriptions
+    FOR ALL
+    USING (true)
+    WITH CHECK (true);
 """
 
 
@@ -566,3 +638,223 @@ def get_schema_sql() -> str:
         SQL schema string
     """
     return SUPABASE_SCHEMA
+
+
+# ---------------------------------------------------------------------------
+# Prescription CRUD helpers
+# ---------------------------------------------------------------------------
+
+async def create_prescription(record_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Insert a new prescription record into Supabase."""
+    try:
+        if not supabase_client:
+            logger.warning("Supabase not available — prescription not persisted")
+            return {"success": False, "error": "Supabase not configured"}
+
+        result = supabase_client.table("prescriptions").insert(record_data).execute()
+        logger.info(f"Prescription persisted: {record_data.get('prescription_id')}")
+        return {"success": True, "data": result.data[0] if result.data else record_data}
+    except Exception as e:
+        logger.error(f"Failed to persist prescription: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def list_pending_prescriptions() -> List[Dict[str, Any]]:
+    """Return all prescriptions with status pending_admin_review."""
+    try:
+        if not supabase_client:
+            return []
+        result = (
+            supabase_client
+            .table("prescriptions")
+            .select("*")
+            .eq("status", "pending_admin_review")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        logger.error(f"Failed to list pending prescriptions: {e}")
+        return []
+
+
+async def list_prescriptions_by_doctor(doctor_id: str) -> List[Dict[str, Any]]:
+    """Return all prescriptions uploaded by a specific doctor."""
+    try:
+        if not supabase_client:
+            return []
+        result = (
+            supabase_client
+            .table("prescriptions")
+            .select("*")
+            .eq("doctor_id", doctor_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        logger.error(f"Failed to list prescriptions for doctor {doctor_id}: {e}")
+        return []
+
+
+async def list_approved_prescriptions_for_patient(patient_id: str) -> List[Dict[str, Any]]:
+    """Return all approved prescriptions for a given patient."""
+    try:
+        if not supabase_client:
+            return []
+        result = (
+            supabase_client
+            .table("prescriptions")
+            .select("*")
+            .eq("patient_id", patient_id)
+            .eq("status", "approved")
+            .order("created_at", desc=True)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        logger.error(f"Failed to list prescriptions for patient {patient_id}: {e}")
+        return []
+
+
+async def approve_prescription_db(prescription_id: str, admin_id: str) -> Optional[Dict[str, Any]]:
+    """Approve a prescription in Supabase."""
+    try:
+        if not supabase_client:
+            return None
+        result = (
+            supabase_client
+            .table("prescriptions")
+            .update({
+                "status": "approved",
+                "admin_id": admin_id,
+                "reviewed_at": datetime.utcnow().isoformat(),
+            })
+            .eq("prescription_id", prescription_id)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Failed to approve prescription {prescription_id}: {e}")
+        return None
+
+
+async def reject_prescription_db(
+    prescription_id: str, admin_id: str, reason: str
+) -> Optional[Dict[str, Any]]:
+    """Reject a prescription in Supabase."""
+    try:
+        if not supabase_client:
+            return None
+        result = (
+            supabase_client
+            .table("prescriptions")
+            .update({
+                "status": "rejected",
+                "admin_id": admin_id,
+                "rejection_reason": reason,
+                "reviewed_at": datetime.utcnow().isoformat(),
+            })
+            .eq("prescription_id", prescription_id)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Failed to reject prescription {prescription_id}: {e}")
+        return None
+
+
+async def get_prescription_by_id(prescription_id: str) -> Optional[Dict[str, Any]]:
+    """Get a single prescription record by its prescription_id."""
+    try:
+        if not supabase_client:
+            return None
+        result = (
+            supabase_client
+            .table("prescriptions")
+            .select("*")
+            .eq("prescription_id", prescription_id)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Failed to get prescription {prescription_id}: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Patient signup helper
+# ---------------------------------------------------------------------------
+
+async def create_patient_profile(
+    user_id: str,
+    name: str,
+    email: str,
+    phone: str,
+    role: str = "patient",
+) -> Dict[str, Any]:
+    """Insert a row into the profiles table for a new patient."""
+    try:
+        if not supabase_client:
+            return {"success": False, "error": "Supabase not configured"}
+
+        profile_data = {
+            "user_id": user_id,
+            "full_name": name,
+            "email": email.strip().lower(),
+            "role": role,
+            "phone": phone,
+            "phone_verified": False,
+        }
+
+        result = supabase_client.table("profiles").insert(profile_data).execute()
+        logger.info(f"Patient profile created for {email}")
+        return {"success": True, "data": result.data[0] if result.data else profile_data}
+    except Exception as e:
+        logger.error(f"Failed to create patient profile: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def update_phone_verified(user_id: str, phone: str) -> Dict[str, Any]:
+    """Mark a phone number as verified in the profiles table."""
+    try:
+        if not supabase_client:
+            return {"success": False, "error": "Supabase not configured"}
+
+        result = (
+            supabase_client
+            .table("profiles")
+            .update({"phone_verified": True})
+            .eq("phone", phone)
+            .execute()
+        )
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Failed to update phone_verified for {phone}: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def list_patients() -> List[Dict[str, Any]]:
+    """Return all profiles with role=patient."""
+    try:
+        if not supabase_client:
+            return []
+        result = (
+            supabase_client
+            .table("profiles")
+            .select("user_id, full_name, name, email, phone, phone_verified")
+            .eq("role", "patient")
+            .order("full_name")
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        logger.error(f"Failed to list patients: {e}")
+        return []

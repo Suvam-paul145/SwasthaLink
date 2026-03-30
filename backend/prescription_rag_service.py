@@ -18,8 +18,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-import google.generativeai as genai
-
 from models import (
     PrescriptionExtractedData,
     PrescriptionMedication,
@@ -201,7 +199,11 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
     2. Build a constrained prompt and call Gemini.
     3. Parse JSON into a PrescriptionExtractedData model.
     """
-    from gemini_service import GEMINI_API_KEY, GeminiServiceError  # local import to avoid circular
+    from gemini_service import (  # local import to avoid circular
+        GEMINI_API_KEY,
+        GeminiServiceError,
+        _generate_text,
+    )
 
     if not GEMINI_API_KEY:
         raise GeminiServiceError("Gemini API key not configured")
@@ -214,21 +216,19 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
         ocr_text=ocr_text,
     )
 
-    model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash-exp",
+    logger.info("Calling Gemini for prescription RAG extraction...")
+    response_text = _generate_text(
+        prompt=prompt,
         generation_config={"temperature": 0.1, "max_output_tokens": 2048},
     )
 
-    logger.info("Calling Gemini for prescription RAG extraction...")
-    response = model.generate_content(prompt)
-
-    if not response.text:
+    if not response_text:
         raise GeminiServiceError("Gemini returned empty response for prescription extraction")
 
-    logger.info(f"Gemini prescription response: {len(response.text)} chars")
+    logger.info(f"Gemini prescription response: {len(response_text)} chars")
 
     try:
-        data = _extract_json(response.text)
+        data = _extract_json(response_text)
     except ValueError as exc:
         logger.error(f"Prescription JSON parse failed: {exc}")
         raise GeminiServiceError(f"Failed to parse prescription extraction JSON: {exc}") from exc
@@ -262,21 +262,91 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
 
 
 # ---------------------------------------------------------------------------
-# In-memory prescription workflow store
-# ---------------------------------------------------------------------------
-# NOTE: Records reset on process restart.  Replace with a DB-backed store for
-# production persistence.
+# Prescription workflow store — Supabase-backed with in-memory fallback
 # ---------------------------------------------------------------------------
 
+from supabase_service import (
+    supabase_client,
+    create_prescription as _db_create,
+    list_pending_prescriptions as _db_list_pending,
+    list_prescriptions_by_doctor as _db_list_by_doctor,
+    list_approved_prescriptions_for_patient as _db_list_for_patient,
+    approve_prescription_db as _db_approve,
+    reject_prescription_db as _db_reject,
+    get_prescription_by_id as _db_get,
+)
+
+# In-memory fallback when Supabase is not configured
 _PRESCRIPTION_STORE: Dict[str, PrescriptionRecord] = {}
 
 
-def create_prescription_record(
+def _record_to_db_row(record: PrescriptionRecord) -> Dict[str, Any]:
+    """Flatten a PrescriptionRecord into a dict suitable for the DB table."""
+    ed = record.extracted_data
+    return {
+        "prescription_id": record.prescription_id,
+        "status": record.status.value if hasattr(record.status, "value") else record.status,
+        "doctor_id": record.doctor_id,
+        "patient_id": ed.patient_id,
+        "patient_name": ed.patient_name,
+        "patient_age": ed.patient_age,
+        "patient_gender": ed.patient_gender,
+        "doctor_name": ed.doctor_name,
+        "prescription_date": ed.prescription_date,
+        "diagnosis": ed.diagnosis,
+        "notes": ed.notes,
+        "medications": [m.model_dump() for m in ed.medications],
+        "extraction_confidence": ed.extraction_confidence,
+        "s3_key": record.s3_key,
+        "created_at": record.created_at,
+    }
+
+
+def _db_row_to_record(row: Dict[str, Any]) -> PrescriptionRecord:
+    """Reconstruct a PrescriptionRecord from a Supabase row."""
+    meds = []
+    for m in (row.get("medications") or []):
+        meds.append(PrescriptionMedication(
+            name=m.get("name", "Unknown"),
+            strength=m.get("strength"),
+            form=m.get("form"),
+            frequency=m.get("frequency"),
+            duration=m.get("duration"),
+            instructions=m.get("instructions"),
+        ))
+
+    extracted = PrescriptionExtractedData(
+        doctor_name=row.get("doctor_name"),
+        patient_id=row.get("patient_id"),
+        patient_name=row.get("patient_name"),
+        patient_age=row.get("patient_age"),
+        patient_gender=row.get("patient_gender"),
+        prescription_date=row.get("prescription_date"),
+        medications=meds,
+        diagnosis=row.get("diagnosis"),
+        notes=row.get("notes"),
+        extraction_confidence=float(row.get("extraction_confidence") or 0.5),
+    )
+
+    return PrescriptionRecord(
+        prescription_id=row["prescription_id"],
+        status=row.get("status", "pending_admin_review"),
+        doctor_id=row.get("doctor_id", ""),
+        extracted_data=extracted,
+        s3_key=row.get("s3_key"),
+        created_at=row.get("created_at", ""),
+        admin_id=row.get("admin_id"),
+        reviewed_at=row.get("reviewed_at"),
+        rejection_reason=row.get("rejection_reason"),
+    )
+
+
+async def create_prescription_record(
     extracted_data: PrescriptionExtractedData,
     doctor_id: str,
     s3_key: Optional[str] = None,
 ) -> PrescriptionRecord:
-    """Create a new pending prescription record and persist in the store."""
+    """Create a new pending prescription record and persist in Supabase (or memory)."""
     record = PrescriptionRecord(
         prescription_id=str(uuid.uuid4()),
         status="pending_admin_review",
@@ -285,32 +355,67 @@ def create_prescription_record(
         s3_key=s3_key,
         created_at=datetime.now(timezone.utc).isoformat(),
     )
-    _PRESCRIPTION_STORE[record.prescription_id] = record
+
+    # Try Supabase first
+    if supabase_client:
+        await _db_create(_record_to_db_row(record))
+    else:
+        _PRESCRIPTION_STORE[record.prescription_id] = record
+
     logger.info(f"Prescription record created: {record.prescription_id}")
     return record
 
 
-def list_pending_records() -> List[PrescriptionRecord]:
+async def list_pending_records() -> List[PrescriptionRecord]:
     """Return all records with status pending_admin_review."""
+    if supabase_client:
+        rows = await _db_list_pending()
+        return [_db_row_to_record(r) for r in rows]
     return [r for r in _PRESCRIPTION_STORE.values() if r.status == "pending_admin_review"]
 
 
-def approve_record(prescription_id: str, admin_id: str) -> Optional[PrescriptionRecord]:
-    """Approve a pending prescription record. Returns None if not found."""
+async def list_records_by_doctor(doctor_id: str) -> List[PrescriptionRecord]:
+    """Return all prescriptions uploaded by a specific doctor."""
+    if supabase_client:
+        rows = await _db_list_by_doctor(doctor_id)
+        return [_db_row_to_record(r) for r in rows]
+    return [r for r in _PRESCRIPTION_STORE.values() if r.doctor_id == doctor_id]
+
+
+async def list_approved_for_patient(patient_id: str) -> List[PrescriptionRecord]:
+    """Return approved prescriptions for a patient."""
+    if supabase_client:
+        rows = await _db_list_for_patient(patient_id)
+        return [_db_row_to_record(r) for r in rows]
+    return [
+        r for r in _PRESCRIPTION_STORE.values()
+        if r.status == "approved" and r.extracted_data.patient_id == patient_id
+    ]
+
+
+async def approve_record(prescription_id: str, admin_id: str) -> Optional[PrescriptionRecord]:
+    """Approve a pending prescription record."""
+    if supabase_client:
+        row = await _db_approve(prescription_id, admin_id)
+        return _db_row_to_record(row) if row else None
+
     record = _PRESCRIPTION_STORE.get(prescription_id)
     if record is None:
         return None
     record.status = "approved"
     record.admin_id = admin_id
     record.reviewed_at = datetime.now(timezone.utc).isoformat()
-    logger.info(f"Prescription {prescription_id} approved by {admin_id}")
     return record
 
 
-def reject_record(
+async def reject_record(
     prescription_id: str, admin_id: str, rejection_reason: str
 ) -> Optional[PrescriptionRecord]:
-    """Reject a pending prescription record. Returns None if not found."""
+    """Reject a pending prescription record."""
+    if supabase_client:
+        row = await _db_reject(prescription_id, admin_id, rejection_reason)
+        return _db_row_to_record(row) if row else None
+
     record = _PRESCRIPTION_STORE.get(prescription_id)
     if record is None:
         return None
@@ -318,18 +423,20 @@ def reject_record(
     record.admin_id = admin_id
     record.rejection_reason = rejection_reason
     record.reviewed_at = datetime.now(timezone.utc).isoformat()
-    logger.info(f"Prescription {prescription_id} rejected by {admin_id}")
     return record
 
 
-def get_record(prescription_id: str) -> Optional[PrescriptionRecord]:
-    """Return a prescription record by ID regardless of status (public API)."""
+async def get_record(prescription_id: str) -> Optional[PrescriptionRecord]:
+    """Return a prescription record by ID regardless of status."""
+    if supabase_client:
+        row = await _db_get(prescription_id)
+        return _db_row_to_record(row) if row else None
     return _PRESCRIPTION_STORE.get(prescription_id)
 
 
-def get_approved_record(prescription_id: str) -> Optional[PrescriptionRecord]:
+async def get_approved_record(prescription_id: str) -> Optional[PrescriptionRecord]:
     """Return a prescription record only if it has been approved."""
-    record = _PRESCRIPTION_STORE.get(prescription_id)
+    record = await get_record(prescription_id)
     if record and record.status == "approved":
         return record
     return None

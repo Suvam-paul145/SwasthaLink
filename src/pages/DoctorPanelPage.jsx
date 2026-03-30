@@ -19,14 +19,15 @@ function DoctorPanelPage() {
   );
   const fileInputRef = useRef(null);
 
-  const patientDirectory = useMemo(
-    () => [
-      { id: "PT-1007", name: "Rahat Karim", age: 54, risk: "High", preferredLanguage: "Bilingual" },
-      { id: "PT-1008", name: "Fatima Akter", age: 46, risk: "Medium", preferredLanguage: "Bengali" },
-      { id: "PT-1009", name: "Shamim Ahmed", age: 61, risk: "Low", preferredLanguage: "English" },
-    ],
-    []
-  );
+  const [prescriptionHistory, setPrescriptionHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Patient directory — fetch from backend (fallback to demo)
+  const [patientDirectory, setPatientDirectory] = useState([
+    { id: "PT-1007", name: "Rahat Karim", age: 54, risk: "High", preferredLanguage: "Bilingual" },
+    { id: "PT-1008", name: "Fatima Akter", age: 46, risk: "Medium", preferredLanguage: "Bengali" },
+    { id: "PT-1009", name: "Shamim Ahmed", age: 61, risk: "Low", preferredLanguage: "English" },
+  ]);
 
   const doctorDirectory = useMemo(
     () => [
@@ -37,43 +38,80 @@ function DoctorPanelPage() {
     []
   );
 
-  const pendingReviews = useMemo(
-    () => [
-      {
-        id: "RV-3021",
-        patientId: "PT-1007",
-        doctorId: "DR-004",
-        priority: "High",
-        summary: "Post-surgery discharge summary needs medication clarity validation.",
-        submittedAt: "10 mins ago",
-      },
-      {
-        id: "RV-3018",
-        patientId: "PT-1008",
-        doctorId: "DR-011",
-        priority: "Medium",
-        summary: "Diabetes follow-up instructions require caregiver-level wording.",
-        submittedAt: "24 mins ago",
-      },
-      {
-        id: "RV-3012",
-        patientId: "PT-1009",
-        doctorId: "DR-007",
-        priority: "Low",
-        summary: "Routine hypertension plan pending doctor final approval.",
-        submittedAt: "52 mins ago",
-      },
-    ],
-    []
-  );
+  // Pending reviews from API (instead of hardcoded list)
+  const [pendingReviews, setPendingReviews] = useState([]);
+  const [pendingLoading, setPendingLoading] = useState(true);
 
-  const [selectedReviewId, setSelectedReviewId] = useState("RV-3021");
+  const [selectedReviewId, setSelectedReviewId] = useState(null);
   const [selectedPatientId, setSelectedPatientId] = useState("PT-1007");
   const [selectedDoctorId, setSelectedDoctorId] = useState("DR-004");
 
   const selectedReview = pendingReviews.find((review) => review.id === selectedReviewId) ?? pendingReviews[0];
   const selectedPatient = patientDirectory.find((patient) => patient.id === selectedPatientId) ?? patientDirectory[0];
   const selectedDoctor = doctorDirectory.find((doctor) => doctor.id === selectedDoctorId) ?? doctorDirectory[0];
+
+  // Fetch patients from API
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await api.getPatients();
+        if (result.items && result.items.length > 0) {
+          setPatientDirectory(result.items.map((p) => ({
+            id: p.user_id || p.email,
+            name: p.full_name || p.name || p.email,
+            age: '-',
+            risk: '-',
+            preferredLanguage: 'Bilingual',
+          })));
+        }
+      } catch (err) {
+        console.warn('Using demo patient directory:', err.message);
+      }
+    })();
+  }, []);
+
+  // Fetch pending prescriptions
+  useEffect(() => {
+    (async () => {
+      setPendingLoading(true);
+      try {
+        const result = await api.getPendingPrescriptions();
+        if (result.items && result.items.length > 0) {
+          setPendingReviews(result.items.map((item) => {
+            const ed = item.extracted_data || item;
+            return {
+              id: item.prescription_id,
+              patientId: ed.patient_id || 'Unknown',
+              doctorId: item.doctor_id || 'Unknown',
+              priority: (ed.extraction_confidence || 0) < 0.7 ? 'High' : 'Medium',
+              summary: ed.diagnosis || 'Prescription pending review',
+              submittedAt: item.created_at ? new Date(item.created_at).toLocaleString() : 'Recently',
+            };
+          }));
+        }
+      } catch (err) {
+        console.warn('Pending prescriptions fetch error:', err.message);
+      } finally {
+        setPendingLoading(false);
+      }
+    })();
+  }, [uploadStatus]);
+
+  // Fetch doctor's prescription history
+  useEffect(() => {
+    if (!selectedDoctor?.id) return;
+    (async () => {
+      setHistoryLoading(true);
+      try {
+        const result = await api.getDoctorPrescriptions(selectedDoctor.id);
+        setPrescriptionHistory(result.items || []);
+      } catch (err) {
+        console.warn('History fetch error:', err.message);
+      } finally {
+        setHistoryLoading(false);
+      }
+    })();
+  }, [selectedDoctor?.id, uploadStatus]);
 
   useEffect(() => {
     if (!selectedReview) return;
@@ -90,6 +128,13 @@ function DoctorPanelPage() {
       setSelectedDoctorId(matchedDoctor.id);
     }
   }, [doctorDirectory, user?.name]);
+
+  // Compute dynamic stats
+  const stats = useMemo(() => {
+    const pending = pendingReviews.length;
+    const approved = prescriptionHistory.filter((r) => (r.status || r.extracted_data?.status) === 'approved').length;
+    return { pending, approved };
+  }, [pendingReviews, prescriptionHistory]);
 
   const applySelectedFile = (file) => {
     if (!file) return;
@@ -124,11 +169,11 @@ function DoctorPanelPage() {
       setUploadError("");
       setUploadMessage("");
 
-      const response = await api.extractPrescription(selectedFile, selectedDoctor.id, {
-        doctorName: selectedDoctor.name,
-        patientName: selectedPatient.name,
-        patientId: selectedPatient.id,
-        patientAge: `${selectedPatient.age} years`,
+      const response = await api.extractPrescription(selectedFile, selectedDoctor?.id || 'unknown', {
+        doctorName: selectedDoctor?.name || 'Doctor',
+        patientName: selectedPatient?.name || 'Patient',
+        patientId: selectedPatient?.id || 'unknown',
+        patientAge: `${selectedPatient?.age ?? '-'} years`,
       });
 
       setExtractionResult(response);
@@ -160,11 +205,11 @@ function DoctorPanelPage() {
         <div className="grid grid-cols-3 gap-3 w-full lg:w-auto">
           <div className="glass-card rounded-2xl px-4 py-3 border border-white/10 text-center">
             <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Pending</p>
-            <p className="text-2xl font-extrabold text-amber-300 mt-1">14</p>
+            <p className="text-2xl font-extrabold text-amber-300 mt-1">{stats.pending}</p>
           </div>
           <div className="glass-card rounded-2xl px-4 py-3 border border-white/10 text-center">
             <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Approved</p>
-            <p className="text-2xl font-extrabold text-emerald-300 mt-1">38</p>
+            <p className="text-2xl font-extrabold text-emerald-300 mt-1">{stats.approved}</p>
           </div>
           <div className="glass-card rounded-2xl px-4 py-3 border border-white/10 text-center">
             <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Avg TAT</p>
@@ -254,9 +299,9 @@ function DoctorPanelPage() {
                   </select>
                 </div>
                 <div className="text-xs text-slate-400 flex items-center gap-3">
-                  <span>Age: {selectedPatient.age}</span>
+                  <span>Age: {selectedPatient?.age ?? '-'}</span>
                   <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                  <span>Language: {selectedPatient.preferredLanguage}</span>
+                  <span>Language: {selectedPatient?.preferredLanguage ?? '-'}</span>
                 </div>
               </div>
 
@@ -277,9 +322,9 @@ function DoctorPanelPage() {
                   </select>
                 </div>
                 <div className="text-xs text-slate-400 flex items-center gap-3">
-                  <span>{selectedDoctor.specialty}</span>
+                  <span>{selectedDoctor?.specialty ?? '-'}</span>
                   <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                  <span>Shift: {selectedDoctor.shift}</span>
+                  <span>Shift: {selectedDoctor?.shift ?? '-'}</span>
                 </div>
               </div>
 
@@ -407,9 +452,9 @@ function DoctorPanelPage() {
               </div>
               <div className="p-5 space-y-4">
                 <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 text-xs text-slate-300 flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-white">Patient:</span> {selectedPatient.name}
+                  <span className="font-semibold text-white">Patient:</span> {selectedPatient?.name ?? 'Select a patient'}
                   <span className="w-1 h-1 rounded-full bg-slate-600"></span>
-                  <span className="font-semibold text-white">Doctor:</span> {selectedDoctor.name}
+                  <span className="font-semibold text-white">Doctor:</span> {selectedDoctor?.name ?? 'Select a doctor'}
                 </div>
                 <div
                   onDragOver={(event) => {
@@ -505,7 +550,7 @@ function DoctorPanelPage() {
                       Patient: <span className="text-white">{extractionResult.extracted_data.patient_name || "Unknown"}</span>
                     </p>
                     <p className="text-xs text-slate-300">
-                      Doctor: <span className="text-white">{extractionResult.extracted_data.doctor_name || selectedDoctor.name}</span>
+                      Doctor: <span className="text-white">{extractionResult.extracted_data.doctor_name || selectedDoctor?.name || 'Unknown'}</span>
                     </p>
                     <p className="text-xs text-slate-300">
                       Medications extracted: <span className="text-white">{extractionResult.extracted_data.medications?.length || 0}</span>
@@ -532,8 +577,8 @@ function DoctorPanelPage() {
 
               <div className="p-5 space-y-4">
                 <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 text-xs text-slate-300">
-                  Active review: <span className="font-bold text-white">{selectedPatient.name}</span> ({selectedReview.id})
-                  <span className="block mt-1 text-slate-400">Assigned doctor: {selectedDoctor.name}</span>
+                  Active review: <span className="font-bold text-white">{selectedPatient?.name ?? 'No patient selected'}</span> ({selectedReview?.id ?? 'None'})
+                  <span className="block mt-1 text-slate-400">Assigned doctor: {selectedDoctor?.name ?? 'None'}</span>
                 </div>
                 <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 flex items-center justify-between">
                   <span className="text-xs text-slate-300">Feedback focus</span>

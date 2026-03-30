@@ -1,10 +1,32 @@
+import { useEffect, useState } from 'react';
 import MedicalHeart3D from '../components/MedicalHeart3D';
 import VitalSignsChart from '../components/VitalSignsChart';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 function FamilyDashboardPage() {
   const { user } = useAuth();
   const patientName = user?.name || 'Patient';
+  const patientId = user?.id || user?.email || '';
+
+  // Fetch approved prescriptions for this patient
+  const [prescriptions, setPrescriptions] = useState([]);
+  const [rxLoading, setRxLoading] = useState(true);
+
+  useEffect(() => {
+    if (!patientId) { setRxLoading(false); return; }
+    (async () => {
+      setRxLoading(true);
+      try {
+        const result = await api.getPatientPrescriptions(patientId);
+        setPrescriptions(result.items || []);
+      } catch (err) {
+        console.warn('Failed to load prescriptions:', err.message);
+      } finally {
+        setRxLoading(false);
+      }
+    })();
+  }, [patientId]);
 
   return (
     <div className="p-8 relative z-10">
@@ -189,6 +211,73 @@ function FamilyDashboardPage() {
                 <span className="text-sm font-medium text-white">Understand ICU Vitals</span>
                 <span className="material-symbols-outlined text-teal-400 group-hover:translate-x-1 transition-transform">chevron_right</span>
               </div>
+            </div>
+          </div>
+
+          {/* My Prescriptions Section */}
+          <div className="col-span-1 md:col-span-2 lg:col-span-3">
+            <div className="glass-card p-8 rounded-xl border-t border-white/5">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="font-headline text-2xl font-bold text-white">My Prescriptions</h3>
+                  <p className="text-slate-400 text-sm">Approved prescriptions from your doctors</p>
+                </div>
+                <span className="material-symbols-outlined text-teal-300 bg-teal-300/10 p-3 rounded-xl">medication</span>
+              </div>
+
+              {rxLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-teal-400 border-t-transparent" />
+                  <span className="ml-3 text-slate-400">Loading prescriptions...</span>
+                </div>
+              ) : prescriptions.length === 0 ? (
+                <div className="text-center py-12">
+                  <span className="material-symbols-outlined text-5xl text-slate-700 mb-3">clinical_notes</span>
+                  <p className="text-slate-500 text-sm">No approved prescriptions yet.</p>
+                  <p className="text-slate-600 text-xs mt-1">When your doctor uploads and admin approves a prescription, it will appear here.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {prescriptions.map((rx) => {
+                    const ed = rx.extracted_data || rx;
+                    const meds = ed.medications || rx.medications || [];
+                    return (
+                      <div key={rx.prescription_id} className="bg-white/[0.03] rounded-2xl p-5 border border-white/10 hover:border-teal-300/30 transition-all">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <p className="text-white font-semibold text-sm">{ed.doctor_name || rx.doctor_name || 'Doctor'}</p>
+                            <p className="text-slate-500 text-xs">{ed.prescription_date || rx.prescription_date || 'Recent'}</p>
+                          </div>
+                          <span className="bg-emerald-500/15 text-emerald-300 text-[10px] font-bold px-2 py-1 rounded-full uppercase">Approved</span>
+                        </div>
+                        {ed.diagnosis || rx.diagnosis ? (
+                          <p className="text-slate-300 text-xs mb-3">
+                            <span className="text-slate-500">Diagnosis:</span> {ed.diagnosis || rx.diagnosis}
+                          </p>
+                        ) : null}
+                        {meds.length > 0 && (
+                          <div className="space-y-2">
+                            {meds.map((med, i) => (
+                              <div key={i} className="flex items-center gap-2 text-xs">
+                                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
+                                <span className="text-white font-medium">{med.name}</span>
+                                {med.strength && <span className="text-slate-500">{med.strength}</span>}
+                                {med.frequency && <span className="text-teal-400/70">{med.frequency}</span>}
+                                {med.duration && <span className="text-slate-600">&middot; {med.duration}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {(ed.notes || rx.notes) && (
+                          <p className="mt-3 text-[11px] text-slate-500 italic border-t border-white/5 pt-2">
+                            {ed.notes || rx.notes}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 

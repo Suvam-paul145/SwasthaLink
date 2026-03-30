@@ -32,6 +32,11 @@ from models import (
     PrescriptionApproveRequest,
     PrescriptionRejectRequest,
     PrescriptionPatientViewResponse,
+    # Signup & OTP models
+    PatientSignupRequest,
+    PatientSignupResponse,
+    OTPSendRequest,
+    OTPVerifyRequest,
 )
 
 # Import services
@@ -66,7 +71,8 @@ from s3_service import (
     S3ServiceError
 )
 from rate_alert_service import rate_alert_service
-from auth_service import login_user, AuthServiceError
+from auth_service import login_user, signup_patient, AuthServiceError
+from otp_service import send_otp, verify_otp, OTPServiceError
 
 # Prescription RAG service
 from prescription_rag_service import (
@@ -77,6 +83,14 @@ from prescription_rag_service import (
     reject_record,
     get_record,
     get_approved_record,
+    list_records_by_doctor,
+    list_approved_for_patient,
+)
+
+# Supabase patient helpers
+from supabase_service import (
+    list_patients as _list_patients,
+    update_phone_verified as _update_phone_verified,
 )
 
 # Configure logging
@@ -152,6 +166,104 @@ async def auth_login(request: AuthLoginRequest):
     except Exception as exc:
         logger.error(f"Unexpected auth error: {exc}")
         raise HTTPException(status_code=500, detail="Login failed")
+
+
+# Patient signup endpoint
+@app.post("/api/auth/signup", response_model=PatientSignupResponse)
+async def auth_signup(request: PatientSignupRequest):
+    """
+    Register a new patient account with email, password, and phone.
+    Phone verification is done separately via OTP.
+    """
+    try:
+        result = signup_patient(
+            name=request.name,
+            email=request.email,
+            password=request.password,
+            phone=request.phone,
+        )
+        return PatientSignupResponse(
+            success=True,
+            message="Account created. Please verify your phone number.",
+            user_id=result.get("user_id"),
+            is_demo=result.get("is_demo", False),
+        )
+    except AuthServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"Signup error: {exc}")
+        raise HTTPException(status_code=500, detail="Signup failed")
+
+
+# OTP endpoints
+@app.post("/api/auth/send-otp")
+async def auth_send_otp(request: OTPSendRequest):
+    """Send an OTP to the given phone number via WhatsApp or SMS."""
+    try:
+        result = await send_otp(request.phone, channel=request.channel)
+        return result
+    except OTPServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"OTP send error: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to send OTP")
+
+
+@app.post("/api/auth/verify-otp")
+async def auth_verify_otp(request: OTPVerifyRequest):
+    """Verify a previously sent OTP and mark phone as verified."""
+    try:
+        result = await verify_otp(request.phone, request.code)
+        if result.get("verified"):
+            await _update_phone_verified(user_id="", phone=request.phone)
+        return result
+    except OTPServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+    except Exception as exc:
+        logger.error(f"OTP verify error: {exc}")
+        raise HTTPException(status_code=500, detail="OTP verification failed")
+
+
+# Patient directory endpoint (for doctor dropdowns)
+@app.get("/api/patients")
+async def get_patients():
+    """Return patient profiles for doctor-facing dropdowns."""
+    try:
+        patients = await _list_patients()
+        return {"count": len(patients), "items": patients}
+    except Exception as exc:
+        logger.error(f"Error fetching patients: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch patients")
+
+
+# Doctor-specific prescriptions
+@app.get("/api/prescriptions/by-doctor/{doctor_id}")
+async def get_prescriptions_by_doctor(doctor_id: str):
+    """Return all prescriptions uploaded by a specific doctor."""
+    try:
+        records = await list_records_by_doctor(doctor_id)
+        return {
+            "count": len(records),
+            "items": [r.model_dump() for r in records],
+        }
+    except Exception as exc:
+        logger.error(f"Error fetching doctor prescriptions: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch prescriptions")
+
+
+# Patient-specific approved prescriptions
+@app.get("/api/prescriptions/for-patient/{patient_id}")
+async def get_prescriptions_for_patient(patient_id: str):
+    """Return all approved prescriptions for a patient."""
+    try:
+        records = await list_approved_for_patient(patient_id)
+        return {
+            "count": len(records),
+            "items": [r.model_dump() for r in records],
+        }
+    except Exception as exc:
+        logger.error(f"Error fetching patient prescriptions: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch prescriptions")
 
 
 # Health check endpoint
@@ -611,7 +723,7 @@ async def extract_prescription(
         rate_alert_service.track_usage("gemini", context="rag:/api/prescriptions/extract")
 
         # Persist record
-        record = create_prescription_record(
+        record = await create_prescription_record(
             extracted_data=extracted_data,
             doctor_id=doctor_id.strip(),
             s3_key=s3_key,
@@ -647,7 +759,7 @@ async def get_pending_prescriptions():
     data and approve or reject each one.
     """
     try:
-        records = list_pending_records()
+        records = await list_pending_records()
         return {
             "count": len(records),
             "items": [r.model_dump() for r in records],
@@ -669,7 +781,7 @@ async def approve_prescription(
     via the patient-view endpoint.
     """
     try:
-        record = approve_record(prescription_id, request.admin_id)
+        record = await approve_record(prescription_id, request.admin_id)
         if record is None:
             raise HTTPException(
                 status_code=404,
@@ -701,7 +813,7 @@ async def reject_prescription(
     patient-view endpoint.
     """
     try:
-        record = reject_record(prescription_id, request.admin_id, request.reason)
+        record = await reject_record(prescription_id, request.admin_id, request.reason)
         if record is None:
             raise HTTPException(
                 status_code=404,
@@ -736,7 +848,7 @@ async def get_patient_prescription_view(prescription_id: str):
     """
     try:
         # Use public API to check record existence and status
-        raw = get_record(prescription_id)
+        raw = await get_record(prescription_id)
         if raw is None:
             raise HTTPException(status_code=404, detail="Prescription not found")
 
@@ -751,7 +863,7 @@ async def get_patient_prescription_view(prescription_id: str):
                 detail="Prescription was rejected by admin",
             )
 
-        record = get_approved_record(prescription_id)
+        record = await get_approved_record(prescription_id)
         if record is None:
             raise HTTPException(status_code=403, detail="Prescription is not approved")
 
