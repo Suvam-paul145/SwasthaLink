@@ -191,49 +191,103 @@ def _extract_json(response_text: str) -> Dict[str, Any]:
         raise ValueError(f"JSON parse error: {exc}") from exc
 
 
-async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
+def _fallback_extraction_from_ocr(ocr_text: str) -> PrescriptionExtractedData:
     """
-    Run the RAG extraction pipeline on OCR text from a prescription image.
-
-    1. Retrieve relevant context snippets.
-    2. Build a constrained prompt and call Gemini.
-    3. Parse JSON into a PrescriptionExtractedData model.
+    Build a minimal PrescriptionExtractedData from OCR text using regex
+    when Gemini fails to return valid JSON.  The record is still created
+    and queued for admin review so nothing is lost.
     """
-    from gemini_service import (  # local import to avoid circular
-        GEMINI_API_KEY,
-        GeminiServiceError,
-        _generate_text,
+    logger.warning("Using fallback regex extraction from OCR text")
+
+    # Try to find doctor name (Dr. ...)
+    doctor_match = re.search(r"(?:Dr\.?|Doctor)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)", ocr_text)
+    doctor_name = doctor_match.group(0).strip() if doctor_match else None
+
+    # Try to find patient name (after "Name:" or "Patient's Name:")
+    patient_match = re.search(
+        r"(?:Patient(?:'s)?\s*Name|Name)\s*[:：]\s*(.+?)(?:\n|$)", ocr_text, re.IGNORECASE
+    )
+    patient_name = patient_match.group(1).strip() if patient_match else None
+
+    # Try to find age
+    age_match = re.search(r"Age\s*[:：]\s*(\d{1,3})", ocr_text, re.IGNORECASE)
+    patient_age = f"{age_match.group(1)} yrs" if age_match else None
+
+    # Try to find sex/gender
+    sex_match = re.search(r"Sex\s*[:：]\s*([MFmf]|Male|Female)", ocr_text, re.IGNORECASE)
+    patient_gender = None
+    if sex_match:
+        g = sex_match.group(1).upper()
+        patient_gender = "Male" if g.startswith("M") else "Female"
+
+    # Try to find date
+    date_match = re.search(r"Date\s*[:：]\s*([\d/\-\.]+)", ocr_text, re.IGNORECASE)
+    prescription_date = date_match.group(1).strip() if date_match else None
+
+    # Try to extract medication names (lines with Tab/Cap/T./Syrup etc.)
+    med_lines = re.findall(
+        r"(?:Tab|Cap|Syrup|Inj|T\.)\.?\s+([A-Za-z\-]+(?:\s+[A-Za-z\-]*)?)\s*(?:\(?\d+)",
+        ocr_text, re.IGNORECASE
+    )
+    medications = []
+    for med_name in med_lines[:10]:  # cap at 10
+        medications.append(PrescriptionMedication(
+            name=med_name.strip(),
+            strength=None,
+            form=None,
+            frequency=None,
+            duration=None,
+            instructions=None,
+        ))
+
+    return PrescriptionExtractedData(
+        doctor_name=doctor_name,
+        patient_id=None,
+        patient_name=patient_name,
+        patient_age=patient_age,
+        patient_gender=patient_gender,
+        prescription_date=prescription_date,
+        medications=medications,
+        diagnosis=None,
+        notes="⚠️ Auto-extracted via fallback (Gemini did not return structured data). Please verify all fields manually.",
+        extraction_confidence=0.2,
     )
 
-    if not GEMINI_API_KEY:
-        raise GeminiServiceError("Gemini API key not configured")
 
-    context_snippets = retrieve_context(ocr_text, top_k=4)
-    context_text = "\n\n".join(f"• {s}" for s in context_snippets)
+_RETRY_PROMPT = """Your previous response was NOT valid JSON. You MUST return ONLY a JSON object.
+Do NOT include any explanation, apology, or markdown — just the raw JSON.
 
-    prompt = _PRESCRIPTION_EXTRACTION_PROMPT.format(
-        context=context_text,
-        ocr_text=ocr_text,
-    )
+Previous OCR text:
+{ocr_text}
 
-    logger.info("Calling Gemini for prescription RAG extraction...")
-    response_text = _generate_text(
-        prompt=prompt,
-        generation_config={"temperature": 0.1, "max_output_tokens": 2048},
-    )
+Return this EXACT JSON structure (fill in values from the OCR text above):
+{{
+  "doctor_name": "string or null",
+  "patient_id": "string or null",
+  "patient_name": "string or null",
+  "patient_age": "string or null",
+  "patient_gender": "string or null",
+  "prescription_date": "string or null",
+  "medications": [
+    {{
+      "name": "string",
+      "strength": "string or null",
+      "form": "string or null",
+      "frequency": "string or null",
+      "duration": "string or null",
+      "instructions": "string or null"
+    }}
+  ],
+  "diagnosis": "string or null",
+  "notes": "string or null",
+  "extraction_confidence": 0.0
+}}
 
-    if not response_text:
-        raise GeminiServiceError("Gemini returned empty response for prescription extraction")
+CRITICAL: Return ONLY the JSON object. No other text whatsoever."""
 
-    logger.info(f"Gemini prescription response: {len(response_text)} chars")
 
-    try:
-        data = _extract_json(response_text)
-    except ValueError as exc:
-        logger.error(f"Prescription JSON parse failed: {exc}")
-        raise GeminiServiceError(f"Failed to parse prescription extraction JSON: {exc}") from exc
-
-    # Build medication list
+def _parse_gemini_to_extracted_data(data: Dict[str, Any]) -> PrescriptionExtractedData:
+    """Convert a parsed JSON dict into a PrescriptionExtractedData model."""
     medications: List[PrescriptionMedication] = []
     for med in data.get("medications") or []:
         medications.append(
@@ -259,6 +313,79 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
         notes=data.get("notes"),
         extraction_confidence=float(data.get("extraction_confidence") or 0.5),
     )
+
+
+async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
+    """
+    Run the RAG extraction pipeline on OCR text from a prescription image.
+
+    Pipeline:
+      1. Retrieve relevant context snippets.
+      2. Build a constrained prompt and call Gemini.
+      3. If Gemini does NOT return valid JSON → retry once with a reinforced prompt.
+      4. If retry also fails → fallback to regex-based extraction from OCR text.
+      5. Parse result into PrescriptionExtractedData.
+    """
+    from gemini_service import (  # local import to avoid circular
+        GEMINI_API_KEY,
+        GeminiServiceError,
+        _generate_text,
+    )
+
+    if not GEMINI_API_KEY:
+        raise GeminiServiceError("Gemini API key not configured")
+
+    context_snippets = retrieve_context(ocr_text, top_k=4)
+    context_text = "\n\n".join(f"• {s}" for s in context_snippets)
+
+    prompt = _PRESCRIPTION_EXTRACTION_PROMPT.format(
+        context=context_text,
+        ocr_text=ocr_text,
+    )
+
+    # --- Attempt 1 ---
+    logger.info("Calling Gemini for prescription RAG extraction (attempt 1)...")
+    response_text = _generate_text(
+        prompt=prompt,
+        generation_config={"temperature": 0.1, "max_output_tokens": 4096},
+    )
+
+    if not response_text:
+        raise GeminiServiceError("Gemini returned empty response for prescription extraction")
+
+    logger.info(f"Gemini prescription response (attempt 1): {len(response_text)} chars")
+
+    try:
+        data = _extract_json(response_text)
+        return _parse_gemini_to_extracted_data(data)
+    except ValueError as exc:
+        logger.warning(f"Attempt 1 JSON parse failed: {exc}")
+        logger.warning(f"Raw response (attempt 1): {response_text[:500]}")
+
+    # --- Attempt 2: Retry with reinforced prompt ---
+    logger.info("Retrying Gemini with reinforced JSON-only prompt (attempt 2)...")
+    retry_prompt = _RETRY_PROMPT.format(ocr_text=ocr_text)
+
+    try:
+        response_text_2 = _generate_text(
+            prompt=retry_prompt,
+            generation_config={"temperature": 0.05, "max_output_tokens": 4096},
+        )
+
+        if response_text_2:
+            logger.info(f"Gemini prescription response (attempt 2): {len(response_text_2)} chars")
+            try:
+                data = _extract_json(response_text_2)
+                return _parse_gemini_to_extracted_data(data)
+            except ValueError as exc2:
+                logger.warning(f"Attempt 2 JSON parse also failed: {exc2}")
+                logger.warning(f"Raw response (attempt 2): {response_text_2[:500]}")
+    except Exception as retry_exc:
+        logger.warning(f"Retry Gemini call failed: {retry_exc}")
+
+    # --- Fallback: regex extraction from OCR ---
+    logger.warning("Both Gemini attempts failed to return JSON. Using fallback regex extraction.")
+    return _fallback_extraction_from_ocr(ocr_text)
 
 
 # ---------------------------------------------------------------------------

@@ -115,12 +115,8 @@ function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-6 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-slate-400 space-y-1">
-          <p>Demo users are available if backend auth is not configured:</p>
-          <p>Patient: <span className="text-slate-200">patient@swasthalink.demo / Patient@123</span></p>
-          <p>Doctor: <span className="text-slate-200">doctor@swasthalink.demo / Doctor@123</span></p>
-          <p>Admin: <span className="text-slate-200">admin@swasthalink.demo / Admin@123</span></p>
-        </div>
+
+
 
         <div className="mt-4 text-center text-sm text-slate-400">
           New patient?{' '}

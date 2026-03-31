@@ -10,7 +10,6 @@ function DoctorPanelPage() {
   const [uploadMessage, setUploadMessage] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [extractionResult, setExtractionResult] = useState(null);
-  const [isDemoExtraction, setIsDemoExtraction] = useState(false);
   const [isDropZoneActive, setIsDropZoneActive] = useState(false);
   const [deliveryMode, setDeliveryMode] = useState("WhatsApp + PDF");
   const [feedbackFocus, setFeedbackFocus] = useState("Medication Safety");
@@ -177,7 +176,6 @@ function DoctorPanelPage() {
       });
 
       setExtractionResult(response);
-      setIsDemoExtraction(Boolean(response.demo_mode));
       setUploadStatus("Uploaded");
       setUploadMessage(response.message || "Prescription extraction completed and queued for review.");
     } catch (error) {
@@ -533,15 +531,9 @@ function DoctorPanelPage() {
                   <div className="rounded-xl bg-[#0f2334] border border-white/10 px-4 py-3 space-y-2">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-bold uppercase tracking-wider text-white">Extraction Summary</p>
-                      {isDemoExtraction ? (
-                        <span className="text-[10px] uppercase tracking-wider bg-amber-500/20 text-amber-200 px-2 py-1 rounded-full">
-                          Demo Data
-                        </span>
-                      ) : (
-                        <span className="text-[10px] uppercase tracking-wider bg-emerald-500/20 text-emerald-200 px-2 py-1 rounded-full">
+                      <span className="text-[10px] uppercase tracking-wider bg-emerald-500/20 text-emerald-200 px-2 py-1 rounded-full">
                           Live Data
                         </span>
-                      )}
                     </div>
                     <p className="text-xs text-slate-300">
                       Prescription ID: <span className="text-white">{extractionResult.prescription_id}</span>
