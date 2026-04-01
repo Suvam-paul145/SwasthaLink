@@ -258,6 +258,9 @@ const api = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('doctor_id', doctorId);
+    if (context.reportType) formData.append('report_type', context.reportType);
+    if (context.patientId) formData.append('patient_id', context.patientId);
+    if (context.linkedPrescriptionId) formData.append('linked_prescription_id', context.linkedPrescriptionId);
     return await apiRequest(API_ENDPOINTS.PRESCRIPTION_EXTRACT, {
       method: 'POST',
       body: formData,
@@ -391,6 +394,37 @@ const api = {
    */
   getPatients: async () => {
     return await apiRequest(API_ENDPOINTS.PATIENTS_LIST, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get ALL prescriptions (admin history view).
+   * @returns {Promise<Object>} { count, items }
+   */
+  getAllPrescriptions: async () => {
+    return await apiRequest(API_ENDPOINTS.PRESCRIPTIONS_ALL, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get full clinical view of a prescription (doctor view).
+   * @param {string} prescriptionId - UUID
+   * @returns {Promise<Object>} Full prescription record
+   */
+  getDoctorView: async (prescriptionId) => {
+    return await apiRequest(API_ENDPOINTS.PRESCRIPTION_DOCTOR_VIEW(prescriptionId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get Gemini API rate limit usage status.
+   * @returns {Promise<Object>} Rate limit usage stats
+   */
+  getRateLimitStatus: async () => {
+    return await apiRequest(API_ENDPOINTS.RATE_LIMIT_STATUS, {
       method: 'GET',
     });
   },

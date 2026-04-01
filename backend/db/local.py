@@ -47,7 +47,12 @@ def init_db():
             created_at TEXT,
             admin_id TEXT,
             reviewed_at TEXT,
-            rejection_reason TEXT
+            rejection_reason TEXT,
+            tests TEXT DEFAULT '[]',
+            report_type TEXT DEFAULT 'prescription',
+            raw_ocr_text TEXT,
+            patient_insights TEXT,
+            linked_prescription_id TEXT
         );
 
         CREATE TABLE IF NOT EXISTS sessions (
@@ -88,6 +93,82 @@ def init_db():
     ''')
     conn.commit()
     conn.close()
+    # Run migration for existing databases
+    _migrate_prescriptions_table()
+
+
+def _migrate_prescriptions_table():
+    """Add new columns to existing prescriptions table (safe for fresh DB too)."""
+    conn = get_connection()
+    c = conn.cursor()
+    new_columns = [
+        ("tests", "TEXT DEFAULT '[]'"),
+        ("report_type", "TEXT DEFAULT 'prescription'"),
+        ("raw_ocr_text", "TEXT"),
+        ("patient_insights", "TEXT"),
+        ("linked_prescription_id", "TEXT"),
+    ]
+    for col_name, col_type in new_columns:
+        try:
+            c.execute(f"ALTER TABLE prescriptions ADD COLUMN {col_name} {col_type}")
+        except Exception:
+            pass  # Column already exists
+    conn.commit()
+    conn.close()
+
+
+def seed_mock_users():
+    """Seed three mock credential users for local development testing."""
+    import uuid
+
+    mock_users = [
+        {
+            "id": "mock-patient-001",
+            "user_id": "mock-patient-001",
+            "email": "patient@swasthalink.demo",
+            "full_name": "Demo Patient",
+            "role": "patient",
+            "phone": "+919876543210",
+            "phone_verified": 1,
+            "password_hash": "Patient@123",
+        },
+        {
+            "id": "mock-doctor-001",
+            "user_id": "mock-doctor-001",
+            "email": "doctor@swasthalink.demo",
+            "full_name": "Dr. Demo",
+            "role": "doctor",
+            "phone": "+919876543211",
+            "phone_verified": 1,
+            "password_hash": "Doctor@123",
+        },
+        {
+            "id": "mock-admin-001",
+            "user_id": "mock-admin-001",
+            "email": "admin@swasthalink.demo",
+            "full_name": "Admin Demo",
+            "role": "admin",
+            "phone": "+919876543212",
+            "phone_verified": 1,
+            "password_hash": "Admin@123",
+        },
+    ]
+
+    conn = get_connection()
+    c = conn.cursor()
+    for user in mock_users:
+        try:
+            c.execute(
+                "INSERT OR REPLACE INTO profiles (id, user_id, email, full_name, role, phone, phone_verified, password_hash) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (user["id"], user["user_id"], user["email"], user["full_name"],
+                 user["role"], user["phone"], user["phone_verified"], user["password_hash"]),
+            )
+        except Exception:
+            pass
+    conn.commit()
+    conn.close()
 
 
 init_db()
+seed_mock_users()

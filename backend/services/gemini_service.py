@@ -7,6 +7,7 @@ Includes JSON parsing, error handling, and prompt management
 import os
 import json
 import re
+from services.rate_limiter_service import gemini_rate_limiter, RateLimitExceeded
 import logging
 from typing import Dict, Any, Optional
 
@@ -103,6 +104,12 @@ def _generate_text(
     if not GEMINI_API_KEY:
         raise GeminiServiceError("Gemini API key not configured")
 
+    # Rate limit check — blocks before hitting API quota
+    try:
+        gemini_rate_limiter.check_and_record(context="text_generation")
+    except RateLimitExceeded as exc:
+        raise GeminiServiceError(str(exc))
+
     if GENAI_SDK == "google.genai":
         if not genai_client:
             raise GeminiServiceError("Gemini client not initialized")
@@ -145,6 +152,12 @@ def _generate_multimodal_text(
     """Generate text for multimodal input (prompt + image/pdf)."""
     if not GEMINI_API_KEY:
         raise GeminiServiceError("Gemini API key not configured")
+
+    # Rate limit check — blocks before hitting API quota
+    try:
+        gemini_rate_limiter.check_and_record(context="multimodal_ocr")
+    except RateLimitExceeded as exc:
+        raise GeminiServiceError(str(exc))
 
     if GENAI_SDK == "google.genai":
         if not genai_client:
@@ -342,7 +355,7 @@ async def extract_text_from_image(image_data: bytes, mime_type: str) -> str:
             prompt=prompt,
             image_data=image_data,
             mime_type=mime_type,
-            generation_config={"temperature": 0.1},
+            generation_config={"temperature": 0.0},
         )
 
         if not extracted_text:

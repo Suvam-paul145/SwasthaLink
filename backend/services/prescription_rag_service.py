@@ -135,39 +135,65 @@ CONTEXT (prescription-reading heuristics):
 {context}
 
 TASK:
-Extract structured information from the following OCR text of a handwritten prescription.
+Extract structured information from the following OCR text of a handwritten medical document.
 Return ONLY a valid JSON object — no markdown, no backticks, no explanation.
+
+MANDATORY CANONICAL FORMATS (use EXACTLY these):
+  Frequency: "OD" → "Once daily (morning)", "BD" → "Twice daily (morning & evening)",
+             "TDS" → "Three times daily", "QID" → "Four times daily",
+             "SOS" → "As needed", "HS" → "At bedtime", "STAT" → "Immediately once"
+  Form:      "Tab" → "Tablet", "Cap" → "Capsule", "Syp" → "Syrup",
+             "Inj" → "Injection", "Drops" → "Drops", "Cream" → "Cream",
+             "Ointment" → "Ointment"
+  Strength:  Always add space: "500mg" → "500 mg", "5ml" → "5 ml"
+  Instructions: "AC" → "Before food", "PC" → "After food", "HS" → "At bedtime"
+  Names:     Use Title Case for all drug names. Prefer generic names when identifiable.
+  Gender:    Always output exactly "Male" or "Female" or "Other"
+  Date:      Keep the original date string exactly as written
 
 OCR TEXT:
 {ocr_text}
 
 Return this EXACT JSON structure:
 {{
-  "doctor_name": "Full name with title, or null if not found",
+  "report_type": "prescription",
+  "doctor_name": "Full name with title (e.g. 'Dr. Sukriti Mukherjee'), or null",
   "patient_id": "UHID / MRN / Patient ID as a string, or null",
-  "patient_name": "Full patient name, or null",
-  "patient_age": "Age as string (e.g. '35 yrs' or '35/M'), or null",
+  "patient_name": "Full patient name with title (e.g. 'Mr. Suvam Paul'), or null",
+  "patient_age": "Age as string with unit (e.g. '35 yrs'), or null",
   "patient_gender": "Male / Female / Other, or null",
-  "prescription_date": "Date string if visible, or null",
+  "prescription_date": "Date string exactly as written, or null",
   "medications": [
     {{
-      "name": "Drug name (generic preferred, brand acceptable)",
-      "strength": "e.g. '500mg', '5ml', or null",
-      "form": "Tab / Cap / Syrup / Inj / Drops / Cream / Other, or null",
-      "frequency": "e.g. 'OD', 'BD', 'TDS', 'QID', 'SOS', or plain text",
+      "name": "Drug name in Title Case (e.g. 'Venlafaxine XL')",
+      "strength": "e.g. '500 mg', '5 ml', or null",
+      "form": "Use canonical form (Tablet/Capsule/Syrup/Injection/etc.), or null",
+      "frequency": "Use canonical frequency (e.g. 'Once daily (morning)'), or null",
       "duration": "e.g. '5 days', '2 weeks', or null",
-      "instructions": "e.g. 'After food', 'At bedtime', or null"
+      "instructions": "Use canonical instructions (e.g. 'Before food'), or null",
+      "purpose": "Brief reason why this is prescribed based on diagnosis context, or null"
     }}
   ],
-  "diagnosis": "Diagnosis or presenting complaint if mentioned, or null",
-  "notes": "Any other important notes or instructions, or null",
+  "tests": [
+    {{
+      "name": "Test name (e.g. 'ECG', 'Blood Test', 'MRI')",
+      "reason": "Why this test is needed, or null",
+      "urgency": "Routine / Urgent / STAT, or null"
+    }}
+  ],
+  "diagnosis": "Diagnosis with ICD code if visible (e.g. 'F42.2 - OCD'), or null",
+  "notes": "Any other important notes, advice, or follow-up instructions, or null",
   "extraction_confidence": 0.0
 }}
 
 Rules:
 1. Set extraction_confidence between 0.0 (fully illegible) and 1.0 (fully clear).
-2. Use null for any field that cannot be reliably read — never guess drug names.
-3. Return ONLY the JSON. No other text."""
+2. Use null for any field that cannot be reliably read — NEVER guess drug names.
+3. Count filled fields to calculate confidence: confidence = filled_fields / total_fields.
+4. If the document mentions tests (ECG, blood test, MRI, etc.), list them in the "tests" array.
+5. If no tests are mentioned, return an empty array [].
+6. The "purpose" field should be inferred from the diagnosis/context — keep it brief.
+7. Return ONLY the JSON. No other text whatsoever."""
 
 
 def _strip_fences(text: str) -> str:
@@ -286,20 +312,108 @@ Return this EXACT JSON structure (fill in values from the OCR text above):
 CRITICAL: Return ONLY the JSON object. No other text whatsoever."""
 
 
+# ---------------------------------------------------------------------------
+# Post-processing normalization maps
+# ---------------------------------------------------------------------------
+
+_FREQ_MAP = {
+    "od": "Once daily (morning)", "o.d": "Once daily (morning)", "o.d.": "Once daily (morning)",
+    "bd": "Twice daily (morning & evening)", "b.d": "Twice daily (morning & evening)",
+    "tds": "Three times daily", "t.d.s": "Three times daily", "tid": "Three times daily",
+    "qid": "Four times daily", "q.i.d": "Four times daily",
+    "sos": "As needed", "s.o.s": "As needed", "prn": "As needed",
+    "hs": "At bedtime", "h.s": "At bedtime",
+    "stat": "Immediately once",
+    "once daily": "Once daily (morning)", "twice daily": "Twice daily (morning & evening)",
+    "thrice daily": "Three times daily",
+}
+
+_FORM_MAP = {
+    "tab": "Tablet", "tab.": "Tablet", "tablet": "Tablet", "t.": "Tablet",
+    "cap": "Capsule", "cap.": "Capsule", "capsule": "Capsule",
+    "syp": "Syrup", "syp.": "Syrup", "syrup": "Syrup",
+    "inj": "Injection", "inj.": "Injection", "injection": "Injection",
+    "drops": "Drops", "drop": "Drops",
+    "cream": "Cream", "ointment": "Ointment", "oint": "Ointment",
+}
+
+_INSTR_MAP = {
+    "ac": "Before food", "a.c": "Before food", "before food": "Before food",
+    "pc": "After food", "p.c": "After food", "after food": "After food",
+    "hs": "At bedtime", "at bedtime": "At bedtime",
+    "empty stomach": "On empty stomach",
+}
+
+
+def _normalize_field(value, lookup: dict):
+    if not value:
+        return value
+    key = str(value).strip().lower()
+    return lookup.get(key, value)
+
+
+def _normalize_strength(value):
+    if not value:
+        return value
+    return re.sub(r"(\d+)\s*(mg|ml|mcg|g|iu|%)", r"\1 \2", str(value).strip(), flags=re.IGNORECASE)
+
+
+def _normalize_name(name):
+    if not name:
+        return name
+    return str(name).strip().title()
+
+
+def _deduplicate_meds(meds: list) -> list:
+    seen = set()
+    unique = []
+    for med in meds:
+        key = (med.name.lower(), (med.strength or "").lower())
+        if key not in seen:
+            seen.add(key)
+            unique.append(med)
+    return unique
+
+
+def _calculate_confidence(data: dict) -> float:
+    fields = ["doctor_name", "patient_name", "patient_age", "patient_gender",
+              "prescription_date", "diagnosis"]
+    filled = sum(1 for f in fields if data.get(f))
+    med_count = len(data.get("medications") or [])
+    if med_count > 0:
+        filled += 1
+    total = len(fields) + 1
+    raw = filled / total
+    ai_conf = float(data.get("extraction_confidence") or 0.5)
+    return round(min(1.0, max(0.1, (raw * 0.4 + ai_conf * 0.6))), 2)
+
+
 def _parse_gemini_to_extracted_data(data: Dict[str, Any]) -> PrescriptionExtractedData:
-    """Convert a parsed JSON dict into a PrescriptionExtractedData model."""
+    """Convert a parsed JSON dict into a PrescriptionExtractedData model with normalization."""
     medications: List[PrescriptionMedication] = []
     for med in data.get("medications") or []:
         medications.append(
             PrescriptionMedication(
-                name=med.get("name") or "Unknown",
-                strength=med.get("strength"),
-                form=med.get("form"),
-                frequency=med.get("frequency"),
+                name=_normalize_name(med.get("name")) or "Unknown",
+                strength=_normalize_strength(med.get("strength")),
+                form=_normalize_field(med.get("form"), _FORM_MAP),
+                frequency=_normalize_field(med.get("frequency"), _FREQ_MAP),
                 duration=med.get("duration"),
-                instructions=med.get("instructions"),
+                instructions=_normalize_field(med.get("instructions"), _INSTR_MAP),
+                purpose=med.get("purpose"),
             )
         )
+    medications = _deduplicate_meds(medications)
+
+    tests = []
+    for t in data.get("tests") or []:
+        tests.append({
+            "name": (t.get("name") or "Unknown").strip(),
+            "reason": t.get("reason"),
+            "urgency": t.get("urgency") or "Routine",
+        })
+
+    confidence = _calculate_confidence(data)
 
     return PrescriptionExtractedData(
         doctor_name=data.get("doctor_name"),
@@ -311,7 +425,9 @@ def _parse_gemini_to_extracted_data(data: Dict[str, Any]) -> PrescriptionExtract
         medications=medications,
         diagnosis=data.get("diagnosis"),
         notes=data.get("notes"),
-        extraction_confidence=float(data.get("extraction_confidence") or 0.5),
+        extraction_confidence=confidence,
+        tests=tests,
+        report_type=data.get("report_type", "prescription"),
     )
 
 
@@ -343,11 +459,11 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
         ocr_text=ocr_text,
     )
 
-    # --- Attempt 1 ---
-    logger.info("Calling Gemini for prescription RAG extraction (attempt 1)...")
+    # --- Attempt 1 (deterministic: temperature=0.0) ---
+    logger.info("Calling Gemini for prescription RAG extraction (attempt 1, t=0.0)...")
     response_text = _generate_text(
         prompt=prompt,
-        generation_config={"temperature": 0.1, "max_output_tokens": 4096},
+        generation_config={"temperature": 0.0, "max_output_tokens": 4096},
     )
 
     if not response_text:
@@ -357,7 +473,9 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
 
     try:
         data = _extract_json(response_text)
-        return _parse_gemini_to_extracted_data(data)
+        result = _parse_gemini_to_extracted_data(data)
+        result.raw_ocr_text = ocr_text
+        return result
     except ValueError as exc:
         logger.warning(f"Attempt 1 JSON parse failed: {exc}")
         logger.warning(f"Raw response (attempt 1): {response_text[:500]}")
@@ -369,14 +487,16 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
     try:
         response_text_2 = _generate_text(
             prompt=retry_prompt,
-            generation_config={"temperature": 0.05, "max_output_tokens": 4096},
+            generation_config={"temperature": 0.0, "max_output_tokens": 4096},
         )
 
         if response_text_2:
             logger.info(f"Gemini prescription response (attempt 2): {len(response_text_2)} chars")
             try:
                 data = _extract_json(response_text_2)
-                return _parse_gemini_to_extracted_data(data)
+                result = _parse_gemini_to_extracted_data(data)
+                result.raw_ocr_text = ocr_text
+                return result
             except ValueError as exc2:
                 logger.warning(f"Attempt 2 JSON parse also failed: {exc2}")
                 logger.warning(f"Raw response (attempt 2): {response_text_2[:500]}")
@@ -385,7 +505,9 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
 
     # --- Fallback: regex extraction from OCR ---
     logger.warning("Both Gemini attempts failed to return JSON. Using fallback regex extraction.")
-    return _fallback_extraction_from_ocr(ocr_text)
+    fallback = _fallback_extraction_from_ocr(ocr_text)
+    fallback.raw_ocr_text = ocr_text
+    return fallback
 
 
 # ---------------------------------------------------------------------------
@@ -408,7 +530,7 @@ from db import (
 def _record_to_db_row(record: PrescriptionRecord) -> Dict[str, Any]:
     """Flatten a PrescriptionRecord into a dict suitable for the DB table."""
     ed = record.extracted_data
-    return {
+    row = {
         "prescription_id": record.prescription_id,
         "status": record.status.value if hasattr(record.status, "value") else record.status,
         "doctor_id": record.doctor_id,
@@ -424,7 +546,13 @@ def _record_to_db_row(record: PrescriptionRecord) -> Dict[str, Any]:
         "extraction_confidence": ed.extraction_confidence,
         "s3_key": record.s3_key,
         "created_at": record.created_at,
+        "tests": ed.tests or [],
+        "report_type": ed.report_type or "prescription",
+        "raw_ocr_text": ed.raw_ocr_text,
+        "patient_insights": ed.patient_insights.model_dump() if ed.patient_insights else None,
+        "linked_prescription_id": record.linked_prescription_id,
     }
+    return row
 
 
 def _db_row_to_record(row: Dict[str, Any]) -> PrescriptionRecord:
@@ -438,7 +566,30 @@ def _db_row_to_record(row: Dict[str, Any]) -> PrescriptionRecord:
             frequency=m.get("frequency"),
             duration=m.get("duration"),
             instructions=m.get("instructions"),
+            purpose=m.get("purpose"),
+            warnings=m.get("warnings"),
         ))
+
+    # Parse tests
+    tests = row.get("tests") or []
+    if isinstance(tests, str):
+        try:
+            tests = json.loads(tests)
+        except (json.JSONDecodeError, TypeError):
+            tests = []
+
+    # Parse patient_insights
+    insights_raw = row.get("patient_insights")
+    patient_insights = None
+    if insights_raw:
+        if isinstance(insights_raw, str):
+            try:
+                insights_raw = json.loads(insights_raw)
+            except (json.JSONDecodeError, TypeError):
+                insights_raw = None
+        if isinstance(insights_raw, dict):
+            from models.prescription import PatientInsights
+            patient_insights = PatientInsights(**insights_raw)
 
     extracted = PrescriptionExtractedData(
         doctor_name=row.get("doctor_name"),
@@ -451,6 +602,10 @@ def _db_row_to_record(row: Dict[str, Any]) -> PrescriptionRecord:
         diagnosis=row.get("diagnosis"),
         notes=row.get("notes"),
         extraction_confidence=float(row.get("extraction_confidence") or 0.5),
+        tests=tests,
+        report_type=row.get("report_type", "prescription"),
+        raw_ocr_text=row.get("raw_ocr_text"),
+        patient_insights=patient_insights,
     )
 
     return PrescriptionRecord(
@@ -463,6 +618,7 @@ def _db_row_to_record(row: Dict[str, Any]) -> PrescriptionRecord:
         admin_id=row.get("admin_id"),
         reviewed_at=row.get("reviewed_at"),
         rejection_reason=row.get("rejection_reason"),
+        linked_prescription_id=row.get("linked_prescription_id"),
     )
 
 
@@ -470,6 +626,7 @@ async def create_prescription_record(
     extracted_data: PrescriptionExtractedData,
     doctor_id: str,
     s3_key: Optional[str] = None,
+    linked_prescription_id: Optional[str] = None,
 ) -> PrescriptionRecord:
     """Create a new pending prescription record and persist in Supabase (or memory)."""
     record = PrescriptionRecord(
@@ -479,6 +636,7 @@ async def create_prescription_record(
         extracted_data=extracted_data,
         s3_key=s3_key,
         created_at=datetime.now(timezone.utc).isoformat(),
+        linked_prescription_id=linked_prescription_id,
     )
 
     if not supabase_client:

@@ -26,6 +26,9 @@ export const API_ENDPOINTS = {
   PRESCRIPTION_PATIENT_VIEW: (id) => `/api/prescriptions/${id}/patient-view`,
   PRESCRIPTIONS_BY_DOCTOR: (doctorId) => `/api/prescriptions/by-doctor/${doctorId}`,
   PRESCRIPTIONS_FOR_PATIENT: (patientId) => `/api/prescriptions/for-patient/${patientId}`,
+  PRESCRIPTIONS_ALL: '/api/prescriptions/all',
+  PRESCRIPTION_DOCTOR_VIEW: (id) => `/api/prescriptions/${id}/doctor-view`,
+  RATE_LIMIT_STATUS: '/api/rate-limit-status',
   PATIENTS_LIST: '/api/patients',
 
   // Utility endpoints

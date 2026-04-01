@@ -44,6 +44,9 @@ from models.whatsapp import (
 
 # Prescription
 from models.prescription import (
+    PrescriptionTest,
+    DosageSchedule,
+    PatientInsights,
     PrescriptionMedication,
     PrescriptionExtractedData,
     PrescriptionStatusEnum,

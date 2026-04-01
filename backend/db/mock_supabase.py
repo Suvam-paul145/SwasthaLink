@@ -162,7 +162,30 @@ class MockQuery:
                 f"SELECT * FROM {self.table}{where}",
                 tuple([f[2] for f in self.filters]),
             )
-            rows = [dict(r) for r in c.fetchall()]
+            rows = []
+            for r in c.fetchall():
+                d = dict(r)
+                if 'medications' in d and isinstance(d['medications'], str):
+                    try:
+                        d['medications'] = json.loads(d['medications'])
+                    except Exception:
+                        pass
+                if 'event_data' in d and isinstance(d['event_data'], str):
+                    try:
+                        d['event_data'] = json.loads(d['event_data'])
+                    except Exception:
+                        pass
+                if 'tests' in d and isinstance(d['tests'], str):
+                    try:
+                        d['tests'] = json.loads(d['tests'])
+                    except Exception:
+                        d['tests'] = []
+                if 'patient_insights' in d and isinstance(d['patient_insights'], str):
+                    try:
+                        d['patient_insights'] = json.loads(d['patient_insights'])
+                    except Exception:
+                        d['patient_insights'] = None
+                rows.append(d)
             return MockData(rows[0] if self._single and rows else rows)
 
         elif self.action == "select":
@@ -200,6 +223,16 @@ class MockQuery:
                         d['event_data'] = json.loads(d['event_data'])
                     except Exception:
                         pass
+                if 'tests' in d and isinstance(d['tests'], str):
+                    try:
+                        d['tests'] = json.loads(d['tests'])
+                    except Exception:
+                        d['tests'] = []
+                if 'patient_insights' in d and isinstance(d['patient_insights'], str):
+                    try:
+                        d['patient_insights'] = json.loads(d['patient_insights'])
+                    except Exception:
+                        d['patient_insights'] = None
                 rows.append(d)
 
             if self._single:

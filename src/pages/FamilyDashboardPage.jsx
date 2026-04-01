@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import MedicalHeart3D from '../components/MedicalHeart3D';
-import VitalSignsChart from '../components/VitalSignsChart';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
@@ -28,8 +27,12 @@ function FamilyDashboardPage() {
     })();
   }, [patientId]);
 
+  const latestRx = prescriptions[0];
+  const insights = latestRx?.patient_insights;
+  const extracted = latestRx?.extracted_data || latestRx || {};
+
   return (
-    <div className="min-h-screen bg-[#070e17] text-white p-6 lg:p-10 relative overflow-hidden">
+    <div className="min-h-screen bg-[#070e17] text-white p-6 lg:p-10 relative overflow-hidden pb-32">
       {/* Ambient glow blobs — match signup/login */}
       <div className="absolute -top-28 -right-20 w-72 h-72 bg-teal-400/10 rounded-full blur-[100px]" />
       <div className="absolute -bottom-32 -left-20 w-80 h-80 bg-cyan-400/10 rounded-full blur-[120px]" />
@@ -39,185 +42,157 @@ function FamilyDashboardPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <span className="bg-teal-500/20 text-teal-300 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase border border-teal-500/20">Active Care</span>
-              <div className="flex items-center gap-2 text-teal-400/80 text-xs font-medium uppercase tracking-wider">
-                <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
-                Live Monitoring
+              <span className="bg-teal-500/20 text-teal-300 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase border border-teal-500/20">AI Clinical Insights</span>
+              <div className="flex items-center gap-2 text-primary text-xs font-medium uppercase tracking-wider">
+                <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                Dynamic Profile
               </div>
             </div>
             <h1 className="text-4xl md:text-5xl font-headline font-extrabold tracking-tight text-white">Family Dashboard</h1>
             <p className="text-slate-300 text-lg max-w-xl font-light">
-              Real-time recovery tracking for <span className="text-teal-300 font-semibold">{patientName}</span>.
+              AI-generated clinical insights and care tracking for <span className="text-teal-300 font-semibold">{patientName}</span>.
             </p>
           </div>
           <div className="flex gap-4 w-full md:w-auto">
-            <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-white font-semibold text-sm">
-              <span className="material-symbols-outlined text-[20px]">edit_note</span> Update Log
-            </button>
-            <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-rose-500/90 text-white font-bold hover:shadow-[0_8px_20px_rgba(244,63,94,0.3)] transition-all text-sm">
-              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span> Emergency
+            <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-error/90 text-white font-bold hover:shadow-[0_8px_20px_rgba(255,84,73,0.3)] transition-all text-sm">
+              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span> Emergency Contact
             </button>
           </div>
         </div>
 
-        {/* 3D Isometric Timeline Section */}
-        <section className="glass-card p-8 md:p-10 rounded-3xl border border-white/10 relative overflow-hidden">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-12 gap-4">
-            <div className="space-y-1">
-              <h3 className="font-headline text-2xl font-bold text-white">Treatment Journey</h3>
-              <p className="text-slate-400 text-sm font-medium">Visualization of critical path and recovery milestones</p>
+        {/* Dynamic Insights Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
+          
+          {/* Insight 1: Current Condition / AI Summary */}
+          <div className="glass-card p-8 rounded-3xl border border-white/10 space-y-6 flex flex-col justify-between relative overflow-hidden group">
+            <div className="absolute right-[-20px] top-[-20px] w-32 h-32 bg-primary opacity-10 rounded-full blur-3xl group-hover:opacity-20 transition-all"></div>
+            <div className="flex justify-between items-start relative z-10">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Clinical Status</p>
+                <h4 className="text-2xl font-headline font-extrabold text-white mt-2">Current Condition</h4>
+              </div>
+              <span className="material-symbols-outlined text-primary bg-primary/10 p-3 rounded-2xl">monitoring</span>
             </div>
-            <div className="flex items-center gap-6 text-[10px] font-bold uppercase tracking-widest">
-              <span className="flex items-center gap-2 text-slate-500"><span className="w-2.5 h-2.5 rounded-full bg-slate-700/50"></span> Past</span>
-              <span className="flex items-center gap-2 text-teal-400"><span className="w-2.5 h-2.5 rounded-full bg-teal-400 shadow-[0_0_8px_rgba(45,212,191,0.6)]"></span> Present</span>
-              <span className="flex items-center gap-2 text-slate-700"><span className="w-2.5 h-2.5 rounded-full bg-slate-800"></span> Future</span>
+            <div className="flex-1 relative z-10">
+              {rxLoading ? (
+                <div className="animate-pulse flex flex-col gap-2 mt-4">
+                  <div className="h-4 bg-white/10 rounded w-3/4"></div>
+                  <div className="h-4 bg-white/10 rounded w-full"></div>
+                  <div className="h-4 bg-white/10 rounded w-5/6"></div>
+                </div>
+              ) : insights?.current_condition_summary ? (
+                <p className="text-sm text-slate-300 leading-relaxed font-medium mt-4">
+                  {insights.current_condition_summary}
+                </p>
+              ) : (
+                <p className="text-sm text-slate-500 italic mt-4">Waiting for physician document processing to generate clinical status.</p>
+              )}
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest pt-4 border-t border-white/5 relative z-10">
+              <span>AI Generated</span>
+              <span className="text-primary">Auto-Updated</span>
             </div>
           </div>
 
-          <div className="relative py-12 px-4 flex justify-center items-center">
-            <div className="relative w-full max-w-4xl flex flex-col justify-center">
-              <div className="relative h-1.5 bg-white/5 rounded-full w-full overflow-hidden">
-                <div className="absolute left-0 top-0 h-full bg-gradient-to-r from-teal-500 to-cyan-400 w-1/2 shadow-[0_0_15px_rgba(45,212,191,0.5)]"></div>
+          {/* Insight 2: Critical Instructions */}
+          <div className="glass-card p-8 rounded-3xl border border-white/10 flex flex-col justify-between group relative overflow-hidden">
+             <div className="absolute right-[-20px] top-[-20px] w-32 h-32 bg-amber-500 opacity-10 rounded-full blur-3xl group-hover:opacity-20 transition-all"></div>
+            <div className="relative z-10 flex flex-col h-full">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Important</p>
+                  <h4 className="text-2xl font-headline font-extrabold text-white mt-2">Critical Instructions</h4>
+                </div>
+                <span className="material-symbols-outlined text-amber-400 bg-amber-400/10 p-2.5 rounded-xl">priority_high</span>
               </div>
               
-              <div className="absolute inset-0 flex items-center justify-between px-4">
-                {/* Past Node */}
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-3.5 h-3.5 rounded-full bg-[#0d2133] border-2 border-slate-600"></div>
-                  <div className="text-center opacity-60">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-slate-500 mb-1">MAR 12 - 20</p>
-                    <p className="text-sm font-headline font-bold text-slate-400">ICU Admittance</p>
+              <div className="flex-1 overflow-y-auto pr-2">
+                {rxLoading ? (
+                  <div className="animate-pulse space-y-3">
+                    <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-white/10 shrink-0"></div><div className="h-3 bg-white/10 rounded w-full"></div></div>
+                    <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-white/10 shrink-0"></div><div className="h-3 bg-white/10 rounded w-5/6"></div></div>
                   </div>
-                </div>
-
-                {/* Current Node */}
-                <div className="flex flex-col items-center gap-4">
-                  <div className="relative">
-                    <div className="absolute inset-0 rounded-full bg-teal-400/20 animate-ping"></div>
-                    <div className="w-7 h-7 rounded-full bg-teal-400 shadow-[0_0_15px_rgba(45,212,191,0.5)] border-4 border-[#071325]"></div>
-                  </div>
-                  <div className="text-center">
-                    <div className="bg-teal-400/10 backdrop-blur-md border border-teal-400/20 px-5 py-1.5 rounded-full mb-2">
-                      <p className="text-teal-300 font-bold text-xs">Stable & Conscious</p>
-                    </div>
-                    <p className="text-lg font-headline font-extrabold text-white">Active Recovery</p>
-                  </div>
-                </div>
-
-                {/* Future Node */}
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-3.5 h-3.5 rounded-full bg-[#0d2133] border-2 border-teal-900"></div>
-                  <div className="text-center">
-                    <p className="text-[9px] font-bold uppercase tracking-widest text-[#1a5a5c] mb-1">EST. APRIL 05</p>
-                    <p className="text-sm font-headline font-bold text-[#1a5a5c]">First Follow-up</p>
-                  </div>
-                </div>
+                ) : insights?.critical_instructions?.length > 0 ? (
+                  <ul className="space-y-4">
+                    {insights.critical_instructions.map((inst, idx) => (
+                      <li key={idx} className="flex gap-4">
+                        <div className="w-8 h-8 shrink-0 rounded-lg bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-400 font-headline font-bold text-xs">{idx + 1}</div>
+                        <p className="text-sm text-slate-300 leading-snug">{inst}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500 italic">No critical instructions extracted.</p>
+                )}
               </div>
             </div>
           </div>
-        </section>
 
-        {/* Grid Layout for Members & Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-          {/* Heart Rate */}
-          <div className="glass-card p-8 rounded-3xl border border-white/10 space-y-6 flex flex-col justify-between">
-            <div className="flex justify-between items-start">
+          {/* Insight 3: Lifestyle Changes & Next Steps */}
+          <div className="glass-card p-8 rounded-3xl border border-white/10 space-y-6 flex flex-col justify-between relative overflow-hidden group">
+            <div className="absolute right-[-20px] top-[-20px] w-32 h-32 bg-cyan-500 opacity-10 rounded-full blur-3xl group-hover:opacity-20 transition-all"></div>
+            <div className="flex justify-between items-start relative z-10">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Heart Rate</p>
-                <h4 className="text-4xl font-headline font-extrabold text-white mt-2">72 <span className="text-lg font-normal text-slate-500">BPM</span></h4>
+                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Care Plan</p>
+                <h4 className="text-2xl font-headline font-extrabold text-white mt-2">Lifestyle Changes</h4>
               </div>
-              <span className="material-symbols-outlined text-rose-400 bg-rose-400/10 p-3 rounded-2xl">favorite</span>
+              <span className="material-symbols-outlined text-cyan-300 bg-cyan-300/10 p-3 rounded-2xl">self_improvement</span>
             </div>
-            <div className="h-40 w-full">
-              <MedicalHeart3D bpm={72} className="h-full" />
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest pt-2 border-t border-white/5">
-              <span>Resting Stable</span>
-              <span className="text-teal-400">Normal Range</span>
-            </div>
-          </div>
-
-          {/* Family Delivery */}
-          <div className="glass-card p-8 rounded-3xl border border-white/10 flex flex-col justify-between group">
-            <div>
-              <div className="flex justify-between items-center mb-6">
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Status Update</p>
-                <span className="material-symbols-outlined text-teal-300 bg-teal-300/10 p-2.5 rounded-xl">hub</span>
-              </div>
-              <div className="flex items-center gap-5 mb-6">
-                <div className="relative">
-                  <div className="w-14 h-14 rounded-2xl bg-teal-500/10 flex items-center justify-center border border-teal-500/20">
-                    <span className="material-symbols-outlined text-3xl text-teal-400" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
+            <div className="flex-1 relative z-10 overflow-y-auto pr-2">
+              {rxLoading ? (
+                 <div className="animate-pulse space-y-3 mt-4">
+                    <div className="h-3 bg-white/10 rounded w-full"></div>
+                    <div className="h-3 bg-white/10 rounded w-5/6"></div>
+                    <div className="h-3 bg-white/10 rounded w-4/6"></div>
                   </div>
-                  <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-teal-400 rounded-full border-[3px] border-[#071325] flex items-center justify-center text-[#071325]">
-                    <span className="material-symbols-outlined text-[12px] font-bold">check</span>
-                  </div>
-                </div>
-                <div className="space-y-0.5">
-                  <p className="text-white font-bold text-sm">Log Sent to Group</p>
-                  <p className="text-slate-500 text-xs">Delivered 2m ago</p>
-                </div>
-              </div>
-              <p className="text-sm text-slate-400 leading-relaxed italic">
-                "Rahman is doing fine. BPM is steady at 72. Next checkup at 2 PM."
-              </p>
+              ) : insights?.lifestyle_changes?.length > 0 ? (
+                <ul className="space-y-3 mt-2">
+                  {insights.lifestyle_changes.map((change, idx) => (
+                    <li key={idx} className="flex items-start gap-3">
+                      <span className="material-symbols-outlined text-cyan-400 text-sm mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                      <span className="text-sm text-slate-300">{change}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-slate-500 italic mt-4">No specific lifestyle changes recommended.</p>
+              )}
             </div>
-            <button className="mt-8 w-full py-3 rounded-xl border border-teal-400/20 text-teal-300 font-bold text-xs hover:bg-teal-400/10 transition-all uppercase tracking-widest">
-              View Conversation
-            </button>
           </div>
 
-          {/* Oxygen */}
-          <div className="glass-card p-8 rounded-3xl border border-white/10 space-y-6 flex flex-col justify-between">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Oxygen (SpO2)</p>
-                <h4 className="text-4xl font-headline font-extrabold text-white mt-2">98 <span className="text-lg font-normal text-slate-500">%</span></h4>
-              </div>
-              <span className="material-symbols-outlined text-cyan-300 bg-cyan-300/10 p-3 rounded-2xl">air</span>
-            </div>
-            <div className="space-y-4">
-              <div className="relative h-3 bg-white/5 rounded-full overflow-hidden">
-                <div className="absolute left-0 top-0 h-full w-[98%] bg-gradient-to-r from-teal-500 to-cyan-400 shadow-[0_0_10px_rgba(45,212,191,0.5)]"></div>
-              </div>
-              <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                <span>MIN 94%</span>
-                <span className="text-teal-400">EXCELLENT</span>
-              </div>
-            </div>
-            <p className="text-[11px] text-slate-500 leading-relaxed pt-4 border-t border-white/5">
-              Consistent oxygen levels indicate healthy respiratory function post-surgery.
-            </p>
-          </div>
-
-          {/* Lead Caretaker */}
-          <div className="glass-card p-6 rounded-3xl border border-white/10 col-span-1 md:col-span-2 flex flex-col md:flex-row gap-8 items-center">
+          {/* Caretaker / Doctor Info & Follow-up */}
+          <div className="glass-card py-6 px-8 rounded-3xl border border-white/10 col-span-1 md:col-span-2 flex flex-col md:flex-row gap-8 items-center bg-white/[0.01]">
             <div className="relative shrink-0">
-              <img 
-                alt="Lead physician" 
-                className="w-20 h-20 rounded-2xl object-cover border-2 border-white/10 p-1" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCspt_-yZkuS-C8R84FDRlFSY5D2ZWT9I3fQieW0c9G1yWWKKCse4HSH_UMrSuT1_nMLfcJmWNgkpA0CfdPZDRrQmbs4bqI2VuCr6sf2xARTH8G90CghFswO9F24ahlNzxHASbQkd26KabKQFhkX2JXcmWKxK7EMugUfcQzgX-_FV46lH6xSWmXAoq9rXo-QljOQE2ydtjjgoB4mkUj8H2iJWpU8AYAmVk7kqHwfDv2jTd3XxJ_nhQceJw7hpmI75TPS89hy8eEZA"
-              />
-              <div className="absolute -bottom-1 -right-1 bg-teal-400 text-[#071325] p-0.5 rounded-lg border-2 border-[#071325]">
+              <div className="w-20 h-20 rounded-2xl bg-surface-container flex items-center justify-center border-2 border-primary/20 p-1 relative overflow-hidden">
+                 <span className="material-symbols-outlined text-4xl text-primary">stethoscope</span>
+              </div>
+              <div className="absolute -bottom-1 -right-1 bg-primary text-[#071325] p-0.5 rounded-lg border-2 border-[#071325]">
                 <span className="material-symbols-outlined text-[14px] font-bold">verified</span>
               </div>
             </div>
             <div className="flex-1 text-center md:text-left space-y-1">
-              <p className="text-teal-400 font-bold text-[10px] uppercase tracking-[0.2em] mb-1">Lead Specialist</p>
-              <h4 className="text-2xl font-headline font-bold text-white">Dr. Sarah Jenkins</h4>
-              <p className="text-slate-400 text-sm">Cardiology Recovery Specialist</p>
+              <p className="text-primary font-bold text-[10px] uppercase tracking-[0.2em] mb-1">Lead Physician</p>
+              <h4 className="text-2xl font-headline font-bold text-white">
+                {extracted?.doctor_name ? `Dr. ${extracted.doctor_name}` : 'Pending Doctor Assignment'}
+              </h4>
+              <p className="text-slate-400 text-sm">{extracted?.diagnosis || 'Diagnosis Pending'}</p>
+              
               <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-3">
-                <div className="flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
-                  <span className="material-symbols-outlined text-sm text-teal-400">schedule</span>
-                  <span className="text-xs font-bold text-white uppercase tracking-wider">Next Visit: 2:00 PM Today</span>
-                </div>
+                {insights?.follow_up_required && (
+                   <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20">
+                    <span className="material-symbols-outlined text-sm text-primary">event_available</span>
+                    <span className="text-xs font-bold text-white uppercase tracking-wider">
+                      Follow-up: {insights.follow_up_date || 'Recommended'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="flex gap-3">
-               <button className="bg-white/5 hover:bg-white/10 transition-colors p-4 rounded-2xl border border-white/10 text-white group">
-                <span className="material-symbols-outlined group-hover:scale-110 transition-transform">videocam</span>
+            <div className="flex gap-3 mt-4 md:mt-0">
+               <button className="bg-white/5 hover:bg-white/10 transition-colors p-4 rounded-2xl border border-white/10 text-white group flex items-center justify-center" aria-label="Book Appointment">
+                <span className="material-symbols-outlined group-hover:scale-110 transition-transform">calendar_month</span>
               </button>
-              <button className="bg-white/5 hover:bg-white/10 transition-colors p-4 rounded-2xl border border-white/10 text-white group">
+              <button className="bg-white/5 hover:bg-white/10 transition-colors p-4 rounded-2xl border border-white/10 text-white group flex items-center justify-center" aria-label="Message Doctor">
                 <span className="material-symbols-outlined group-hover:scale-110 transition-transform">chat</span>
               </button>
             </div>
@@ -231,74 +206,85 @@ function FamilyDashboardPage() {
                 <span className="material-symbols-outlined text-teal-300">auto_awesome</span>
               </div>
               <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                Simplifying complex medical jargon for clear family communication.
+                AI translation of complex medical jargon for clear family communication and translation.
               </p>
             </div>
-            <button className="w-full py-3.5 rounded-xl bg-teal-400 text-[#071325] font-bold text-xs uppercase tracking-widest hover:shadow-[0_8px_16px_rgba(45,212,191,0.25)] transition-all">
-              Understand Vitals
-            </button>
+            <a href="/clarity-hub" className="block text-center w-full py-3.5 rounded-xl bg-teal-400 text-[#071325] font-bold text-xs uppercase tracking-widest hover:shadow-[0_8px_16px_rgba(45,212,191,0.25)] transition-all">
+              Go To Clarity Center
+            </a>
           </div>
 
-          {/* My Prescriptions Section */}
-          <div className="col-span-1 md:col-span-2 lg:col-span-3">
-            <div className="glass-card p-8 rounded-3xl border border-white/10">
-              <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="font-headline text-2xl font-bold text-white">My Prescriptions</h3>
-                  <p className="text-slate-400 text-sm">Approved clinical guidance</p>
-                </div>
-                <span className="material-symbols-outlined text-cyan-300 bg-cyan-300/10 p-3 rounded-2xl">medication</span>
-              </div>
+          {/* My Documents Header */}
+          <div className="col-span-1 md:col-span-2 lg:col-span-3 mt-6">
+            <h2 className="text-2xl font-headline font-bold text-white mb-2 flex items-center gap-3">
+              <span className="material-symbols-outlined text-primary">folder_supervised</span>
+              Clinical Documents
+            </h2>
+            <p className="text-sm text-slate-400 mb-6">All approved medical reports and prescriptions</p>
+          </div>
 
+          {/* My Prescriptions Mapping */}
+          <div className="col-span-1 md:col-span-2 lg:col-span-3 -mt-6">
+            {/* The rest is dynamically mapped prescriptions */}
+            <div className="glass-card p-6 md:p-8 rounded-3xl border border-white/10 min-h-[300px]">
+              
               {rxLoading ? (
-                <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center justify-center py-12 gap-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-2 border-teal-400 border-t-transparent" />
-                  <span className="ml-3 text-sm text-slate-400 tracking-wider">Loading...</span>
+                  <span className="text-sm text-slate-400 tracking-wider">Retrieving documents...</span>
                 </div>
               ) : prescriptions.length === 0 ? (
                 <div className="text-center py-12 space-y-3">
-                  <span className="material-symbols-outlined text-4xl text-slate-700">clinical_notes</span>
-                  <p className="text-slate-500 text-sm">No clinical documents found.</p>
+                  <span className="material-symbols-outlined text-5xl text-slate-700 block mb-4">clinical_notes</span>
+                  <h4 className="font-bold text-white text-lg">No Documents Available</h4>
+                  <p className="text-slate-500 text-sm">Your physician has not yet published any clinical documents to your dashboard.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {prescriptions.map((rx) => {
                     const ed = rx.extracted_data || rx;
                     const meds = ed.medications || rx.medications || [];
+                    const type = rx.report_type || 'prescription';
+                    
                     return (
-                      <div key={rx.prescription_id} className="bg-white/[0.03] rounded-2xl p-6 border border-white/10 hover:border-teal-300/30 transition-all group">
+                      <div key={rx.prescription_id} className="bg-white/[0.03] rounded-2xl p-6 border border-white/10 hover:border-teal-300/30 hover:bg-white/[0.05] transition-all group flex flex-col h-full">
                         <div className="flex items-start justify-between mb-4">
                           <div>
-                            <p className="text-white font-bold text-sm tracking-tight">{ed.doctor_name || rx.doctor_name || 'Medical Team'}</p>
-                            <p className="text-slate-500 text-[10px] uppercase font-bold mt-0.5 tracking-wider">{ed.prescription_date || rx.prescription_date || 'Approved'}</p>
+                            <p className="text-white font-bold text-sm tracking-tight">{ed.doctor_name ? `Dr. ${ed.doctor_name}` : 'Medical Team'}</p>
+                            <p className="text-slate-500 text-[10px] uppercase font-bold mt-0.5 tracking-wider">{new Date(rx.created_at || ed.prescription_date).toLocaleDateString()}</p>
                           </div>
-                          <span className="bg-teal-500/10 text-teal-300 text-[9px] font-bold px-2 py-1 rounded-md uppercase tracking-widest border border-teal-500/20">Verified</span>
+                          <span className="bg-teal-500/10 text-teal-300 text-[9px] font-bold px-2 py-1 rounded-md uppercase tracking-widest border border-teal-500/20">{type}</span>
                         </div>
-                        {ed.diagnosis || rx.diagnosis ? (
-                          <div className="mb-4">
-                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Diagnosis</p>
-                            <p className="text-slate-200 text-xs leading-relaxed">{ed.diagnosis || rx.diagnosis}</p>
-                          </div>
-                        ) : null}
-                        {meds.length > 0 && (
-                          <div className="space-y-2.5">
-                            <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Medication List</p>
-                            {meds.slice(0, 3).map((med, i) => (
-                              <div key={i} className="flex items-center gap-3">
-                                <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
-                                <div className="text-xs">
-                                  <span className="text-white font-bold">{med.name}</span>
-                                  {med.frequency && <span className="text-teal-400 ml-2 font-medium">{med.frequency}</span>}
+                        
+                        <div className="flex-1">
+                          {ed.diagnosis || rx.diagnosis ? (
+                            <div className="mb-4">
+                              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Primary Diagnosis</p>
+                              <p className="text-slate-200 text-xs leading-relaxed line-clamp-2">{ed.diagnosis || rx.diagnosis}</p>
+                            </div>
+                          ) : null}
+                          
+                          {meds.length > 0 && (
+                            <div className="space-y-2.5">
+                              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Medication Summary</p>
+                              {meds.slice(0, 3).map((med, i) => (
+                                <div key={i} className="flex items-center gap-3">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
+                                  <div className="text-xs truncate">
+                                    <span className="text-white font-bold">{med.name}</span>
+                                    {med.frequency && <span className="text-teal-400 ml-2 font-medium">{med.frequency}</span>}
+                                  </div>
                                 </div>
-                              </div>
-                            ))}
-                            {meds.length > 3 && (
-                              <p className="text-[10px] text-slate-600 font-bold ml-4">+ {meds.length - 3} more items</p>
-                            )}
-                          </div>
-                        )}
-                        <button className="w-full mt-6 py-2 rounded-lg border border-white/5 bg-white/5 text-[10px] text-white font-bold uppercase tracking-widest hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100">
-                          View Details
+                              ))}
+                              {meds.length > 3 && (
+                                <p className="text-[10px] text-slate-600 font-bold ml-4">+ {meds.length - 3} more items</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        <button className="w-full mt-6 py-2 rounded-lg border border-white/5 bg-white/5 text-[10px] text-white font-bold uppercase tracking-widest hover:bg-white/10 transition-all">
+                          View Full Details
                         </button>
                       </div>
                     );
@@ -307,13 +293,7 @@ function FamilyDashboardPage() {
               )}
             </div>
           </div>
-
-          {/* Vital Signs Chart Section */}
-          <div className="col-span-1 md:col-span-2 lg:col-span-3">
-            <div className="glass-card rounded-3xl border border-white/10 p-2 overflow-hidden">
-               <VitalSignsChart />
-            </div>
-          </div>
+          
         </div>
       </div>
     </div>

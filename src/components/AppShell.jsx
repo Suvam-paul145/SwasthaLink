@@ -4,12 +4,10 @@ import { useAuth } from "../context/AuthContext";
 import { getDashboardRouteForRole, ROLE_OPTIONS } from "../utils/auth";
 
 const navItems = [
-  { to: "/overview", icon: "dashboard", label: "Overview" },
-  { to: "/family-dashboard", icon: "personal_injury", label: "Patient Panel", roles: ["patient"] },
-  { to: "/clarity-hub", icon: "visibility", label: "Clarity Center" },
-  { to: "/admin-panel", icon: "admin_panel_settings", label: "Admin Panel", roles: ["admin"] },
-  { to: "/doctor-panel", icon: "stethoscope", label: "Doctor Panel", roles: ["doctor"] },
-  { to: "/showcase", icon: "view_in_ar", label: "3D Showcase" },
+  { to: "/family-dashboard", icon: "personal_injury", label: "Family Dashboard", roles: ["patient"] },
+  { to: "/clarity-hub", icon: "auto_awesome", label: "Clarity Center", roles: ["patient"] },
+  { to: "/admin-panel", icon: "admin_panel_settings", label: "Admin Hub", roles: ["admin"] },
+  { to: "/doctor-panel", icon: "stethoscope", label: "Doctor Portal", roles: ["doctor"] },
   { to: "/settings", icon: "settings", label: "Settings" },
 ];
 
