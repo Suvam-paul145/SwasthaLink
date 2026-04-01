@@ -119,7 +119,7 @@ function LoginPage() {
 
 
         <div className="mt-4 text-center text-sm text-slate-400">
-          New patient?{' '}
+          Don't have an account?{' '}
           <Link
             to="/signup"
             className="text-teal-300 hover:text-teal-200 font-medium transition-colors"

@@ -1,30 +1,39 @@
-import React, { useState, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { getDashboardRouteForRole, ROLE_OPTIONS } from '../utils/auth';
 import api from '../services/api';
 
 const STEPS = { FORM: 'form', OTP: 'otp', DONE: 'done' };
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
+
   const [step, setStep] = useState(STEPS.FORM);
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', phone: '' });
-  const [otp, setOtp] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [role, setRole] = useState('patient');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [otpChannel, setOtpChannel] = useState('whatsapp');
-  const [signupResult, setSignupResult] = useState(null);
+  const [otp, setOtp] = useState('');
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleChange = useCallback((e) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-    setError('');
-  }, []);
+  // If already authenticated, redirect to dashboard
+  useEffect(() => {
+    if (!isAuthenticated || !user?.role) return;
+    navigate(getDashboardRouteForRole(user.role), { replace: true });
+  }, [isAuthenticated, navigate, user]);
 
-  // Step 1: Create account
+  // ── Step 1: Signup ──
   const handleSignup = useCallback(async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
 
-    const { name, email, password, phone } = formData;
     if (!name.trim() || !email.trim() || !password || !phone.trim()) {
       setError('All fields are required');
       return;
@@ -38,37 +47,43 @@ export default function SignupPage() {
       return;
     }
 
-    setLoading(true);
+    setIsSubmitting(true);
     try {
-      const result = await api.signup({ name: name.trim(), email: email.trim(), password, phone: phone.trim() });
-      setSignupResult(result);
+      await api.signup({
+        role,
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        phone: phone.trim(),
+      });
 
       // Send OTP automatically
       const otpResult = await api.sendOtp(phone.trim(), otpChannel);
       if (otpResult.demo_mode) {
-        setError('Demo mode: Use OTP code 123456');
+        setInfo('Demo mode: Use OTP code 123456');
       }
       setStep(STEPS.OTP);
     } catch (err) {
       setError(err.message || 'Signup failed. Please try again.');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
-  }, [formData, otpChannel]);
+  }, [role, name, email, password, phone, otpChannel]);
 
-  // Step 2: Verify OTP
+  // ── Step 2: Verify OTP ──
   const handleVerifyOtp = useCallback(async (e) => {
     e.preventDefault();
     setError('');
+    setInfo('');
 
     if (!otp || otp.length < 4) {
       setError('Please enter the OTP code');
       return;
     }
 
-    setLoading(true);
+    setIsSubmitting(true);
     try {
-      const result = await api.verifyOtp(formData.phone.trim(), otp);
+      const result = await api.verifyOtp(phone.trim(), otp);
       if (result.verified) {
         setStep(STEPS.DONE);
         setTimeout(() => navigate('/login'), 2500);
@@ -78,376 +93,263 @@ export default function SignupPage() {
     } catch (err) {
       setError(err.message || 'Verification failed');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
-  }, [otp, formData.phone, navigate]);
+  }, [otp, phone, navigate]);
 
-  // Resend OTP
+  // ── Resend OTP ──
   const handleResendOtp = useCallback(async () => {
     setError('');
-    setLoading(true);
+    setInfo('');
+    setIsSubmitting(true);
     try {
-      const result = await api.sendOtp(formData.phone.trim(), otpChannel);
+      const result = await api.sendOtp(phone.trim(), otpChannel);
       if (result.demo_mode) {
-        setError('Demo mode: Use OTP code 123456');
+        setInfo('Demo mode: Use OTP code 123456');
       } else {
-        setError('OTP resent successfully!');
+        setInfo('OTP resent successfully!');
       }
     } catch (err) {
       setError(err.message || 'Failed to resend OTP');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
     }
-  }, [formData.phone, otpChannel]);
+  }, [phone, otpChannel]);
+
+  // ── Step indicator ──
+  const stepLabel = step === STEPS.FORM
+    ? 'Create Your Account'
+    : step === STEPS.OTP
+      ? 'Verify Phone Number'
+      : 'Account Created!';
+
+  const stepNumber = step === STEPS.FORM ? 1 : step === STEPS.OTP ? 2 : 3;
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        {/* Logo/Header */}
-        <div style={styles.header}>
-          <div style={styles.logoCircle}>
-            <span style={styles.logoText}>🩺</span>
-          </div>
-          <h1 style={styles.title}>SwasthaLink</h1>
-          <p style={styles.subtitle}>
-            {step === STEPS.FORM && 'Create your Patient Account'}
-            {step === STEPS.OTP && 'Verify your Phone Number'}
-            {step === STEPS.DONE && 'Account Created!'}
-          </p>
+    <div className="min-h-screen bg-[#070e17] text-white flex items-center justify-center p-6 relative overflow-hidden">
+      {/* Ambient glow blobs — match login */}
+      <div className="absolute -top-28 -right-20 w-72 h-72 bg-teal-400/10 rounded-full blur-[100px]" />
+      <div className="absolute -bottom-32 -left-20 w-80 h-80 bg-cyan-400/10 rounded-full blur-[120px]" />
+
+      <div className="w-full max-w-md glass-card rounded-3xl border border-white/10 p-6 sm:p-8 relative z-10">
+        {/* Header */}
+        <div className="mb-6">
+          <p className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Role-Based Access</p>
+          <h1 className="text-3xl font-headline font-extrabold mt-2">SwasthaLink Signup</h1>
+          <p className="text-sm text-slate-300 mt-2">{stepLabel}</p>
         </div>
 
-        {/* Progress */}
-        <div style={styles.progress}>
-          <div style={{ ...styles.progressDot, ...(step === STEPS.FORM ? styles.progressActive : step !== STEPS.FORM ? styles.progressDone : {}) }}>1</div>
-          <div style={styles.progressLine} />
-          <div style={{ ...styles.progressDot, ...(step === STEPS.OTP ? styles.progressActive : step === STEPS.DONE ? styles.progressDone : {}) }}>2</div>
-          <div style={styles.progressLine} />
-          <div style={{ ...styles.progressDot, ...(step === STEPS.DONE ? styles.progressActive : {}) }}>✓</div>
+        {/* Step progress bar */}
+        <div className="flex items-center gap-0 mb-6">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="flex items-center">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-300 ${
+                  n < stepNumber
+                    ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300'
+                    : n === stepNumber
+                      ? 'bg-gradient-to-r from-teal-300 to-cyan-400 border-teal-300/50 text-[#053438] shadow-[0_0_16px_rgba(45,212,191,0.4)]'
+                      : 'bg-white/5 border-white/15 text-slate-500'
+                }`}
+              >
+                {n < stepNumber ? '✓' : n}
+              </div>
+              {n < 3 && (
+                <div className={`w-10 h-0.5 ${n < stepNumber ? 'bg-emerald-400/40' : 'bg-white/10'}`} />
+              )}
+            </div>
+          ))}
         </div>
 
-        {/* Error */}
-        {error && (
-          <div style={{ ...styles.alert, ...(error.includes('Demo') || error.includes('resent') ? styles.alertInfo : styles.alertError) }}>
+        {/* Error message */}
+        {error ? (
+          <div className="rounded-xl border border-rose-300/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-100 mb-4">
             {error}
           </div>
-        )}
+        ) : null}
 
-        {/* Step 1: Signup Form */}
+        {/* Info message (demo OTP, resent, etc.) */}
+        {info ? (
+          <div className="rounded-xl border border-teal-300/30 bg-teal-500/10 px-3 py-2 text-xs text-teal-100 mb-4">
+            {info}
+          </div>
+        ) : null}
+
+        {/* ── STEP 1: Signup Form ── */}
         {step === STEPS.FORM && (
-          <form onSubmit={handleSignup} style={styles.form}>
-            <div style={styles.field}>
-              <label style={styles.label}>Full Name</label>
+          <form onSubmit={handleSignup} className="space-y-4">
+            {/* Role selector — matches login */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Role</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full rounded-xl bg-[#0f2334] border border-white/15 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-300/40"
+              >
+                {ROLE_OPTIONS.map((item) => (
+                  <option key={item.value} value={item.value} className="bg-[#0f2334] text-white">
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Full Name</label>
               <input
-                type="text" name="name" value={formData.name} onChange={handleChange}
-                placeholder="Enter your full name" style={styles.input} required
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your full name"
+                className="w-full rounded-xl bg-[#0f2334] border border-white/15 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
               />
             </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Email Address</label>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Email ID</label>
               <input
-                type="email" name="email" value={formData.email} onChange={handleChange}
-                placeholder="patient@example.com" style={styles.input} required
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@hospital.com"
+                className="w-full rounded-xl bg-[#0f2334] border border-white/15 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
               />
             </div>
-            <div style={styles.field}>
-              <label style={styles.label}>Password</label>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Password</label>
               <input
-                type="password" name="password" value={formData.password} onChange={handleChange}
-                placeholder="Minimum 6 characters" style={styles.input} required minLength={6}
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 6 characters"
+                className="w-full rounded-xl bg-[#0f2334] border border-white/15 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
               />
             </div>
-            <div style={styles.field}>
-              <label style={styles.label}>WhatsApp Phone Number</label>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">WhatsApp Phone</label>
               <input
-                type="tel" name="phone" value={formData.phone} onChange={handleChange}
-                placeholder="+919876543210" style={styles.input} required
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+919876543210"
+                className="w-full rounded-xl bg-[#0f2334] border border-white/15 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
               />
-              <small style={styles.hint}>E.164 format with country code (e.g. +91 for India)</small>
+              <p className="text-[11px] text-slate-500">E.164 format with country code (e.g. +91 for India)</p>
             </div>
-            <div style={styles.field}>
-              <label style={styles.label}>OTP Channel</label>
-              <div style={styles.radioGroup}>
-                <label style={styles.radioLabel}>
-                  <input type="radio" value="whatsapp" checked={otpChannel === 'whatsapp'}
-                    onChange={() => setOtpChannel('whatsapp')} style={styles.radio} />
-                  <span style={styles.radioIcon}>💬</span> WhatsApp
-                </label>
-                <label style={styles.radioLabel}>
-                  <input type="radio" value="sms" checked={otpChannel === 'sms'}
-                    onChange={() => setOtpChannel('sms')} style={styles.radio} />
-                  <span style={styles.radioIcon}>📱</span> SMS
-                </label>
+
+            {/* OTP Channel */}
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">OTP Channel</label>
+              <div className="flex gap-4">
+                {[
+                  { value: 'whatsapp', icon: '💬', label: 'WhatsApp' },
+                  { value: 'sms', icon: '📱', label: 'SMS' },
+                ].map((ch) => (
+                  <label
+                    key={ch.value}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer transition-all text-sm ${
+                      otpChannel === ch.value
+                        ? 'bg-teal-300/10 border-teal-300/40 text-teal-100'
+                        : 'bg-white/[0.03] border-white/10 text-slate-300 hover:bg-white/[0.06]'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      value={ch.value}
+                      checked={otpChannel === ch.value}
+                      onChange={() => setOtpChannel(ch.value)}
+                      className="hidden"
+                    />
+                    <span>{ch.icon}</span> {ch.label}
+                  </label>
+                ))}
               </div>
             </div>
-            <button type="submit" disabled={loading} style={{ ...styles.btn, ...(loading ? styles.btnDisabled : {}) }}>
-              {loading ? '⏳ Creating Account...' : '🚀 Sign Up & Send OTP'}
+
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-300 to-cyan-400 text-[#053438] font-bold hover:shadow-[0_12px_24px_rgba(45,212,191,0.35)] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Creating Account...' : 'Sign Up & Send OTP'}
             </button>
           </form>
         )}
 
-        {/* Step 2: OTP Verification */}
+        {/* ── STEP 2: OTP Verification ── */}
         {step === STEPS.OTP && (
-          <form onSubmit={handleVerifyOtp} style={styles.form}>
-            <p style={styles.otpInfo}>
-              We've sent a verification code to <strong>{formData.phone}</strong> via {otpChannel === 'whatsapp' ? 'WhatsApp' : 'SMS'}.
+          <form onSubmit={handleVerifyOtp} className="space-y-4">
+            <p className="text-sm text-slate-300 text-center">
+              We've sent a verification code to <span className="text-white font-semibold">{phone}</span> via{' '}
+              {otpChannel === 'whatsapp' ? 'WhatsApp' : 'SMS'}.
             </p>
-            <div style={styles.field}>
-              <label style={styles.label}>Enter OTP Code</label>
+
+            <div className="space-y-1.5">
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Enter OTP Code</label>
               <input
-                type="text" value={otp} onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError(''); }}
-                placeholder="• • • • • •" style={{ ...styles.input, ...styles.otpInput }} maxLength={6}
-                autoFocus inputMode="numeric" autoComplete="one-time-code"
+                type="text"
+                value={otp}
+                onChange={(e) => {
+                  setOtp(e.target.value.replace(/\D/g, '').slice(0, 6));
+                  setError('');
+                }}
+                placeholder="• • • • • •"
+                maxLength={6}
+                autoFocus
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                className="w-full rounded-xl bg-[#0f2334] border border-white/15 px-3 py-4 text-center text-2xl font-bold tracking-[12px] text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
               />
             </div>
-            <button type="submit" disabled={loading || otp.length < 4} style={{ ...styles.btn, ...(loading || otp.length < 4 ? styles.btnDisabled : {}) }}>
-              {loading ? '⏳ Verifying...' : '✅ Verify OTP'}
+
+            <button
+              type="submit"
+              disabled={isSubmitting || otp.length < 4}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-300 to-cyan-400 text-[#053438] font-bold hover:shadow-[0_12px_24px_rgba(45,212,191,0.35)] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Verifying...' : 'Verify OTP'}
             </button>
-            <button type="button" onClick={handleResendOtp} disabled={loading} style={styles.linkBtn}>
+
+            <button
+              type="button"
+              onClick={handleResendOtp}
+              disabled={isSubmitting}
+              className="w-full text-center text-sm text-teal-300 hover:text-teal-200 transition-colors disabled:opacity-50"
+            >
               Didn't receive code? Resend OTP
             </button>
           </form>
         )}
 
-        {/* Step 3: Success */}
+        {/* ── STEP 3: Success ── */}
         {step === STEPS.DONE && (
-          <div style={styles.success}>
-            <div style={styles.successIcon}>🎉</div>
-            <h2 style={styles.successTitle}>Phone Verified!</h2>
-            <p style={styles.successText}>Your account has been created and verified. Redirecting to login...</p>
+          <div className="text-center py-8">
+            <div className="text-5xl mb-4">🎉</div>
+            <h2 className="text-xl font-headline font-bold text-emerald-300 mb-2">Phone Verified!</h2>
+            <p className="text-sm text-slate-300">
+              Your account has been created and verified. Redirecting to login...
+            </p>
           </div>
         )}
 
-        {/* Footer */}
-        <div style={styles.footer}>
+        {/* Footer — matches login */}
+        <div className="mt-4 text-center text-sm text-slate-400">
           Already have an account?{' '}
-          <Link to="/login" style={styles.footerLink}>Sign In</Link>
+          <Link
+            to="/login"
+            className="text-teal-300 hover:text-teal-200 font-medium transition-colors"
+          >
+            Sign In
+          </Link>
         </div>
       </div>
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Inline styles
-// ---------------------------------------------------------------------------
-const styles = {
-  container: {
-    minHeight: '100vh',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)',
-    padding: '24px',
-    fontFamily: "'Inter', 'Segoe UI', sans-serif",
-  },
-  card: {
-    width: '100%',
-    maxWidth: '460px',
-    background: 'rgba(30, 41, 59, 0.85)',
-    backdropFilter: 'blur(20px)',
-    borderRadius: '20px',
-    border: '1px solid rgba(99, 179, 237, 0.15)',
-    padding: '40px 32px',
-    boxShadow: '0 25px 60px rgba(0,0,0,0.5), 0 0 80px rgba(99, 179, 237, 0.08)',
-  },
-  header: {
-    textAlign: 'center',
-    marginBottom: '24px',
-  },
-  logoCircle: {
-    width: '56px',
-    height: '56px',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: '0 auto 12px',
-    boxShadow: '0 4px 20px rgba(59,130,246,0.4)',
-  },
-  logoText: { fontSize: '26px' },
-  title: {
-    fontSize: '22px',
-    fontWeight: 700,
-    color: '#f1f5f9',
-    margin: '0 0 4px',
-    letterSpacing: '-0.3px',
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: '#94a3b8',
-    margin: 0,
-  },
-  progress: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '0',
-    marginBottom: '24px',
-  },
-  progressDot: {
-    width: '32px',
-    height: '32px',
-    borderRadius: '50%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '13px',
-    fontWeight: 600,
-    background: 'rgba(51, 65, 85, 0.6)',
-    color: '#64748b',
-    border: '2px solid rgba(100, 116, 139, 0.3)',
-    transition: 'all 0.3s ease',
-  },
-  progressActive: {
-    background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-    color: '#fff',
-    border: '2px solid rgba(99,179,237,0.5)',
-    boxShadow: '0 0 20px rgba(59,130,246,0.4)',
-  },
-  progressDone: {
-    background: 'rgba(34, 197, 94, 0.15)',
-    color: '#22c55e',
-    border: '2px solid rgba(34, 197, 94, 0.4)',
-  },
-  progressLine: {
-    width: '40px',
-    height: '2px',
-    background: 'rgba(100, 116, 139, 0.3)',
-  },
-  alert: {
-    padding: '10px 14px',
-    borderRadius: '10px',
-    fontSize: '13px',
-    marginBottom: '16px',
-    lineHeight: '1.4',
-  },
-  alertError: {
-    background: 'rgba(239, 68, 68, 0.12)',
-    border: '1px solid rgba(239, 68, 68, 0.25)',
-    color: '#fca5a5',
-  },
-  alertInfo: {
-    background: 'rgba(59, 130, 246, 0.12)',
-    border: '1px solid rgba(59, 130, 246, 0.25)',
-    color: '#93c5fd',
-  },
-  form: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '16px',
-  },
-  field: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-  },
-  label: {
-    fontSize: '13px',
-    fontWeight: 500,
-    color: '#cbd5e1',
-    letterSpacing: '0.2px',
-  },
-  input: {
-    padding: '12px 14px',
-    borderRadius: '10px',
-    border: '1px solid rgba(100, 116, 139, 0.3)',
-    background: 'rgba(15, 23, 42, 0.6)',
-    color: '#f1f5f9',
-    fontSize: '14px',
-    outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-  },
-  hint: {
-    fontSize: '11px',
-    color: '#64748b',
-  },
-  radioGroup: {
-    display: 'flex',
-    gap: '16px',
-  },
-  radioLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    color: '#cbd5e1',
-    fontSize: '13px',
-    cursor: 'pointer',
-  },
-  radio: {
-    accentColor: '#3b82f6',
-  },
-  radioIcon: { fontSize: '16px' },
-  otpInfo: {
-    color: '#94a3b8',
-    fontSize: '13px',
-    lineHeight: '1.5',
-    margin: 0,
-    textAlign: 'center',
-  },
-  otpInput: {
-    textAlign: 'center',
-    fontSize: '24px',
-    letterSpacing: '12px',
-    fontWeight: 700,
-    padding: '16px',
-  },
-  btn: {
-    padding: '14px',
-    borderRadius: '12px',
-    border: 'none',
-    background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-    color: '#fff',
-    fontSize: '15px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'all 0.25s ease',
-    boxShadow: '0 4px 20px rgba(59,130,246,0.35)',
-    marginTop: '4px',
-  },
-  btnDisabled: {
-    opacity: 0.5,
-    cursor: 'not-allowed',
-    boxShadow: 'none',
-  },
-  linkBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#60a5fa',
-    fontSize: '13px',
-    cursor: 'pointer',
-    textDecoration: 'underline',
-    padding: '4px 0',
-    textAlign: 'center',
-  },
-  success: {
-    textAlign: 'center',
-    padding: '20px 0',
-  },
-  successIcon: { fontSize: '48px', marginBottom: '12px' },
-  successTitle: {
-    fontSize: '20px',
-    fontWeight: 700,
-    color: '#22c55e',
-    margin: '0 0 8px',
-  },
-  successText: {
-    color: '#94a3b8',
-    fontSize: '14px',
-    margin: 0,
-    lineHeight: '1.5',
-  },
-  footer: {
-    textAlign: 'center',
-    marginTop: '24px',
-    paddingTop: '16px',
-    borderTop: '1px solid rgba(100, 116, 139, 0.2)',
-    fontSize: '13px',
-    color: '#64748b',
-  },
-  footerLink: {
-    color: '#60a5fa',
-    textDecoration: 'none',
-    fontWeight: 500,
-  },
-};

@@ -8,6 +8,7 @@ import ProcessingStatusDoughnut from '../components/ProcessingStatusDoughnut';
 import ReadmissionRiskChart from '../components/ReadmissionRiskChart';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { ROLE_OPTIONS } from '../utils/auth';
 
 // ---------------------------------------------------------------------------
 // Prescription queue panel (doctor → admin → patient pipeline)
@@ -289,6 +290,7 @@ function PrescriptionQueuePanel() {
 
 function AdminPanelPage() {
   const { user } = useAuth();
+  const roleLabel = ROLE_OPTIONS.find((r) => r.value === user?.role)?.label || user?.role || 'User';
 
   return (
     <div className="relative min-h-screen">
@@ -319,8 +321,8 @@ function AdminPanelPage() {
             <span className="material-symbols-outlined">translate</span>
           </button>
           <div className="hidden md:block text-right">
-            <p className="text-xs text-slate-400 uppercase tracking-[0.14em]">Admin</p>
-            <p className="text-sm font-semibold text-white">{user?.name || 'Administrator'}</p>
+            <p className="text-xs text-slate-400 uppercase tracking-[0.14em]">{roleLabel}</p>
+            <p className="text-sm font-semibold text-white">{user?.name || 'User'}</p>
           </div>
           <img 
             alt="Admin profile" 

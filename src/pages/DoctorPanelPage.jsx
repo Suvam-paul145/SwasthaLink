@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import api, { validators } from "../services/api";
 import { useAuth } from "../context/AuthContext";
+import { ROLE_OPTIONS } from "../utils/auth";
 
 function DoctorPanelPage() {
   const { user } = useAuth();
+  const roleLabel = ROLE_OPTIONS.find((r) => r.value === user?.role)?.label || user?.role || 'User';
   const [analysisMode, setAnalysisMode] = useState("Simplified View");
   const [uploadStatus, setUploadStatus] = useState("Idle");
   const [uploadError, setUploadError] = useState("");
@@ -188,7 +190,7 @@ function DoctorPanelPage() {
     <div className="p-6 lg:p-10 relative z-10">
       <header className="mb-8 lg:mb-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
-          <span className="text-primary font-bold tracking-[0.24em] uppercase text-xs">Doctor Panel</span>
+          <span className="text-primary font-bold tracking-[0.24em] uppercase text-xs">{roleLabel} Panel</span>
           <h2 className="text-4xl lg:text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">
             Clinical Review Command Desk
           </h2>

@@ -317,8 +317,9 @@ const api = {
   // -------------------------------------------------------------------------
 
   /**
-   * Register a new patient account.
+   * Register a new user account.
    * @param {Object} data - Signup data
+   * @param {string} data.role - User role ('patient' | 'doctor' | 'admin')
    * @param {string} data.name - Full name
    * @param {string} data.email - Email address
    * @param {string} data.password - Password

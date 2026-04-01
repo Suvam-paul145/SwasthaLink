@@ -151,10 +151,14 @@ def login_user(email: str, password: str, role: str) -> Dict[str, Any]:
         raise AuthServiceError("Invalid email, password, or role", status_code=401)
 
 
-def signup_patient(name: str, email: str, password: str, phone: str) -> Dict[str, Any]:
-    """Create a new patient account."""
+def signup_user(name: str, email: str, password: str, phone: str, role: str = "patient") -> Dict[str, Any]:
+    """Create a new user account with the specified role."""
     if not name or not email or not password or not phone:
         raise AuthServiceError("Name, email, password, and phone are required", status_code=400)
+
+    validated_role = _normalize_role(role)
+    if not validated_role:
+        raise AuthServiceError("Invalid role selected", status_code=400)
 
     normalized_email = email.strip().lower()
 
@@ -168,7 +172,7 @@ def signup_patient(name: str, email: str, password: str, phone: str) -> Dict[str
             "options": {
                 "data": {
                     "full_name": name.strip(),
-                    "role": "patient",
+                    "role": validated_role,
                     "phone": phone,
                 },
             },
@@ -185,7 +189,7 @@ def signup_patient(name: str, email: str, password: str, phone: str) -> Dict[str
                 "user_id": user_id,
                 "full_name": name.strip(),
                 "email": normalized_email,
-                "role": "patient",
+                "role": validated_role,
                 "phone": phone,
                 "phone_verified": False,
             }).execute()
@@ -198,7 +202,7 @@ def signup_patient(name: str, email: str, password: str, phone: str) -> Dict[str
                 "id": user_id,
                 "name": name.strip(),
                 "email": normalized_email,
-                "role": "patient",
+                "role": validated_role,
                 "phone": phone,
                 "phone_verified": False,
             },

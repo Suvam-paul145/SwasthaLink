@@ -29,30 +29,33 @@ function ClarityHubPage() {
   );
 
   const rolePanels = useMemo(
-    () => [
-      {
-        id: "doctor",
-        title: "Doctor Panel",
-        subtitle: "Upload and extract prescriptions",
-        route: "/doctor-panel",
-        icon: "stethoscope",
-      },
-      {
-        id: "admin",
-        title: "Admin Panel",
-        subtitle: "Review extracted prescriptions",
-        route: "/admin-panel",
-        icon: "admin_panel_settings",
-      },
-      {
-        id: "patient",
-        title: "Patient Panel",
-        subtitle: "View patient dashboard",
-        route: "/family-dashboard",
-        icon: "personal_injury",
-      },
-    ],
-    []
+    () => {
+      const allPanels = [
+        {
+          id: "doctor",
+          title: "Doctor Panel",
+          subtitle: "Upload and extract prescriptions",
+          route: "/doctor-panel",
+          icon: "stethoscope",
+        },
+        {
+          id: "admin",
+          title: "Admin Panel",
+          subtitle: "Review extracted prescriptions",
+          route: "/admin-panel",
+          icon: "admin_panel_settings",
+        },
+        {
+          id: "patient",
+          title: "Patient Panel",
+          subtitle: "View patient dashboard",
+          route: "/family-dashboard",
+          icon: "personal_injury",
+        },
+      ];
+      return allPanels.filter(p => !user?.role || p.id === user.role);
+    },
+    [user?.role]
   );
 
   const respondToPrompt = (promptLabel) => {
@@ -128,19 +131,19 @@ function ClarityHubPage() {
       {/* Header Section */}
       <header className="mb-16 flex justify-between items-end">
         <div className="space-y-4">
-          <span className="text-primary font-bold tracking-widest uppercase text-xs">Clarity Hub</span>
+          <span className="text-teal-400 font-bold tracking-widest uppercase text-xs">Clarity Hub</span>
           <h2 className="text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">
-            Welcome back, {patientName}.<br />
-            <span className="text-teal-400/80 font-normal">আবার স্বাগতম, রাহাত।</span>
+            Welcome, {user?.name || 'User'}.<br />
+            <span className="text-teal-400/80 font-normal">স্বাগতম, {user?.name || 'ব্যবহারকারী'}।</span>
           </h2>
         </div>
         <div className="flex gap-4 items-center">
-          <div className="bg-surface-container-low p-4 rounded-xl flex items-center gap-4 border border-white/5">
+          <div className="bg-white/5 p-4 rounded-xl flex items-center gap-4 border border-white/5 backdrop-blur-md">
             <div className="text-right">
-              <p className="text-xs text-outline font-medium uppercase tracking-wider">Current Temperature</p>
-              <p className="text-xl font-bold text-white">98.4 °F</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Role Access</p>
+              <p className="text-xl font-bold text-teal-300">{user?.role?.toUpperCase() || 'GUEST'}</p>
             </div>
-            <span className="material-symbols-outlined text-primary text-3xl">thermostat</span>
+            <span className="material-symbols-outlined text-teal-400 text-3xl">verified_user</span>
           </div>
         </div>
       </header>
@@ -148,10 +151,10 @@ function ClarityHubPage() {
       <section className="mb-10 glass-card rounded-2xl border border-white/10 p-4 lg:p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Role Access</p>
-            <p className="text-sm text-slate-300 mt-1">Select Doctor, Admin, or Patient to open the matching panel.</p>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Management</p>
+            <p className="text-sm text-slate-300 mt-1">Access your dedicated administrative or clinical dashboard.</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto">
+          <div className="flex gap-3 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
             {rolePanels.map((panel) => (
               <button
                 key={panel.id}

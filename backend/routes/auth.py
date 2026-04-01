@@ -5,10 +5,10 @@ from fastapi import APIRouter, HTTPException
 
 from models import (
     AuthLoginRequest, AuthLoginResponse,
-    PatientSignupRequest, PatientSignupResponse,
     OTPSendRequest, OTPVerifyRequest,
 )
-from auth.auth_service import login_user, signup_patient
+from models.auth import SignupRequest, SignupResponse
+from auth.auth_service import login_user, signup_user
 from core.exceptions import AuthServiceError, OTPServiceError
 from services.otp_service import send_otp, verify_otp
 from db.profile_db import update_phone_verified
@@ -36,15 +36,16 @@ async def auth_login(request: AuthLoginRequest):
         raise HTTPException(status_code=500, detail="Login failed")
 
 
-@router.post("/api/auth/signup", response_model=PatientSignupResponse)
-async def auth_signup(request: PatientSignupRequest):
-    """Register a new patient account."""
+@router.post("/api/auth/signup", response_model=SignupResponse)
+async def auth_signup(request: SignupRequest):
+    """Register a new user account with the specified role."""
     try:
-        result = signup_patient(
+        result = signup_user(
             name=request.name, email=request.email,
             password=request.password, phone=request.phone,
+            role=request.role,
         )
-        return PatientSignupResponse(
+        return SignupResponse(
             success=True,
             message="Account created. Please verify your phone number.",
             user_id=result.get("user_id"),

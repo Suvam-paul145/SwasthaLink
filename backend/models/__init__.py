@@ -28,6 +28,8 @@ from models.auth import (
     AuthLoginRequest,
     AuthUser,
     AuthLoginResponse,
+    SignupRequest,
+    SignupResponse,
     PatientSignupRequest,
     PatientSignupResponse,
     OTPSendRequest,
@@ -61,6 +63,7 @@ __all__ = [
     "QuizSubmitRequest", "QuizSubmitResponse",
     # Auth
     "AuthLoginRequest", "AuthUser", "AuthLoginResponse",
+    "SignupRequest", "SignupResponse",
     "PatientSignupRequest", "PatientSignupResponse",
     "OTPSendRequest", "OTPVerifyRequest",
     # WhatsApp

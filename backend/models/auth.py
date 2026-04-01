@@ -40,8 +40,9 @@ class AuthLoginResponse(BaseModel):
     is_demo: bool = False
 
 
-class PatientSignupRequest(BaseModel):
-    """Patient registration request"""
+class SignupRequest(BaseModel):
+    """Role-based registration request"""
+    role: Literal["patient", "doctor", "admin"] = "patient"
     name: str = Field(..., min_length=2, max_length=100, description="Full name")
     email: str = Field(..., min_length=5, max_length=320, description="Email address")
     password: str = Field(..., min_length=6, max_length=128, description="Account password")
@@ -59,12 +60,20 @@ class PatientSignupRequest(BaseModel):
         return trimmed
 
 
-class PatientSignupResponse(BaseModel):
-    """Patient registration response"""
+# Backward compat alias
+PatientSignupRequest = SignupRequest
+
+
+class SignupResponse(BaseModel):
+    """Registration response"""
     success: bool = True
     message: str = "Account created successfully"
     user_id: Optional[str] = None
     is_demo: bool = False
+
+
+# Backward compat alias
+PatientSignupResponse = SignupResponse
 
 
 class OTPSendRequest(BaseModel):
