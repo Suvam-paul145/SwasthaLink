@@ -92,7 +92,7 @@ function FamilyDashboardPage() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                padding: '10px 18px', borderRadius: '14px', border: 'none', cursor: 'pointer',
+                padding: '10px 18px', borderRadius: '14px', cursor: 'pointer',
                 fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap',
                 display: 'flex', alignItems: 'center', gap: '8px',
                 background: activeTab === tab.id ? 'linear-gradient(135deg, #0d9488, #0f766e)' : 'rgba(255,255,255,.04)',
