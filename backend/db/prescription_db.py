@@ -145,6 +145,34 @@ async def reject_prescription_db(
         return None
 
 
+async def escalate_prescription_db(
+    prescription_id: str, admin_id: str, reason: str
+) -> Optional[Dict[str, Any]]:
+    """Escalate a prescription back to doctor."""
+    try:
+        client = _get_client()
+        if not client:
+            return None
+        result = (
+            client
+            .table("prescriptions")
+            .update({
+                "status": "escalated_to_doctor",
+                "admin_id": admin_id,
+                "rejection_reason": reason,
+                "reviewed_at": datetime.utcnow().isoformat(),
+            })
+            .eq("prescription_id", prescription_id)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"Failed to escalate prescription {prescription_id}: {e}")
+        return None
+
+
 async def get_prescription_by_id(prescription_id: str) -> Optional[Dict[str, Any]]:
     """Get a single prescription record by its prescription_id."""
     try:

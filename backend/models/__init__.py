@@ -54,7 +54,17 @@ from models.prescription import (
     PrescriptionExtractResponse,
     PrescriptionApproveRequest,
     PrescriptionRejectRequest,
+    PrescriptionEscalateRequest,
     PrescriptionPatientViewResponse,
+    # Role-based payload models
+    AuditLogEntry,
+    RawExtractionPayload,
+    DoctorDashboardSummary,
+    DoctorDashboardPayload,
+    AdminPanelPayload,
+    PatientDataChunk,
+    ChatbotResponsePolicy,
+    ChatbotContextPayload,
 )
 
 __all__ = [
@@ -75,5 +85,12 @@ __all__ = [
     "PrescriptionMedication", "PrescriptionExtractedData", "PrescriptionStatusEnum",
     "PrescriptionRecord", "PrescriptionExtractResponse",
     "PrescriptionApproveRequest", "PrescriptionRejectRequest",
+    "PrescriptionEscalateRequest",
     "PrescriptionPatientViewResponse",
+    # Role-based payloads
+    "AuditLogEntry", "RawExtractionPayload",
+    "DoctorDashboardSummary", "DoctorDashboardPayload",
+    "AdminPanelPayload", "PatientDataChunk",
+    "ChatbotResponsePolicy", "ChatbotContextPayload",
 ]
+

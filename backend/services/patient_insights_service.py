@@ -41,6 +41,15 @@ Generate patient-friendly explanations for EVERY medication and test listed abov
 Return ONLY a valid JSON object — no markdown, no backticks, no explanation.
 
 {{
+  "current_condition_summary": "A 2-3 sentence plain-language summary of the patient's condition and treatment plan. Use 'you' and 'your'.",
+  "critical_instructions": [
+    "Crucial instructions from the doctor (e.g., 'Take with food', 'Complete full course')"
+  ],
+  "lifestyle_changes": [
+    "Recommended lifestyle or dietary changes (e.g., 'Avoid alcohol', 'Drink plenty of water')"
+  ],
+  "follow_up_required": true,
+  "follow_up_date": "Specific date or timeframe for follow-up, or null if none",
   "medication_guide": [
     {{
       "name": "Drug Name (Strength)",
@@ -57,7 +66,7 @@ Return ONLY a valid JSON object — no markdown, no backticks, no explanation.
       "what_to_expect": "What happens during the test — reassure the patient"
     }}
   ],
-  "health_summary": "A 2-3 sentence plain-language summary of the patient's condition and treatment plan. Use 'you' and 'your'. Be encouraging and reassuring.",
+  "health_summary": "A reassuring 1-2 sentence summary of their path to recovery.",
   "dos_and_donts": {{
     "do": [
       "4-6 things the patient SHOULD do (e.g., 'Take your medicine at the same time every day')"

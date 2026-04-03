@@ -37,6 +37,21 @@ class PrescriptionMedication(BaseModel):
 
 class PatientInsights(BaseModel):
     """Patient-friendly transformation of the prescription"""
+    current_condition_summary: Optional[str] = Field(
+        None, description="Plain-language summary of the current condition"
+    )
+    critical_instructions: List[str] = Field(
+        default_factory=list, description="Crucial instructions from the doctor"
+    )
+    lifestyle_changes: List[str] = Field(
+        default_factory=list, description="Recommended lifestyle and dietary modifications"
+    )
+    follow_up_required: bool = Field(
+        default=False, description="True if a follow-up visit is recommended"
+    )
+    follow_up_date: Optional[str] = Field(
+        None, description="Recommended date or timeframe for follow-up"
+    )
     medication_guide: List[Dict[str, Any]] = Field(
         default_factory=list,
         description="List of {name, what, why, when, caution} for each medication"
@@ -80,6 +95,9 @@ class PrescriptionExtractedData(BaseModel):
     patient_insights: Optional[PatientInsights] = Field(
         None, description="Patient-friendly content (generated on approval)"
     )
+    requires_doctor_review: bool = Field(
+        default=False, description="Flag indicating if the record needs doctor clarification"
+    )
 
 
 class PrescriptionStatusEnum(str, Enum):
@@ -87,6 +105,7 @@ class PrescriptionStatusEnum(str, Enum):
     PENDING = "pending_admin_review"
     APPROVED = "approved"
     REJECTED = "rejected"
+    ESCALATED = "escalated_to_doctor"
 
 
 class PrescriptionRecord(BaseModel):
@@ -128,6 +147,12 @@ class PrescriptionRejectRequest(BaseModel):
     reason: str = Field(..., min_length=5, description="Reason for rejection")
 
 
+class PrescriptionEscalateRequest(BaseModel):
+    """Admin escalation to doctor request"""
+    admin_id: str = Field(..., description="ID of the escalating admin")
+    reason: str = Field(..., min_length=5, description="Reason for escalation")
+
+
 class PrescriptionPatientViewResponse(BaseModel):
     """Patient-facing readable view of an approved prescription"""
     prescription_id: str
@@ -142,3 +167,103 @@ class PrescriptionPatientViewResponse(BaseModel):
     approved_at: Optional[str] = None
     patient_insights: Optional[PatientInsights] = None
     report_type: str = "prescription"
+
+
+# =============================================================================
+# ROLE-BASED PAYLOAD MODELS — Multi-layer data pipeline
+# =============================================================================
+
+class AuditLogEntry(BaseModel):
+    """Single audit-trail event for lifecycle tracking."""
+    id: Optional[str] = Field(None, description="Unique entry ID")
+    prescription_id: str = Field(..., description="Related prescription")
+    action: str = Field(..., description="uploaded | extracted | reviewed | approved | rejected | escalated | chunked")
+    actor_role: str = Field(..., description="doctor | admin | system")
+    actor_id: str = Field(..., description="ID of the person or 'system'")
+    timestamp: str = Field(..., description="ISO-8601 timestamp")
+    details: Optional[Dict[str, Any]] = Field(None, description="Extra context JSON")
+
+
+class RawExtractionPayload(BaseModel):
+    """Layer 1 — Unprocessed extraction. NEVER overwritten once created."""
+    patient_id: Optional[str] = None
+    doctor_id: str
+    timestamp: str
+    source_type: str = Field(default="prescription", description="prescription | report")
+    raw_extraction: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Original medications, diagnosis, symptoms, notes, tests"
+    )
+    confidence_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    status: str = "extracted"
+
+
+class DoctorDashboardSummary(BaseModel):
+    """Summary block for doctor dashboard."""
+    diagnosis: Optional[str] = None
+    key_medications: List[str] = Field(default_factory=list)
+    treatment_plan: Optional[str] = None
+
+
+class DoctorDashboardPayload(BaseModel):
+    """Layer 2 — Clean, summarised view for doctor consumption."""
+    patient_id: Optional[str] = None
+    patient_name: Optional[str] = None
+    patient_age: Optional[str] = None
+    summary: DoctorDashboardSummary = Field(default_factory=DoctorDashboardSummary)
+    detailed_view: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="medications[], tests[], notes"
+    )
+    editable: bool = True
+    status: str = "pending_review"
+    confidence_score: float = 0.5
+    risk_warnings: List[str] = Field(default_factory=list)
+
+
+class AdminPanelPayload(BaseModel):
+    """Layer 3 — Full-visibility payload for admin with raw+processed+audit."""
+    prescription_id: str
+    patient_id: Optional[str] = None
+    doctor_id: str
+    raw_data: Dict[str, Any] = Field(default_factory=dict)
+    processed_data: Dict[str, Any] = Field(default_factory=dict)
+    risk_flags: List[str] = Field(default_factory=list)
+    approval_status: str = "pending"
+    confidence_score: float = 0.5
+    audit_log: List[AuditLogEntry] = Field(default_factory=list)
+    created_at: Optional[str] = None
+    reviewed_at: Optional[str] = None
+    admin_id: Optional[str] = None
+
+
+class PatientDataChunk(BaseModel):
+    """Layer 4 — Single chunk of patient-optimised data (post-approval)."""
+    chunk_id: str = Field(..., description="Unique ID for this chunk")
+    prescription_id: str = Field(..., description="Source prescription")
+    patient_id: str = Field(..., description="Owner patient ID")
+    chunk_type: str = Field(
+        ..., description="medication | routine | explanation | faq_context"
+    )
+    data: Dict[str, Any] = Field(default_factory=dict, description="Chunk payload")
+    version: int = Field(default=1)
+    created_at: str = Field(..., description="ISO-8601 timestamp")
+
+
+class ChatbotResponsePolicy(BaseModel):
+    """Strict policy for chatbot responses."""
+    personalized: bool = True
+    no_hallucination: bool = True
+    strict_context_usage: bool = True
+
+
+class ChatbotContextPayload(BaseModel):
+    """Layer 5 — RAG-ready context for chatbot. Uses ONLY stored data."""
+    patient_id: str
+    context_sources: List[str] = Field(
+        default_factory=list,
+        description="List of chunk types available"
+    )
+    chunks: List[PatientDataChunk] = Field(default_factory=list)
+    retrieval_mode: str = "semantic_search"
+    response_policy: ChatbotResponsePolicy = Field(default_factory=ChatbotResponsePolicy)

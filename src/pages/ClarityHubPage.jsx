@@ -53,7 +53,7 @@ function ClarityHubPage() {
           icon: "personal_injury",
         },
       ];
-      return allPanels.filter(p => !user?.role || p.id === user.role);
+      return allPanels.filter(p => !user?.role || user.role === 'admin' || p.id === user.role);
     },
     [user?.role]
   );

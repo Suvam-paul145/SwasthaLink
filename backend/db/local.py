@@ -90,6 +90,28 @@ def init_db():
             event_type TEXT,
             event_data TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS patient_data_chunks (
+            chunk_id TEXT PRIMARY KEY,
+            prescription_id TEXT NOT NULL,
+            patient_id TEXT NOT NULL,
+            chunk_type TEXT NOT NULL,
+            data TEXT NOT NULL DEFAULT '{}',
+            version INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id TEXT PRIMARY KEY,
+            prescription_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            actor_role TEXT NOT NULL,
+            actor_id TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            details TEXT DEFAULT '{}',
+            FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id)
+        );
     ''')
     conn.commit()
     conn.close()
@@ -107,6 +129,8 @@ def _migrate_prescriptions_table():
         ("raw_ocr_text", "TEXT"),
         ("patient_insights", "TEXT"),
         ("linked_prescription_id", "TEXT"),
+        ("payload_version", "INTEGER DEFAULT 1"),
+        ("raw_extraction_snapshot", "TEXT"),
     ]
     for col_name, col_type in new_columns:
         try:

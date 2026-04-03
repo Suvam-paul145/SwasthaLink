@@ -1,107 +1,565 @@
-# SwasthaLink 🏥
+<p align="center">
+  <img src="https://img.shields.io/badge/SwasthaLink-Healthcare%20AI%20Platform-0d9488?style=for-the-badge&labelColor=0f172a&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM1ZWVhZDQiIHN0cm9rZS13aWR0aD0iMiI+PHBhdGggZD0iTTIyIDEyaC00bC0zIDlMOSAzbC0zIDlIMiIvPjwvc3ZnPg==" alt="SwasthaLink" />
+</p>
 
-> **Medical discharge summary simplification with bilingual output and WhatsApp delivery**
+<h1 align="center">SwasthaLink 🏥</h1>
 
-Converting complex clinical discharge summaries into patient-readable language with bilingual output (English + Bengali), comprehension checks, and WhatsApp delivery.
+<p align="center">
+  <strong>AI-Powered Clinical Intelligence Platform — Bridging the Gap Between Medical Jargon and Patient Understanding</strong>
+</p>
 
-**Built by:** Suvam Paul · [github.com/Suvam-paul145](https://github.com/Suvam-paul145) · **ownworldmade**
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" />
+  <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black" />
+  <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=flat-square&logo=fastapi&logoColor=white" />
+  <img src="https://img.shields.io/badge/Gemini_2.5-Flash-4285F4?style=flat-square&logo=google&logoColor=white" />
+  <img src="https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?style=flat-square&logo=supabase&logoColor=white" />
+  <img src="https://img.shields.io/badge/Three.js-3D-000000?style=flat-square&logo=three.js&logoColor=white" />
+  <img src="https://img.shields.io/badge/TailwindCSS-v4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" />
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" />
+</p>
 
-**Stack:** FastAPI · Gemini 2.5 Flash · React + Vite · Twilio · Supabase · AWS · Three.js · Chart.js · TailwindCSS v4
-
----
-
-## 🎯 Problem Statement
-
-**40-80% of patients don't understand their discharge instructions**, leading to:
-- Incorrect medication usage
-- Missed follow-up appointments
-- Preventable readmissions
-- Anxiety and confusion
-
-**SwasthaLink solves this by** converting medical jargon into plain everyday language that patients actually understand.
-
----
-
-## ✨ Key Features
-
-### Core Features (MVP)
-- 🤖 **AI-Powered Simplification**: Gemini 2.5 Flash converts clinical text into plain language
-- 🌍 **Bilingual Output**: English + Bengali with everyday conversational language
-- 💊 **Medication Cards**: Visual medication schedule with plain-purpose names
-- 📝 **Comprehension Quiz**: 3 MCQs to verify understanding (auto-retry if score < 2/3)
-- 📱 **WhatsApp Delivery**: Send simplified summary directly to patient's phone
-- 🔊 **Text-to-Speech**: Read-aloud in Bengali using Web Speech API
-- 👥 **Role-Based Simplification**: Tailored for Patient / Caregiver / Elderly
-- 🎨 **3D Visualizations**: Three.js medical animations
-- 📊 **Advanced Charts**: Chart.js data visualizations
-
-### Advanced Features (Post-MVP)
-- 📄 **PDF/Image Upload**: OCR extraction using Gemini Vision
-- 📊 **Analytics Dashboard**: Session stats, comprehension scores
-- 🔄 **Re-Explanation**: Simpler version triggered by low quiz scores
+<p align="center">
+  <b>Built by:</b> Suvam Paul · <a href="https://github.com/Suvam-paul145">@Suvam-paul145</a> · <b>ownworldmade</b>
+</p>
 
 ---
 
-## 🏗️ Architecture
+## 📖 What is SwasthaLink?
 
-### Full Stack
+**SwasthaLink** (স্বাস্থ্যলিংক — "Health Link" in Bengali) is a production-grade healthcare AI platform that transforms the way clinical data flows between **Doctors**, **Administrators**, and **Patients**. At its core, it solves a critical healthcare crisis: **40–80% of patients leave hospitals without understanding their discharge instructions**, leading to incorrect medication usage, missed follow-ups, preventable re-admissions, and unnecessary anxiety. SwasthaLink attacks this problem through a structured, three-layer data pipeline that takes raw medical documents (prescriptions, ECGs, MRIs, blood reports), extracts structured clinical data using **Google Gemini 2.5 Flash** vision AI, routes it through a role-based approval workflow with risk detection and audit logging, and ultimately delivers patient-optimized, plain-language health summaries — complete with bilingual output (English + Bengali), medication cards, daily routine guides, comprehension quizzes, WhatsApp delivery, and a RAG-powered chatbot that answers patient queries strictly from their approved medical records, ensuring zero hallucination and complete clinical traceability.
 
-**Frontend:**
-- React 18 + Vite
-- React Router v6
-- Tailwind CSS v4
-- Chart.js (data visualization)
-- Three.js + React Three Fiber (3D medical visualizations)
-- Framer Motion (animations)
-- GSAP (advanced animations)
+---
 
-**Backend:**
-- FastAPI (Python 3.11+)
-- Google Gemini 2.5 Flash API
-- Twilio WhatsApp API
-- Supabase (PostgreSQL) - Zero-PHI session logging
-- AWS S3 (24-hour auto-delete)
+## 🎯 The Problem We Solve
 
-**Deployment:**
-- Frontend: Vercel
-- Backend: Render (with UptimeRobot for cold-start prevention)
+<table>
+<tr>
+<td width="50%">
 
-### Zero-PHI Architecture
+### ❌ Before SwasthaLink
+- Patients receive complex clinical discharge summaries
+- Medical jargon creates confusion and anxiety
+- Medication errors from misunderstood instructions
+- No structured way to access personal health data
+- Follow-up appointments frequently missed
+- Caregivers left in the dark about treatment plans
+- No audit trail for prescription lifecycle
+- Re-admission rates spike from poor comprehension
+
+</td>
+<td width="50%">
+
+### ✅ After SwasthaLink
+- AI converts clinical text to plain everyday language
+- Bilingual output (English + Bengali) for accessibility
+- Visual medication cards with dosage & timing
+- Chunked, searchable personal health dashboard
+- Automated follow-up reminders via WhatsApp
+- Family caregivers get role-appropriate summaries
+- Complete audit trail from upload to delivery
+- Comprehension quizzes verify patient understanding
+
+</td>
+</tr>
+</table>
+
+---
+
+## 👥 Who Benefits? — Platform Beneficiaries
 
 ```
-Clinical text → RAM only → Gemini API → Response → RAM → Client
-                ↑ Never written to disk/DB
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        SwasthaLink Beneficiary Map                         │
+├──────────────┬──────────────────────────────────────────────────────────────┤
+│  🩺 DOCTORS  │  Upload prescriptions & reports → AI extracts structured    │
+│              │  clinical data → Review extraction quality → Track patient  │
+│              │  pipeline with confidence scores & risk warnings            │
+├──────────────┼──────────────────────────────────────────────────────────────┤
+│  🛡️ ADMINS   │  Full visibility over all prescriptions → Approve/Reject/      │
+│              │  Escalate with audit trail → Risk flag detection →          │
+│              │  Raw vs Processed data comparison → Quality assurance       │
+├──────────────┼──────────────────────────────────────────────────────────────┤
+│  👨‍👩‍👧 PATIENTS │  Plain-language health dashboard → Medication guides with   │
+│  & FAMILIES  │  "why am I taking this?" → Daily routine instructions →    │
+│              │  Recovery timeline → AI chatbot for instant Q&A →           │
+│              │  WhatsApp delivery → Comprehension verification            │
+├──────────────┼──────────────────────────────────────────────────────────────┤
+│  👴 ELDERLY  │  Extra-simplified explanations → Bengali translations →    │
+│              │  Text-to-speech read-aloud → Larger text summaries →       │
+│              │  Caregiver-friendly formats                                │
+├──────────────┼──────────────────────────────────────────────────────────────┤
+│  🏥 HOSPITALS│  Reduced re-admission rates → Better patient compliance →  │
+│              │  Complete audit logging → Scalable clinical data pipeline  │
+│              │  → AI-powered document processing at scale                │
+└──────────────┴──────────────────────────────────────────────────────────────┘
+```
 
-Supabase stores ONLY: session_id, role, timestamp, quiz_score
-(NO clinical text, NO patient names, NO PHI)
+### Why Use SwasthaLink?
+
+| User | Pain Point | SwasthaLink Solution |
+|------|-----------|---------------------|
+| **Doctors** | Manual data entry, illegible prescriptions, no extraction feedback | Upload image → AI extracts → confidence score + risk warnings |
+| **Admins** | No visibility into data quality, no approval workflow | Full audit trail, risk flags, raw/processed toggle, approve/reject/escalate |
+| **Patients** | Can't understand medical jargon, forget medication schedules | Plain-language dashboard, medication cards, daily routine, chatbot Q&A |
+| **Families** | Left out of treatment loop, language barriers | Bilingual summaries, caregiver-optimized views, WhatsApp delivery |
+| **Elderly** | Small text, complex terminology, no tech familiarity | Simplified language, Bengali TTS, comprehension quizzes |
+
+---
+
+## ✨ Feature Highlights
+
+### 🤖 AI-Powered Clinical Extraction
+- **Gemini 2.5 Flash Vision** — Upload prescription images, PDFs, ECGs, MRIs, blood reports
+- **Multi-model failover** — Gemini → Groq → Ollama automatic routing
+- **Confidence scoring** — Every extraction rated with quality percentage
+- **Risk flag detection** — Auto-warns on missing dosages, low confidence, incomplete data
+
+### 🔐 Role-Based Access Control
+- **Doctor Panel** — Upload, extract, review with quality indicators
+- **Admin Panel** — Full visibility, approve/reject/escalate, audit trails
+- **Patient Dashboard** — Chunked health data, medication guides, recovery timeline
+- **Authentication** — JWT-based login/signup with role enforcement
+
+### 💬 RAG-Powered Chatbot
+- **Zero-hallucination policy** — Responses strictly from approved medical records
+- **Keyword-based relevance scoring** — Matches queries against stored data chunks
+- **Pre-built FAQ suggestions** — "Why am I taking this?", "When is my follow-up?"
+- **Data traceability** — Every answer links back to an approved prescription
+
+### 🌍 Bilingual & Accessible
+- **English + Bengali** output with everyday conversational language
+- **Text-to-Speech** — Bengali read-aloud using Web Speech API
+- **Comprehension quizzes** — 3 MCQs to verify understanding (auto-retry on failure)
+- **WhatsApp delivery** — Send simplified summary to patient's phone via Twilio
+
+### 🎨 Premium Visual Experience
+- **Dark-teal glassmorphism** design language across all dashboards
+- **3D medical visualizations** — Three.js heart, DNA helix, floating cubes
+- **Chart.js analytics** — Vital signs, comprehension scores, risk trends
+- **Micro-animations** — Framer Motion + GSAP for premium feel
+
+---
+
+## 🏗️ System Architecture
+
+### High-Level Platform Overview
+
+```mermaid
+graph TB
+    subgraph INPUT["📥 Data Ingestion"]
+        A["📷 Prescription Image"]
+        B["📄 PDF Report"]
+        C["📝 Discharge Text"]
+    end
+
+    subgraph AI["🤖 AI Processing Layer"]
+        D["Gemini 2.5 Flash Vision"]
+        E["Groq Llama (Failover)"]
+        F["Ollama (Local Fallback)"]
+        D --> G["Structured JSON Extraction"]
+        E --> G
+        F --> G
+    end
+
+    subgraph BACKEND["⚙️ Backend Pipeline (FastAPI)"]
+        G --> H["Raw Extraction Snapshot"]
+        H --> I["Payload Transformer"]
+        I --> J["Doctor Dashboard Payload"]
+        I --> K["Admin Panel Payload"]
+        H --> L["Risk Flag Detector"]
+        L --> K
+    end
+
+    subgraph APPROVAL["✅ Admin Approval Gate"]
+        K --> M{"Approve?"}
+        M -->|Yes| N["Data Chunker"]
+        M -->|No| O["Reject / Escalate"]
+    end
+
+    subgraph PATIENT["👨‍👩‍👧 Patient Layer"]
+        N --> P["💊 Medication Chunks"]
+        N --> Q["🕐 Routine Chunks"]
+        N --> R["❓ Explanation Chunks"]
+        N --> S["💬 FAQ Chunks"]
+        P --> T["Patient Dashboard"]
+        Q --> T
+        R --> T
+        S --> U["RAG Chatbot"]
+    end
+
+    subgraph DELIVERY["📲 Delivery"]
+        T --> V["WhatsApp via Twilio"]
+        T --> W["Bengali TTS"]
+    end
+
+    A --> D
+    B --> D
+    C --> D
+
+    style INPUT fill:#0f172a,stroke:#5eead4,color:#fff
+    style AI fill:#0f172a,stroke:#818cf8,color:#fff
+    style BACKEND fill:#0f172a,stroke:#fb923c,color:#fff
+    style APPROVAL fill:#0f172a,stroke:#f472b6,color:#fff
+    style PATIENT fill:#0f172a,stroke:#34d399,color:#fff
+    style DELIVERY fill:#0f172a,stroke:#facc15,color:#fff
+```
+
+### Three-Layer Data Architecture
+
+SwasthaLink processes clinical data through **three immutable, auditable layers**:
+
+```mermaid
+graph LR
+    subgraph L1["🔒 Layer 1 — Raw Extraction"]
+        A1["Original OCR/AI text"]
+        A2["Raw JSON snapshot"]
+        A3["Confidence score"]
+        A4["Timestamp + Doctor ID"]
+    end
+
+    subgraph L2["🩺 Layer 2 — Clinical Processing"]
+        B1["Doctor Dashboard Payload"]
+        B2["Admin Panel Payload"]
+        B3["Risk Flags + Warnings"]
+        B4["Audit Log Entries"]
+    end
+
+    subgraph L3["✅ Layer 3 — Patient Optimized"]
+        C1["💊 Medication Chunks"]
+        C2["🕐 Routine Chunks"]
+        C3["❓ Explanation Chunks"]
+        C4["💬 FAQ Chunks"]
+    end
+
+    L1 -->|"Transform"| L2
+    L2 -->|"Admin Approve"| L3
+
+    style L1 fill:#1e1b4b,stroke:#818cf8,color:#e0e7ff
+    style L2 fill:#172554,stroke:#60a5fa,color:#dbeafe
+    style L3 fill:#064e3b,stroke:#34d399,color:#d1fae5
+```
+
+| Layer | Purpose | Mutability | Stored In |
+|-------|---------|-----------|-----------|
+| **Layer 1: Raw** | Immutable OCR snapshot — never modified after creation | 🔒 Immutable | `prescriptions.raw_extraction_snapshot` |
+| **Layer 2: Clinical** | Structured payloads for Doctor & Admin views | 🔄 Read-only transforms | Generated on-the-fly |
+| **Layer 3: Patient** | Chunked, plain-language data for patient consumption | 📦 Created on approval | `patient_data_chunks` table |
+
+### Role-Based Data Flow
+
+```mermaid
+sequenceDiagram
+    participant D as 🩺 Doctor
+    participant B as ⚙️ Backend
+    participant AI as 🤖 Gemini AI
+    participant DB as 🗄️ Database
+    participant A as 🛡️ Admin
+    participant P as 👨‍👩‍👧 Patient
+    participant C as 💬 Chatbot
+
+    D->>B: Upload prescription image
+    B->>AI: Extract with Gemini Vision
+    AI-->>B: Structured JSON + confidence
+    B->>DB: Store raw snapshot (immutable)
+    B->>DB: Log audit: "uploaded"
+    B-->>D: DoctorDashboardPayload + risk warnings
+
+    A->>B: Request admin-view
+    B-->>A: AdminPanelPayload + risk flags + audit trail
+    A->>B: Approve prescription
+    B->>DB: Update status → "approved"
+    B->>DB: Log audit: "approved"
+    B->>B: Trigger chunking pipeline
+    B->>DB: Store 4 chunk types
+    B->>DB: Log audit: "chunked"
+
+    P->>B: Request patient dashboard
+    B->>DB: Fetch patient chunks
+    B-->>P: Medication + Routine + Explanation + Recovery data
+
+    P->>C: "Why am I taking Metformin?"
+    C->>B: Query chatbot-context
+    B->>DB: Match against stored chunks
+    B-->>C: Relevant chunks (no hallucination)
+    C-->>P: Answer from approved records only
+```
+
+### Audit Trail Pipeline
+
+Every action in the prescription lifecycle is logged immutably:
+
+```
+📤 Upload → 🔍 Extract → 🩺 Doctor Review → 🛡️ Admin Review → ✅ Approve/❌ Reject
+     ↓           ↓              ↓                  ↓                  ↓
+  audit_log   audit_log     audit_log          audit_log          audit_log
+  "uploaded"  "extracted"   "reviewed"         "viewed"           "approved"
+                                                                      ↓
+                                                               🧩 Auto-Chunk
+                                                                      ↓
+                                                                 audit_log
+                                                                 "chunked"
+```
+
+---
+
+## 🗄️ Database Schema
+
+### Core Tables
+
+```sql
+-- Prescriptions: Full clinical extraction data
+prescriptions (
+    prescription_id TEXT PRIMARY KEY,
+    status TEXT,                          -- pending | approved | rejected | escalated
+    doctor_id TEXT, patient_id TEXT,
+    diagnosis TEXT, medications TEXT,      -- JSON array
+    extraction_confidence REAL,           -- 0.0 to 1.0
+    raw_extraction_snapshot TEXT,          -- Immutable Layer 1 copy
+    raw_ocr_text TEXT,                    -- Original OCR output
+    patient_insights TEXT,                -- AI-generated patient guidance
+    payload_version INTEGER DEFAULT 1     -- Schema versioning
+)
+
+-- Patient Data Chunks: Post-approval granular storage
+patient_data_chunks (
+    chunk_id TEXT PRIMARY KEY,
+    prescription_id TEXT NOT NULL,        -- FK → prescriptions
+    patient_id TEXT NOT NULL,
+    chunk_type TEXT NOT NULL,             -- medication | routine | explanation | faq_context
+    data TEXT NOT NULL DEFAULT '{}',      -- JSON payload
+    version INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL
+)
+
+-- Audit Log: Full lifecycle tracking
+audit_log (
+    id TEXT PRIMARY KEY,
+    prescription_id TEXT NOT NULL,        -- FK → prescriptions
+    action TEXT NOT NULL,                 -- uploaded | extracted | approved | rejected | chunked
+    actor_role TEXT NOT NULL,             -- doctor | admin | system
+    actor_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    details TEXT DEFAULT '{}'             -- JSON metadata
+)
+
+-- User Profiles: Role-based authentication
+profiles (
+    id TEXT PRIMARY KEY,
+    user_id TEXT, email TEXT UNIQUE,
+    full_name TEXT, role TEXT,            -- patient | doctor | admin
+    phone TEXT, phone_verified BOOLEAN,
+    password_hash TEXT
+)
+```
+
+---
+
+## 📁 Project Structure
+
+```
+SwasthaLink/
+│
+├── 📦 backend/                           # FastAPI Backend (Python 3.11+)
+│   ├── main.py                           # App entry point, CORS, middleware
+│   │
+│   ├── 🧠 ai/                           # AI model routing
+│   │   └── model_router.py              # Gemini → Groq → Ollama failover
+│   │
+│   ├── 🔐 auth/                          # Authentication & authorization
+│   │   └── jwt_handler.py               # JWT token management
+│   │
+│   ├── ⚙️ core/                          # Core infrastructure
+│   │   └── logger.py                    # Structured logging & observability
+│   │
+│   ├── 🗄️ db/                            # Database layer
+│   │   ├── supabase_service.py          # Supabase client + MockSQLite fallback
+│   │   ├── mock_supabase.py             # Local SQLite mock for development
+│   │   ├── local.py                     # SQLite schema + migrations
+│   │   ├── prescription_db.py           # Prescription CRUD operations
+│   │   ├── patient_chunks_db.py         # Patient chunk storage & retrieval
+│   │   ├── audit_db.py                  # Audit trail logging
+│   │   └── profile_db.py               # User profile management
+│   │
+│   ├── 📋 models/                        # Pydantic data models
+│   │   ├── prescription.py              # 10+ models (Raw, Doctor, Admin, Patient, Chatbot, Audit)
+│   │   ├── auth.py                      # Login/Signup/Token models
+│   │   ├── discharge.py                 # Discharge summary models
+│   │   └── whatsapp.py                  # WhatsApp message models
+│   │
+│   ├── 🛣️ routes/                        # API route handlers
+│   │   ├── prescriptions.py             # 15+ prescription endpoints
+│   │   └── ...
+│   │
+│   ├── 🔧 services/                      # Business logic layer
+│   │   ├── prescription_rag_service.py  # End-to-end prescription pipeline
+│   │   ├── payload_transformer.py       # Role-specific payload generation
+│   │   ├── data_chunker_service.py      # Post-approval data chunking
+│   │   ├── chatbot_context_service.py   # RAG-ready context retrieval
+│   │   ├── patient_insights_service.py  # AI-generated patient guidance
+│   │   ├── gemini_service.py            # Gemini API integration
+│   │   ├── groq_service.py              # Groq fallback service
+│   │   ├── image_preprocessor.py        # Image optimization for OCR
+│   │   ├── twilio_service.py            # WhatsApp delivery
+│   │   ├── s3_service.py                # AWS S3 file storage
+│   │   ├── rate_limiter_service.py      # API rate limiting
+│   │   └── rate_alert_service.py        # Rate limit alerting
+│   │
+│   ├── requirements.txt                  # Python dependencies
+│   ├── Procfile                          # Render deployment
+│   └── render.yaml                       # Render service config
+│
+├── 🎨 src/                               # React Frontend (Vite)
+│   ├── App.jsx                           # Route configuration + auth guard
+│   ├── main.jsx                          # Entry point
+│   ├── styles.css                        # Global styles
+│   │
+│   ├── 🧩 components/                    # Reusable UI components
+│   │   ├── AppShell.jsx                 # Layout shell + sidebar navigation
+│   │   ├── ChatbotPanel.jsx             # Floating RAG chatbot
+│   │   ├── ProtectedRoute.jsx           # Auth route guard
+│   │   ├── MedicalHeart3D.jsx           # Three.js pulsating heart
+│   │   ├── DNA3DHelix.jsx               # Three.js DNA helix
+│   │   ├── FloatingMedicalCube.jsx      # Three.js metric cube
+│   │   ├── VitalSignsChart.jsx          # Chart.js vital signs
+│   │   ├── ComprehensionScoreChart.jsx  # Chart.js quiz scores
+│   │   ├── ProcessingStatusDoughnut.jsx # Chart.js status distribution
+│   │   ├── ReadmissionRiskChart.jsx     # Chart.js risk trends
+│   │   └── ErrorBoundary.jsx            # Graceful error handling
+│   │
+│   ├── 📄 pages/                         # Page-level components
+│   │   ├── LoginPage.jsx                # Authentication login
+│   │   ├── SignupPage.jsx               # Role-based registration
+│   │   ├── ClarityHubPage.jsx           # Landing page + discharge simplifier
+│   │   ├── DetailedClarityHubPage.jsx   # Detailed medical translator
+│   │   ├── DoctorPanelPage.jsx          # Doctor: upload + extraction + review
+│   │   ├── AdminPanelPage.jsx           # Admin: approve/reject + audit trail
+│   │   ├── FamilyDashboardPage.jsx      # Patient: 6-tab health dashboard
+│   │   ├── ComponentShowcasePage.jsx    # Component demo gallery
+│   │   └── SettingsPage.jsx             # User preferences
+│   │
+│   ├── 🔌 services/
+│   │   └── api.js                       # Centralized API client (30+ methods)
+│   │
+│   ├── 🔑 context/
+│   │   └── AuthContext.jsx              # Auth state management
+│   │
+│   └── 🛠️ utils/
+│       ├── config.js                    # API endpoints + constants
+│       ├── auth.js                      # Role definitions + helpers
+│       ├── chartConfig.js               # Chart.js theme config
+│       └── animations.js               # Framer Motion presets
+│
+├── 📊 sample_data/                       # Test discharge summaries
+│   ├── demo_summary.txt                 # 12-drug ICU case (complex)
+│   ├── simple_discharge.txt             # Outpatient case (simple)
+│   └── post_surgery.txt                 # Post-surgery case (medium)
+│
+├── package.json                          # Frontend dependencies
+├── vite.config.js                        # Vite build config
+├── tailwind.config.js                    # TailwindCSS v4 config
+├── postcss.config.js                     # PostCSS config
+├── index.html                            # HTML entry point
+├── LICENSE                               # MIT License
+└── README.md                             # 📖 You are here
+```
+
+---
+
+## 🔌 API Reference
+
+### 🩺 Prescription Pipeline
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/prescriptions/extract` | Doctor | Upload image → AI extraction |
+| `GET` | `/api/prescriptions/{id}/doctor-view` | Doctor | Structured `DoctorDashboardPayload` |
+| `GET` | `/api/prescriptions/{id}/admin-view` | Admin | Full `AdminPanelPayload` + risk flags |
+| `POST` | `/api/prescriptions/{id}/approve` | Admin | Approve → triggers chunking pipeline |
+| `POST` | `/api/prescriptions/{id}/reject` | Admin | Reject with reason |
+| `POST` | `/api/prescriptions/{id}/escalate` | Admin | Escalate back to doctor |
+| `GET` | `/api/prescriptions/{id}/audit-log` | Admin | Full lifecycle audit trail |
+| `GET` | `/api/prescriptions/pending` | Doctor/Admin | List pending reviews |
+| `GET` | `/api/prescriptions/doctor/{id}` | Doctor | Doctor's prescription history |
+
+### 👨‍👩‍👧 Patient Data
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/patients/{id}/chunks` | Patient | All patient data chunks |
+| `GET` | `/api/patients/{id}/chunks/{type}` | Patient | Filter by: medication, routine, explanation, faq_context |
+| `GET` | `/api/patients/{id}/chatbot-context` | Patient | RAG-ready chatbot context |
+| `GET` | `/api/patients/{id}/faq-suggestions` | Patient | Pre-built FAQ Q&A pairs |
+
+### 📝 Discharge Summary
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/api/process` | Any | AI-simplify discharge text |
+| `POST` | `/api/send-whatsapp` | Any | Send summary via WhatsApp |
+| `POST` | `/api/quiz/submit` | Any | Submit comprehension quiz |
+| `GET` | `/api/health` | Public | Service health check |
+| `GET` | `/api/analytics` | Admin | Platform analytics |
+
+### Example: Extract Prescription
+
+```bash
+curl -X POST http://localhost:8000/api/prescriptions/extract \
+  -F "file=@prescription.jpg" \
+  -F "doctor_id=doc-001" \
+  -F "report_type=prescription" \
+  -F "patient_id=pat-001"
+```
+
+### Example: Patient Chatbot Query
+
+```bash
+curl http://localhost:8000/api/patients/pat-001/chatbot-context?query=why+am+i+taking+metformin
+```
+
+**Response:**
+```json
+{
+  "patient_id": "pat-001",
+  "relevant_chunks": [
+    {
+      "chunk_type": "explanation",
+      "data": {
+        "medicine": "Metformin",
+        "reason": "Controls blood sugar levels in Type 2 Diabetes",
+        "what_it_does": "Reduces glucose production in the liver"
+      },
+      "relevance_score": 0.85
+    }
+  ],
+  "safety_note": "Responses are based on your approved medical records only."
+}
 ```
 
 ---
 
 ## 🚀 Quick Start
 
-###Prerequisites
+### Prerequisites
 
-- Node.js 18+ and npm
-- Python 3.11+
-- Git
+- **Node.js 18+** and npm
+- **Python 3.11+** with pip
+- **Git**
 
-### 1. Clone Repository
+### 1. Clone & Setup
 
 ```bash
 git clone https://github.com/Suvam-paul145/SwasthaLink.git
 cd SwasthaLink
 ```
 
-### 2. Backend Setup (Required)
+### 2. Backend
 
 ```bash
 cd backend
 
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv venv
-
-# Activate virtual environment
 # Windows:
 venv\Scripts\activate
 # Linux/Mac:
@@ -110,774 +568,182 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Create .env file
+# Configure environment
 cp .env.example .env
+# Edit .env with your API keys (see API Keys section below)
 
-# Edit .env with your API keys:
-# - GEMINI_API_KEY (from aistudio.google.com)
-# - TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN (from twilio.com)
-# - SUPABASE_URL, SUPABASE_KEY (from supabase.com)
-# - AWS credentials (optional for file upload)
-
-# Run backend
+# Start backend
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Backend URLs:**
-- API Server: `http://localhost:8000`
-- API Docs: `http://localhost:8000/docs`
-- Health Check: `http://localhost:8000/api/health`
-
-### 3. Frontend Setup
+### 3. Frontend
 
 ```bash
 # In a new terminal, from project root
-cd ../  # back to root if in backend folder
-
-# Install dependencies
 npm install
 
-# Create .env file
-cp .env.example .env
-
-# Edit .env
 echo "VITE_API_URL=http://localhost:8000" > .env
 
-# Run frontend
 npm run dev
 ```
 
-**Frontend URL:** `http://localhost:5173`
+### 4. Access
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | http://localhost:5173 |
+| **Backend API** | http://localhost:8000 |
+| **API Docs** | http://localhost:8000/docs |
+| **Health Check** | http://localhost:8000/api/health |
+
+### Demo Credentials (Local Development)
+
+| Role | Email | Password |
+|------|-------|----------|
+| Patient | `patient@swasthalink.demo` | `Patient@123` |
+| Doctor | `doctor@swasthalink.demo` | `Doctor@123` |
+| Admin | `admin@swasthalink.demo` | `Admin@123` |
 
 ---
 
-## 🔑 API Keys Setup
+## 🔑 API Keys Configuration
 
-### 1. Gemini API Key (Required)
+Create `backend/.env` with the following keys:
 
-1. Go to [Google AI Studio](https://aistudio.google.com)
-2. Sign in with Google account
-3. Click "Get API Key"
-4. Copy the key and add to `backend/.env`:
-   ```
-   GEMINI_API_KEY=your_key_here
-   ```
+```env
+# Required — Google Gemini AI
+GEMINI_API_KEY=your_gemini_key            # From aistudio.google.com
 
-### 2. Twilio WhatsApp (Required)
+# Required — Supabase (or use local SQLite fallback)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_KEY=your_anon_key
 
-1. Create account at [twilio.com/try-twilio](https://twilio.com/try-twilio)
-2. Go to **Messaging → Try WhatsApp**
-3. Note your sandbox number (e.g., `+1 415 523 8886`)
-4. **Scan QR code to join sandbox on your phone**
-5. Copy credentials to `backend/.env`:
-   ```
-   TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-   TWILIO_AUTH_TOKEN=your_auth_token
-   TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
-   ```
+# Optional — WhatsApp Delivery
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=your_auth_token
+TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
 
-### 3. Supabase (Required)
+# Optional — File Storage
+AWS_ACCESS_KEY_ID=your_access_key
+AWS_SECRET_ACCESS_KEY=your_secret_key
+S3_BUCKET_NAME=discharge-uploads-yourname
 
-1. Create project at [supabase.com](https://supabase.com)
-2. Go to **Settings → API**
-3. Copy URL and anon key to `backend/.env`:
-   ```
-   SUPABASE_URL=https://your-project.supabase.co
-   SUPABASE_KEY=your_anon_key
-   ```
-4. Create `sessions` table via SQL Editor:
-   ```sql
-   CREATE TABLE sessions (
-     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-     created_at TIMESTAMPTZ DEFAULT NOW(),
-     role TEXT CHECK (role IN ('patient', 'caregiver', 'elderly')),
-     language TEXT CHECK (language IN ('en', 'bn', 'both')),
-     quiz_score INTEGER CHECK (quiz_score BETWEEN 0 AND 3),
-     whatsapp_sent BOOLEAN DEFAULT FALSE,
-     re_explained BOOLEAN DEFAULT FALSE,
-     log_format TEXT DEFAULT 'text'
-   );
-   ```
-
-### 4. AWS (Optional - For File Upload)
-
-Only needed for PDF/image upload feature:
-
-1. Create AWS account
-2. Create S3 bucket (e.g., `discharge-uploads-yourname`)
-3. Create IAM user with S3 access
-4. Add credentials to `backend/.env`:
-   ```
-   AWS_ACCESS_KEY_ID=your_access_key
-   AWS_SECRET_ACCESS_KEY=your_secret_key
-   S3_BUCKET_NAME=discharge-uploads-yourname
-   AWS_REGION=ap-south-1
-   ```
-
----
-
-## 📁 Project Structure
-
-```
-SwasthaLink/
-├── backend/                      # FastAPI backend
-│   ├── main.py                   # FastAPI app with all routes
-│   ├── models.py                 # Pydantic request/response models
-│   ├── prompts.py                # Gemini prompt templates
-│   ├── gemini_service.py         # AI processing service
-│   ├── twilio_service.py         # WhatsApp messaging service
-│   ├── supabase_service.py       # Session logging service
-│   ├── s3_service.py             # File storage service
-│   ├── requirements.txt          # Python dependencies
-│   ├── Procfile                  # Render deployment config
-│   ├── .env.example              # Environment variables template
-│   └── .gitignore
-│
-├── src/                          # React frontend
-│   ├── components/               # UI components (3D + Charts)
-│   │   ├── AppShell.jsx          # Layout + sidebar
-│   │   ├── MedicalHeart3D.jsx    # Three.js heart
-│   │   ├── DNA3DHelix.jsx        # Three.js DNA
-│   │   ├── VitalSignsChart.jsx   # Chart.js
-│   │   └── ...
-│   ├── pages/                    # Page components
-│   │   ├── ClarityHubPage.jsx    # Main landing
-│   │   ├── AdminPanelPage.jsx    # Full dashboard
-│   │   └── ...
-│   ├── services/
-│   │   └── api.js                # Backend API service
-│   ├── utils/
-│   │   ├── config.js             # Configuration constants
-│   │   ├── chartConfig.js        # Chart.js setup
-│   │   └── animations.js         # Animation presets
-│   ├── App.jsx                   # Main app component
-│   └── main.jsx                  # Entry point
-│
-├── sample_data/                  # Test discharge summaries
-│   ├── demo_summary.txt          # 12-drug ICU case (demo)
-│   ├── simple_discharge.txt      # Simple outpatient case
-│   └── post_surgery.txt          # Post-surgery case
-│
-├── package.json                  # Frontend dependencies
-├── vite.config.js                # Vite configuration
-├── tailwind.config.ts            # Tailwind CSS config
-├── .env.example                  # Frontend env template
-├── .gitignore
-└── README.md                     # This file
+# Optional — Fallback AI Models
+GROQ_API_KEY=your_groq_key
 ```
 
----
-
-## 🎮 Usage Guide
-
-### Quick Test with Sample Data
-
-1. **Start both backend and frontend** (in separate terminals)
-2. Navigate to `http://localhost:5173`
-3. Copy content from `sample_data/demo_summary.txt`
-4. Paste into the input field
-5. Select role (Patient/Caregiver/Elderly)
-6. Click "Simplify Now"
-7. See bilingual output + medication chart + quiz
-
-### Testing WhatsApp Delivery
-
-1. **Join Twilio sandbox first:**
-   - Save `+1 415 523 8886` in phone contacts
-   - Send WhatsApp message: `join <your-sandbox-code>` (code from Twilio console)
-   - You'll receive confirmation
-2. After getting simplified summary, enter phone number (+919876543210 format)
-3. Click "Send to WhatsApp"
-4. Check your phone for the message
-
-### Testing Backend API Directly
-
-```bash
-# Health check
-curl http://localhost:8000/api/health
-
-# Process summary (use sample data)
-curl -X POST http://localhost:8000/api/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "discharge_text": "Patient discharged on Metformin 500mg twice daily for Type 2 Diabetes. Follow up in 4 weeks.",
-    "role": "patient",
-    "language": "both"
-  }'
-```
-
----
-
-## 🔌 API Endpoints
-
-### Core Backend Endpoints
-
-#### POST `/api/process`
-Process discharge summary with AI
-
-**Request:**
-```json
-{
-  "discharge_text": "string (min 50 chars)",
-  "role": "patient | caregiver | elderly",
-  "language": "en | bn | both",
-  "re_explain": false
-}
-```
-
-**Response:**
-```json
-{
-  "simplified_english": "3-5 paragraphs...",
-  "simplified_bengali": "সহজ বাংলায়...",
-  "medications": [
-    {
-      "name": "heart tablet",
-      "dose": "1 tablet",
-      "timing": ["morning"],
-      "reason": "prevents blood clots",
-      "important": "never stop without doctor"
-    }
-  ],
-  "follow_up": {
-    "date": "In 2 weeks",
-    "with": "Cardiology OPD",
-    "reason": "Check recovery"
-  },
-  "warning_signs": ["chest pain", "breathlessness"],
-  "comprehension_questions": [
-    {
-      "question": "Why must you never stop aspirin?",
-      "options": ["A)...", "B)...", "C)...", "D)..."],
-      "correct": "B",
-      "explanation": "..."
-    }
-  ],
-  "whatsapp_message": "*SwasthaLink* 🏥\n...",
-  "session_id": "uuid"
-}
-```
-
-#### POST `/api/send-whatsapp`
-Send message to WhatsApp
-
-**Request:**
-```json
-{
-  "phone_number": "+919876543210",
-  "message": "string"
-}
-```
-
-#### POST `/api/quiz/submit`
-Submit quiz and get score
-
-**Request:**
-```json
-{
-  "session_id": "uuid",
-  "answers": ["A", "B", "C"],
-  "correct_answers": ["A", "C", "D"]
-}
-```
-
-**Response:**
-```json
-{
-  "score": 2,
-  "out_of": 3,
-  "passed": true,
-  "needs_re_explain": false,
-  "feedback": "Good job! Review a few points."
-}
-```
-
-#### GET `/api/health`
-Check all services health
-
-#### GET `/api/sessions/count`
-Get total sessions processed
-
-#### GET `/api/analytics`
-Get analytics dashboard data
+> **💡 Note:** SwasthaLink works locally without Supabase or AWS — it falls back to a local SQLite database automatically.
 
 ---
 
 ## 🚢 Deployment
 
-### Backend Deployment (Render)
+### Backend → Render
 
-1. Push code to GitHub
-2. Go to [render.com](https://render.com) → **New Web Service**
-3. Connect your GitHub repository
-4. Configure:
-   - **Root Directory**: `backend`
-   - **Runtime**: Python 3
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-5. **Add Environment Variables** (from `backend/.env.example`):
-   - GEMINI_API_KEY
-   - TWILIO_ACCOUNT_SID
-   - TWILIO_AUTH_TOKEN
-   - TWILIO_WHATSAPP_NUMBER
-   - SUPABASE_URL
-   - SUPABASE_KEY
-   - (AWS keys if using file upload)
-6. Deploy!
+1. Push to GitHub
+2. [Render.com](https://render.com) → **New Web Service**
+3. **Root Directory:** `backend`
+4. **Build Command:** `pip install -r requirements.txt`
+5. **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+6. Add all environment variables from `.env`
 
-### Frontend Deployment (Vercel)
+### Frontend → Vercel
 
-1. Push code to GitHub
-2. Go to [vercel.com](https://vercel.com) → **New Project**
-3. Import your repository
-4. Configure:
-   - **Root Directory**: `.` (project root)
-   - **Framework Preset**: Vite
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
-5. **Add Environment Variable**:
-   - `VITE_API_URL` = `https://your-backend.onrender.com`
-6. Deploy!
+1. [Vercel.com](https://vercel.com) → **New Project**
+2. Import repository
+3. **Framework:** Vite
+4. **Build:** `npm run build` → **Output:** `dist`
+5. Set `VITE_API_URL` = your Render backend URL
 
-### Prevent Backend Cold Starts (UptimeRobot)
+### Keep Backend Warm (UptimeRobot)
 
-Render free tier sleeps after 15 minutes of inactivity. Keep it warm:
-
-1. Go to [uptimerobot.com](https://uptimerobot.com) → Create Monitor
-2. **Type**: HTTP(s)
-3. **URL**: `https://your-backend.onrender.com/api/health`
-4. **Monitoring Interval**: 14 minutes
+Render free tier sleeps after 15 min. Use [uptimerobot.com](https://uptimerobot.com) to ping `/api/health` every 14 minutes.
 
 ---
 
-## 🧪 Testing Checklist
+## 🔒 Security Architecture
 
-### Backend Tests
-
-- [ ] `curl http://localhost:8000/api/health` returns `{"status":"ok"}`
-- [ ] API docs accessible at `http://localhost:8000/docs`
-- [ ] Process endpoint works with sample data
-- [ ] WhatsApp sends to your joined sandbox number
-- [ ] Supabase logs sessions (check Supabase dashboard)
-
-### Frontend Tests
-
-- [ ] Dev server starts without errors
-- [ ] Homepage loads (`http://localhost:5173`)
-- [ ] All routes accessible via sidebar
-- [ ] 3D components render (or show "Loading 3D..." fallback)
-- [ ] Charts display correctly
-- [ ] No red errors in browser console (F12)
-
-### Integration Tests
-
-- [ ] Frontend can call backend API
-- [ ] Full flow works: input → process → output → quiz → WhatsApp
-- [ ] API URL in `.env` is correct
-- [ ] CORS allows frontend domain
+```
+┌──────────────────────────────────────────────────┐
+│              Zero-PHI Architecture                │
+├──────────────────────────────────────────────────┤
+│                                                  │
+│  Clinical text → RAM only → Gemini API           │
+│                   ↑ Never written to disk         │
+│                                                  │
+│  Supabase stores ONLY:                           │
+│    ✅ session_id, role, timestamp, quiz_score     │
+│    ❌ NO clinical text, NO patient names, NO PHI  │
+│                                                  │
+│  Prescriptions: Stored with explicit consent      │
+│  Audit Logs: Immutable, append-only              │
+│  Data Chunks: Created only after admin approval   │
+│                                                  │
+├──────────────────────────────────────────────────┤
+│  JWT Authentication → Role-based route guards     │
+│  Rate Limiting → Per-user API throttling          │
+│  Audit Trail → Every action logged with actor ID  │
+└──────────────────────────────────────────────────┘
+```
 
 ---
 
-## 🔧 Code Modularity
+## 🧪 Testing
 
-### Backend Service Layer
+### Backend Verification
 
-```
-Routes (main.py)
-    ↓ delegate to
-Services:
-  - gemini_service.py      (AI processing)
-  - twilio_service.py      (WhatsApp)
-  - supabase_service.py    (Logging)
-  - s3_service.py          (Storage)
-    ↓ use
-Models (models.py)         (Pydantic validation)
-    ↓ return to
-Routes → JSON Response
+```bash
+cd backend
+python -c "from db.local import init_db; print('DB OK')"
+python -c "from models import RawExtractionPayload, PatientDataChunk; print('Models OK')"
+python -c "from services.payload_transformer import build_admin_panel_payload; print('Services OK')"
 ```
 
-**Benefits:**
-- Single Responsibility Principle
-- Easy to test each service independently
-- Easy to swap implementations
-- Clear separation of concerns
-
-### Frontend Service Layer
+### End-to-End Flow
 
 ```
-Component (React)
-    ↓ calls
-API Service (api.js)
-    ↓ uses
-Config (config.js)
-    ↓ HTTP request
-Backend API
+1. Login as Doctor     → doctor@swasthalink.demo / Doctor@123
+2. Upload prescription → Select patient, choose type, upload image
+3. Login as Admin      → admin@swasthalink.demo / Admin@123
+4. Review & Approve    → Check risk flags, compare raw/processed, approve
+5. Login as Patient    → patient@swasthalink.demo / Patient@123
+6. View Dashboard      → Browse medications, routine, recovery, explanations
+7. Use Chatbot         → Ask "Why am I taking this medicine?"
 ```
-
-**Benefits:**
-- Centralized API logic
-- Easy to add caching, retries
-- Consistent error handling
-- Single source of truth for endpoints
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Backend Issues
-
-**Problem**: `ModuleNotFoundError`
-```bash
-# Make sure virtual environment is activated
-# Windows: venv\Scripts\activate
-# Linux/Mac: source venv/bin/activate
-pip install -r requirements.txt
-```
-
-**Problem**: `Gemini API key not configured`
-- Check `backend/.env` exists and has `GEMINI_API_KEY=...`
-- Verify key is valid at [aistudio.google.com](https://aistudio.google.com)
-
-**Problem**: `Twilio error 21408` (Recipient not joined sandbox)
-- Recipient must send `join <code>` to Twilio sandbox number
-- Wait for confirmation message before sending
-
-**Problem**: `CORS error`
-- Check `FRONTEND_URL` in `backend/.env`
-- Check `allow_origins` in `backend/main.py` includes your frontend URL
-
-### Frontend Issues
-
-**Problem**: `Failed to fetch` / Network errors
-- Ensure backend is running on `http://localhost:8000`
-- Check `VITE_API_URL` in `.env`
-- Check browser console for exact error
-
-**Problem**: API timeout
-- Gemini API can take 5-15 seconds for complex summaries
-- Check network connection
-- Increase `REQUEST_TIMEOUT` in `src/utils/config.js`
-
-**Problem**: Blank page
-- Check browser console (F12) for errors
-- Hard refresh: Ctrl+Shift+R (Cmd+Shift+R on Mac)
-- Clear Vite cache: `rm -rf node_modules/.vite && npm run dev`
-
-**Problem**: 3D components not loading
-- Requires WebGL support (check: https://get.webgl.org/)
-- Shows fallback "Loading 3D..." if unavailable
-- Charts still work without WebGL
-
----
-
-## 🚀 Quick Start
-
-### Frontend Only (Without Backend)
-
-```bash
-# Install dependencies
-npm install
-
-# Run development server
-npm run dev
-
-# Build for production
-npm run build
-```
-
-**Dev Server:** Usually runs on http://localhost:5173 (or 5174/5175 if ports are in use)
-
----
-
-## 📍 Available Routes
-
-| Route | Component | Description |
-|-------|-----------|-------------|
-| `/overview` or `/` | ClarityHubPage | Main landing page |
-| `/family-dashboard` | FamilyDashboardPage | Patient monitoring (3D + Charts) |
-| `/clarity-hub` | DetailedClarityHubPage | Detailed medical translation |
-| `/admin-panel` | AdminPanelPage | Full dashboard (3D + Charts) |
-| `/showcase` | ComponentShowcasePage | Demo of all components |
-| `/settings` | SettingsPage | App settings |
-
----
-
-## ✨ New Components Added
-
-### 3D Visualizations (Three.js + React Three Fiber)
-- **MedicalHeart3D** - Animated pulsating heart
-- **DNA3DHelix** - Rotating double helix
-- **FloatingMedicalCube** - 3D metric display
-
-### Charts (Chart.js)
-- **VitalSignsChart** - Multi-line chart
-- **ComprehensionScoreChart** - Bar chart with benchmarks
-- **ProcessingStatusDoughnut** - Distribution chart
-- **ReadmissionRiskChart** - Risk trend line chart
-
-### Utilities
-- **ErrorBoundary** - Graceful error handling
-- **chartConfig.js** - Chart.js theme configuration
-- **animations.js** - Framer Motion presets
-
----
-
-## 🔧 Troubleshooting
-
-### Blank Page Issue
-1. **Check browser console** (F12) for errors
-2. **Hard refresh**: Ctrl+Shift+R (Cmd+Shift+R on Mac)
-3. **Clear Vite cache**: `rm -rf node_modules/.vite && npm run dev`
-
-### 3D Components Not Loading
-- **WebGL Required**: 3D needs WebGL support
-- **Fallback**: Shows "Loading 3D..." if WebGL unavailable
-- **Charts still work** without WebGL
-
-### Port Already in Use
-```bash
-# Kill all Node processes (see command at bottom of README)
-# Or manually change port in vite.config.js
-```
-
----
-
-## 📦 Dependencies
-
-```json
-{
-  "three": "Latest",
-  "@react-three/fiber": "Latest",
-  "@react-three/drei": "Latest",
-  "chart.js": "Latest",
-  "react-chartjs-2": "Latest",
-  "framer-motion": "Latest",
-  "gsap": "Latest"
-}
-```
-
----
-
-## 🗂️ Project Structure
-
-```
-src/
-├── App.jsx → Route configuration
-├── main.jsx → Entry point
-├── components/
-│   ├── AppShell.jsx → Layout + sidebar
-│   ├── ErrorBoundary.jsx
-│   ├── MedicalHeart3D.jsx
-│   ├── DNA3DHelix.jsx
-│   ├── FloatingMedicalCube.jsx
-│   ├── VitalSignsChart.jsx
-│   ├── ComprehensionScoreChart.jsx
-│   ├── ProcessingStatusDoughnut.jsx
-│   └── ReadmissionRiskChart.jsx
-├── pages/
-│   ├── ClarityHubPage.jsx
-│   ├── DetailedClarityHubPage.jsx
-│   ├── FamilyDashboardPage.jsx
-│   ├── AdminPanelPage.jsx
-│   ├── ComponentShowcasePage.jsx
-│   └── SettingsPage.jsx
-└── utils/
-    ├── chartConfig.js
-    └── animations.js
-```
-
----
-
-## 🎯 Component Usage Examples
-
-### Using 3D Components
-
-```jsx
-import MedicalHeart3D from './components/MedicalHeart3D';
-
-<MedicalHeart3D bpm={72} className="h-96" />
-```
-
-### Using Charts
-
-```jsx
-import VitalSignsChart from './components/VitalSignsChart';
-
-const data = {
-  labels: ['00:00', '04:00', '08:00'],
-  heartRate: [68, 72, 70],
-  bloodPressure: [120, 118, 122]
-};
-
-<VitalSignsChart data={data} />
-```
-
----
-
-## ⚠️ Browser Requirements
-
-- **Chrome/Firefox/Edge 90+** - Full 3D support
-- **Safari 14+** - Limited 3D support
-- **WebGL Required** for 3D visualizations
-- Charts work in all modern browsers
-
----
-
-## 🐛 Common Issues & Fixes
-
 | Issue | Solution |
 |-------|----------|
-| Blank white page | Check console (F12), hard refresh, clear cache |
-| 3D not rendering | Check WebGL support, try different browser |
-| Port in use | Kill processes: `npx kill-port 5173 5174 5175` |
-| Import errors | Run `npm install --force` |
-| Build errors | Delete `node_modules/.vite` and restart |
+| `ModuleNotFoundError` | Activate venv: `venv\Scripts\activate`, then `pip install -r requirements.txt` |
+| `Gemini API key not configured` | Check `backend/.env` has valid `GEMINI_API_KEY` |
+| `CORS error` | Verify `FRONTEND_URL` in `backend/.env` matches your frontend URL |
+| `Failed to fetch` | Ensure backend runs on `:8000`, check `VITE_API_URL` in `.env` |
+| Blank page | Check console (F12), try `Ctrl+Shift+R`, clear `node_modules/.vite` |
+| 3D not rendering | Requires WebGL — check https://get.webgl.org/ |
+| Port in use | `npx kill-port 5173 8000` |
 
 ---
 
-## 🔍 Quick Diagnosis
+## 🛠️ Tech Stack
 
-```bash
-# Check if files exist
-ls src/pages/*.jsx src/components/*.jsx
-
-# Verify dev server is running
-curl http://localhost:5173
-
-# Check for WebGL support
-# Visit: https://get.webgl.org/
-```
-
----
-
-## 📝 Development Workflow
-
-1. **Start dev server**: `npm run dev`
-2. **Open browser**: Navigate to displayed URL
-3. **Check console**: For any errors (F12)
-4. **Test routes**: Click through sidebar navigation
-5. **Verify components**: Admin Panel has most components
-
----
-
-## 🎨 Customization
-
-### Change Theme Colors
-Edit `tailwind.config.js`:
-```js
-colors: {
-  primary: "#4fdbc8",  // Change this
-  // ... other colors
-}
-```
-
-### Modify Chart Themes
-Edit `src/utils/chartConfig.js`:
-```js
-export const chartTheme = {
-  primaryColor: '#4fdbc8',  // Change this
-  // ... other settings
-}
-```
-
----
-
-## 🚀 Deployment
-
-### Build
-```bash
-npm run build
-# Output: dist/
-```
-
-### Preview Build
-```bash
-npm run preview
-```
-
-### Deploy to Vercel/Netlify
-```bash
-# Connect your Git repo
-# Set build command: npm run build
-# Set output directory: dist
-```
-
----
-
-## 🛠️ Utility Commands
-
-### Clear Cache & Restart
-```bash
-rm -rf node_modules/.vite
-npm run dev
-```
-
-### Reinstall Dependencies
-```bash
-rm -rf node_modules package-lock.json
-npm install
-```
-
-### Kill All Node/Vite Processes (Windows)
-```bash
-# Kill specific ports
-npx kill-port 5173 5174 5175 5176
-
-# Or kill all Node processes
-taskkill /F /IM node.exe
-```
-
-### Kill All Node/Vite Processes (Mac/Linux)
-```bash
-# Kill specific ports
-npx kill-port 5173 5174 5175 5176
-
-# Or kill all Node processes
-pkill -f node
-```
-
----
-
-## 📄 License
-
-MIT License - See LICENSE file
-
----
-
-## 🤝 Contributing
-
-This is a hackathon project. For issues or suggestions:
-1. Check browser console for errors
-2. Verify WebGL support if 3D issues
-3. Report bugs with error messages
-
----
-
-## ✅ Success Checklist
-
-- [ ] Dev server starts without errors
-- [ ] Can access homepage (auto-redirects to /overview)
-- [ ] Sidebar navigation visible
-- [ ] All 6 routes load
-- [ ] Admin Panel shows charts (may show "Loading 3D..." if WebGL unsupported)
-- [ ] No red errors in browser console
-
----
-
-**Current Status:** ✅ Full-stack application ready
-**Backend:** FastAPI + Gemini + Twilio + Supabase
-**Frontend:** React + Vite + Three.js + Chart.js
-**Zero-PHI:** Session metadata only, no clinical data stored
-
----
-
-## 📝 Sample Data
-
-Test with realistic discharge summaries:
-
-- **demo_summary.txt** - 12-drug ICU case (complex, for stage demos)
-- **simple_discharge.txt** - Outpatient gastroenteritis (simple, for quick tests)
-- **post_surgery.txt** - Post-cholecystectomy (medium complexity)
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **Frontend** | React 18 + Vite | SPA framework |
+| **Styling** | TailwindCSS v4 | Utility-first CSS |
+| **3D** | Three.js + React Three Fiber | Medical visualizations |
+| **Charts** | Chart.js + react-chartjs-2 | Analytics dashboards |
+| **Animation** | Framer Motion + GSAP | Micro-animations |
+| **Backend** | FastAPI (Python 3.11+) | API server |
+| **AI** | Google Gemini 2.5 Flash | Vision extraction + NLP |
+| **AI Fallback** | Groq + Ollama | Multi-model failover |
+| **Database** | Supabase (PostgreSQL) / SQLite | Data persistence |
+| **Storage** | AWS S3 | File uploads (24h auto-delete) |
+| **Messaging** | Twilio WhatsApp API | Patient delivery |
+| **Auth** | JWT + bcrypt | Authentication |
+| **Deployment** | Vercel (frontend) + Render (backend) | Hosting |
 
 ---
 
@@ -891,31 +757,22 @@ Test with realistic discharge summaries:
 
 ## 📄 License
 
-MIT License - See LICENSE file
+MIT License — See [LICENSE](./LICENSE) file
 
 ---
 
 ## 🙏 Acknowledgments
 
-- **Google Gemini** for powerful AI capabilities
-- **Twilio** for WhatsApp messaging infrastructure
-- **Supabase** for zero-config PostgreSQL
-- **FastAPI** for elegant Python web framework
-- **React**, **Vite**, **Three.js**, **Chart.js** for amazing frontend tools
+- **Google Gemini** — Powerful multimodal AI capabilities
+- **Supabase** — Zero-config PostgreSQL with instant APIs
+- **FastAPI** — High-performance Python web framework
+- **Twilio** — Reliable WhatsApp messaging infrastructure
+- **React**, **Vite**, **Three.js**, **Chart.js** — Frontend excellence
 
 ---
 
-## 📞 Support
-
-Having issues?
-
-1. Check [Troubleshooting](#-troubleshooting) section
-2. Verify all API keys are configured correctly
-3. Check browser console (F12) for errors
-4. Ensure both backend and frontend are running
-5. View API docs: `http://localhost:8000/docs`
-6. Open GitHub Issues for bugs
-
----
-
-**Built with ❤️ for better healthcare communication**
+<p align="center">
+  <strong>Built with ❤️ for better healthcare communication</strong>
+  <br />
+  <sub>Transforming clinical complexity into patient clarity — one prescription at a time.</sub>
+</p>

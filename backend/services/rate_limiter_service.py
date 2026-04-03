@@ -487,3 +487,14 @@ class MultiProviderRateLimiter:
 
 
 multi_provider_limiter = MultiProviderRateLimiter()
+
+def clear_all_rate_limits() -> None:
+    """Clear all persisted rate limit caches from the file system."""
+    import shutil
+    try:
+        persist_dir = APIRateLimiter.PERSIST_DIR
+        if persist_dir.exists():
+            shutil.rmtree(persist_dir)
+            logger.info("Cleared rate limiter local cache on shutdown.")
+    except Exception as e:
+        logger.warning(f"Failed to clear rate limiter local cache: {e}")

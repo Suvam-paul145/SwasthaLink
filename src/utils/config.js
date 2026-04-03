@@ -23,13 +23,22 @@ export const API_ENDPOINTS = {
   PRESCRIPTIONS_PENDING: '/api/prescriptions/pending',
   PRESCRIPTION_APPROVE: (id) => `/api/prescriptions/${id}/approve`,
   PRESCRIPTION_REJECT: (id) => `/api/prescriptions/${id}/reject`,
+  PRESCRIPTION_ESCALATE: (id) => `/api/prescriptions/${id}/escalate`,
   PRESCRIPTION_PATIENT_VIEW: (id) => `/api/prescriptions/${id}/patient-view`,
   PRESCRIPTIONS_BY_DOCTOR: (doctorId) => `/api/prescriptions/by-doctor/${doctorId}`,
   PRESCRIPTIONS_FOR_PATIENT: (patientId) => `/api/prescriptions/for-patient/${patientId}`,
   PRESCRIPTIONS_ALL: '/api/prescriptions/all',
   PRESCRIPTION_DOCTOR_VIEW: (id) => `/api/prescriptions/${id}/doctor-view`,
+  PRESCRIPTION_ADMIN_VIEW: (id) => `/api/prescriptions/${id}/admin-view`,
+  PRESCRIPTION_AUDIT_LOG: (id) => `/api/prescriptions/${id}/audit-log`,
   RATE_LIMIT_STATUS: '/api/rate-limit-status',
   PATIENTS_LIST: '/api/patients',
+
+  // Patient data chunks & chatbot
+  PATIENT_CHUNKS: (patientId) => `/api/patients/${patientId}/chunks`,
+  PATIENT_CHUNKS_BY_TYPE: (patientId, type) => `/api/patients/${patientId}/chunks/${type}`,
+  PATIENT_CHATBOT_CONTEXT: (patientId) => `/api/patients/${patientId}/chatbot-context`,
+  PATIENT_FAQ_SUGGESTIONS: (patientId) => `/api/patients/${patientId}/faq-suggestions`,
 
   // Utility endpoints
   HEALTH: '/api/health',

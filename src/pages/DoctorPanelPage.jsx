@@ -43,7 +43,7 @@ function DoctorPanelPage() {
         const result = await api.getPatients();
         if (result.items && result.items.length > 0) {
           setPatientDirectory(result.items.map((p) => ({
-            id: p.user_id || p.email,
+            id: p.user_id || p.id || p.email,
             name: p.full_name || p.name || p.email,
             age: '-',
             risk: '-',
@@ -412,37 +412,95 @@ function DoctorPanelPage() {
                 <span className="material-symbols-outlined text-teal-300">auto_awesome</span>
               </div>
               <div className="p-5 space-y-3">
-                {extractionResult?.extracted_data ? (
-                  <>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-[10px] uppercase tracking-wider bg-emerald-500/20 text-emerald-200 px-2 py-1 rounded-full">Live Extraction</span>
-                      <span className="text-[10px] text-slate-400">Confidence: {Math.round((extractionResult.extracted_data.extraction_confidence || 0) * 100)}%</span>
-                    </div>
-                    <div className="space-y-2 text-xs">
-                      <p className="text-slate-300"><span className="text-white font-semibold">ID:</span> {extractionResult.prescription_id?.slice(0,8)}...</p>
-                      <p className="text-slate-300"><span className="text-white font-semibold">Patient:</span> {extractionResult.extracted_data.patient_name || "Unknown"}</p>
-                      <p className="text-slate-300"><span className="text-white font-semibold">Doctor:</span> {extractionResult.extracted_data.doctor_name || doctorName}</p>
-                      <p className="text-slate-300"><span className="text-white font-semibold">Diagnosis:</span> {extractionResult.extracted_data.diagnosis || "Not specified"}</p>
-                      <p className="text-slate-300"><span className="text-white font-semibold">Medications:</span> {extractionResult.extracted_data.medications?.length || 0}</p>
-                      {extractionResult.extracted_data.tests?.length > 0 && (
-                        <p className="text-slate-300"><span className="text-white font-semibold">Tests:</span> {extractionResult.extracted_data.tests.length}</p>
-                      )}
-                    </div>
-                    {/* Medications list */}
-                    {extractionResult.extracted_data.medications?.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        <p className="text-[10px] uppercase tracking-wider text-slate-400">Medications</p>
-                        {extractionResult.extracted_data.medications.map((med, i) => (
-                          <div key={i} className="rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2 text-xs">
-                            <p className="font-semibold text-white">{med.name} {med.strength || ''}</p>
-                            <p className="text-slate-400">{[med.form, med.frequency, med.duration, med.instructions].filter(Boolean).join(' • ')}</p>
-                            {med.purpose && <p className="text-teal-200 mt-1">{med.purpose}</p>}
-                          </div>
-                        ))}
+                {extractionResult?.extracted_data ? (() => {
+                    const ed = extractionResult.extracted_data;
+                    const confPct = Math.round((ed.extraction_confidence || 0) * 100);
+                    const riskWarnings = [];
+                    if (confPct < 40) riskWarnings.push('⚠️ Very low extraction confidence');
+                    else if (confPct < 60) riskWarnings.push('⚡ Moderate extraction confidence');
+                    if (!ed.patient_name) riskWarnings.push('🔍 Missing patient name');
+                    if (!ed.diagnosis) riskWarnings.push('📋 No diagnosis extracted');
+                    if (!ed.medications?.length) riskWarnings.push('💊 No medications extracted');
+                    ed.medications?.forEach(m => {
+                      if (!m.strength) riskWarnings.push(`💊 Missing dosage for ${m.name}`);
+                      if (!m.frequency) riskWarnings.push(`⏰ Missing frequency for ${m.name}`);
+                    });
+
+                    return (
+                    <>
+                      {/* Confidence Bar */}
+                      <div className="bg-white/[0.03] p-3 rounded-xl border border-white/5 mb-3">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Extraction Confidence</span>
+                          <span className={`text-xs font-bold font-mono ${confPct >= 80 ? 'text-emerald-300' : confPct >= 50 ? 'text-yellow-300' : 'text-rose-300'}`}>
+                            {confPct}%
+                          </span>
+                        </div>
+                        <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-700 ${
+                              confPct >= 80 ? 'bg-gradient-to-r from-teal-500 to-emerald-500' :
+                              confPct >= 50 ? 'bg-gradient-to-r from-yellow-500 to-amber-500' :
+                              'bg-gradient-to-r from-rose-500 to-red-500'
+                            }`}
+                            style={{ width: `${confPct}%` }}
+                          />
+                        </div>
                       </div>
-                    )}
-                  </>
-                ) : (
+
+                      {/* Risk Warnings */}
+                      {riskWarnings.length > 0 && (
+                        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 mb-3">
+                          <p className="text-[10px] uppercase tracking-widest text-amber-400 font-bold mb-1.5 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[12px]">warning</span>
+                            Quality Warnings ({riskWarnings.length})
+                          </p>
+                          <div className="space-y-1">
+                            {riskWarnings.map((w, i) => (
+                              <p key={i} className="text-[11px] text-amber-200/80">{w}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Structured Summary */}
+                      <div className="bg-teal-500/5 border border-teal-500/20 rounded-xl p-3 mb-3">
+                        <p className="text-[10px] uppercase tracking-widest text-teal-400 font-bold mb-2">Summary</p>
+                        <div className="space-y-1.5 text-xs">
+                          <p className="text-slate-300"><span className="text-white font-semibold">Diagnosis:</span> {ed.diagnosis || 'Not specified'}</p>
+                          <p className="text-slate-300"><span className="text-white font-semibold">Key Medications:</span> {ed.medications?.map(m => m.name).join(', ') || 'None'}</p>
+                          <p className="text-slate-300"><span className="text-white font-semibold">Treatment:</span> {ed.medications?.map(m => `${m.name} ${m.frequency || ''} ${m.duration ? 'for ' + m.duration : ''}`).join('; ') || 'N/A'}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[10px] uppercase tracking-wider bg-emerald-500/20 text-emerald-200 px-2 py-1 rounded-full">Live Extraction</span>
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <p className="text-slate-300"><span className="text-white font-semibold">ID:</span> {extractionResult.prescription_id?.slice(0,8)}...</p>
+                        <p className="text-slate-300"><span className="text-white font-semibold">Patient:</span> {ed.patient_name || "Unknown"}</p>
+                        <p className="text-slate-300"><span className="text-white font-semibold">Doctor:</span> {ed.doctor_name || doctorName}</p>
+                        <p className="text-slate-300"><span className="text-white font-semibold">Medications:</span> {ed.medications?.length || 0}</p>
+                        {ed.tests?.length > 0 && (
+                          <p className="text-slate-300"><span className="text-white font-semibold">Tests:</span> {ed.tests.length}</p>
+                        )}
+                      </div>
+                      {/* Medications list */}
+                      {ed.medications?.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-[10px] uppercase tracking-wider text-slate-400">Medications</p>
+                          {ed.medications.map((med, i) => (
+                            <div key={i} className="rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2 text-xs">
+                              <p className="font-semibold text-white">{med.name} {med.strength || ''}</p>
+                              <p className="text-slate-400">{[med.form, med.frequency, med.duration, med.instructions].filter(Boolean).join(' • ')}</p>
+                              {med.purpose && <p className="text-teal-200 mt-1">{med.purpose}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                    );
+                  })() : (
                   <div className="text-center py-10 text-slate-400 text-sm">
                     <span className="material-symbols-outlined text-4xl block mb-2 text-slate-500">biotech</span>
                     Upload a document to see extraction results

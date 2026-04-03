@@ -1,10 +1,12 @@
 """
 Gemini AI Service
-Handles all interactions with Google Gemini 2.5 Flash API
-Includes JSON parsing, error handling, and prompt management
+Handles all interactions with Google Gemini API.
 
-Fallback: When Gemini rate limits are exhausted, automatically
-falls back to Groq (Llama 3.3 70B) to prevent service disruption.
+Model Fallback Chain (on 503 UNAVAILABLE):
+  gemini-2.5-flash → gemini-2.0-flash → gemini-2.0-flash-lite → gemini-1.5-flash → gemini-1.5-pro
+
+Provider Fallback (on 429 RESOURCE_EXHAUSTED or all models unavailable):
+  Gemini → Groq (Llama 3.3 70B) for text-only tasks
 """
 
 import os
@@ -62,6 +64,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = "gemini-2.5-flash"
+
+# Fallback chain: when the primary model is unavailable (503),
+# automatically try the next model in this list.
+GEMINI_FALLBACK_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+]
 
 # Initialize Gemini API
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -132,75 +143,17 @@ def _try_groq_fallback(
         )
 
 
-def _generate_text(
-    prompt: str,
-    generation_config: Optional[Dict[str, Any]] = None,
-    safety_settings: Optional[list[Dict[str, Any]]] = None,
-    system_instruction: Optional[str] = None,
-    model_name: str = MODEL_NAME,
-) -> str:
-    """
-    Generate text using Gemini API with automatic Groq fallback.
-    
-    If Gemini rate limits are reached, automatically falls back to Groq
-    to prevent service disruption.
-    """
-    # Check if we should use Gemini or fallback
-    if not gemini_rate_limiter.can_make_request():
-        logger.warning("Gemini rate limit approaching/exceeded, using Groq fallback")
-        return _try_groq_fallback(
-            prompt=prompt,
-            system_instruction=system_instruction,
-            temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
-        )
-    
-    if not GEMINI_API_KEY:
-        # No Gemini key, try Groq
-        return _try_groq_fallback(
-            prompt=prompt,
-            system_instruction=system_instruction,
-            temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
-        )
-
-    # Rate limit check — blocks before hitting API quota
-    try:
-        gemini_rate_limiter.check_and_record(context="text_generation")
-    except RateLimitExceeded as exc:
-        logger.warning(f"Gemini rate limit exceeded: {exc}")
-        return _try_groq_fallback(
-            prompt=prompt,
-            system_instruction=system_instruction,
-            temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
-        )
-
+def _call_gemini_text(model_name: str, prompt: str, config, generation_config, safety_settings, system_instruction):
+    """Low-level call to a single Gemini model for text generation. Returns text or raises."""
     if GENAI_SDK == "google.genai":
         if not genai_client:
             raise GeminiServiceError("Gemini client not initialized")
-
-        config = _build_new_sdk_config(
-            generation_config=generation_config,
-            safety_settings=safety_settings,
-            system_instruction=system_instruction,
+        response = genai_client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=config,
         )
-
-        try:
-            response = genai_client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config=config,
-            )
-            return (getattr(response, "text", None) or "").strip()
-        except Exception as e:
-            error_str = str(e)
-            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                gemini_rate_limiter.mark_exhausted()
-                logger.warning(f"Gemini 429 received, marked as exhausted. Trying Groq fallback...")
-                return _try_groq_fallback(
-                    prompt=prompt,
-                    system_instruction=system_instruction,
-                    temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
-                )
-            raise
+        return (getattr(response, "text", None) or "").strip()
 
     if GENAI_SDK == "google.generativeai":
         model = genai.GenerativeModel(
@@ -209,23 +162,111 @@ def _generate_text(
             safety_settings=safety_settings,
             system_instruction=system_instruction,
         )
-        try:
-            response = model.generate_content(prompt)
-            return (getattr(response, "text", None) or "").strip()
-        except Exception as e:
-            error_str = str(e)
-            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                gemini_rate_limiter.mark_exhausted()
-                logger.warning(f"Gemini 429 received, marked as exhausted. Trying Groq fallback...")
-                return _try_groq_fallback(
-                    prompt=prompt,
-                    system_instruction=system_instruction,
-                    temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
-                )
-            raise
+        response = model.generate_content(prompt)
+        return (getattr(response, "text", None) or "").strip()
 
     raise GeminiServiceError(
-        f"Gemini SDK not properly initialized. Current GENAI_SDK: {GENAI_SDK}. Install `google-genai` (recommended)."
+        f"Gemini SDK not properly initialized. GENAI_SDK: {GENAI_SDK}. Install `google-genai`."
+    )
+
+
+def _generate_text(
+    prompt: str,
+    generation_config: Optional[Dict[str, Any]] = None,
+    safety_settings: Optional[list[Dict[str, Any]]] = None,
+    system_instruction: Optional[str] = None,
+    model_name: str = MODEL_NAME,
+) -> str:
+    """
+    Generate text using Gemini API with automatic model fallback + Groq fallback.
+    
+    Fallback chain:
+      1. Primary model (gemini-2.5-flash)
+      2. Fallback Gemini models (2.0-flash → 2.0-flash-lite → 1.5-flash → 1.5-pro)
+      3. Groq (Llama 3.3 70B) for text-only tasks
+    """
+    temp = generation_config.get("temperature", 0.3) if generation_config else 0.3
+
+    # Check if we should use Gemini or fallback
+    if not gemini_rate_limiter.can_make_request():
+        logger.warning("Gemini rate limit approaching/exceeded, using Groq fallback")
+        return _try_groq_fallback(prompt=prompt, system_instruction=system_instruction, temperature=temp)
+    
+    if not GEMINI_API_KEY:
+        return _try_groq_fallback(prompt=prompt, system_instruction=system_instruction, temperature=temp)
+
+    # Rate limit check
+    try:
+        gemini_rate_limiter.check_and_record(context="text_generation")
+    except RateLimitExceeded as exc:
+        logger.warning(f"Gemini rate limit exceeded: {exc}")
+        return _try_groq_fallback(prompt=prompt, system_instruction=system_instruction, temperature=temp)
+
+    config = _build_new_sdk_config(
+        generation_config=generation_config,
+        safety_settings=safety_settings,
+        system_instruction=system_instruction,
+    ) if GENAI_SDK == "google.genai" else None
+
+    # Build the full model chain: primary + fallbacks
+    models_to_try = [model_name] + [m for m in GEMINI_FALLBACK_MODELS if m != model_name]
+    last_error = None
+
+    for i, current_model in enumerate(models_to_try):
+        try:
+            result = _call_gemini_text(current_model, prompt, config, generation_config, safety_settings, system_instruction)
+            if i > 0:
+                logger.info(f"✅ Gemini fallback succeeded with model: {current_model}")
+            return result
+        except Exception as e:
+            error_str = str(e)
+            last_error = e
+
+            # 429 / RESOURCE_EXHAUSTED → mark exhausted, go to Groq
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                gemini_rate_limiter.mark_exhausted()
+                logger.warning(f"Gemini 429 on {current_model}, marked exhausted → Groq fallback")
+                return _try_groq_fallback(prompt=prompt, system_instruction=system_instruction, temperature=temp)
+
+            # 503 / UNAVAILABLE → try next Gemini model
+            if "503" in error_str or "UNAVAILABLE" in error_str:
+                logger.warning(f"⚡ Gemini model {current_model} unavailable (503), trying next model...")
+                continue
+
+            # Any other error → re-raise immediately
+            raise
+
+    # All Gemini models exhausted, try Groq
+    logger.warning(f"All Gemini models unavailable (503). Falling back to Groq...")
+    return _try_groq_fallback(prompt=prompt, system_instruction=system_instruction, temperature=temp)
+
+
+def _call_gemini_multimodal(model_name: str, prompt: str, image_data: bytes, mime_type: str, config, generation_config):
+    """Low-level call to a single Gemini model for multimodal (image+text). Returns text or raises."""
+    if GENAI_SDK == "google.genai":
+        if not genai_client:
+            raise GeminiServiceError("Gemini client not initialized")
+        response = genai_client.models.generate_content(
+            model=model_name,
+            contents=[
+                prompt,
+                types.Part.from_bytes(data=image_data, mime_type=mime_type),
+            ],
+            config=config,
+        )
+        return (getattr(response, "text", None) or "").strip()
+
+    if GENAI_SDK == "google.generativeai":
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config=generation_config,
+        )
+        image_part = {"mime_type": mime_type, "data": image_data}
+        response = model.generate_content([prompt, image_part])
+        return (getattr(response, "text", None) or "").strip()
+
+    raise GeminiServiceError(
+        f"Gemini SDK not properly initialized. GENAI_SDK: {GENAI_SDK}. Install `google-genai`."
     )
 
 
@@ -239,15 +280,17 @@ def _generate_multimodal_text(
     """
     Generate text for multimodal input (prompt + image/pdf).
     
-    Note: Multimodal requires Gemini - Groq doesn't support image input.
-    Will fail if Gemini rate limit is exceeded.
+    Fallback chain for 503 UNAVAILABLE:
+      gemini-2.5-flash → gemini-2.0-flash → gemini-2.0-flash-lite → gemini-1.5-flash → gemini-1.5-pro
+    
+    Note: Multimodal requires Gemini — Groq doesn't support image input.
     """
     if not GEMINI_API_KEY:
         raise GeminiServiceError(
             "Gemini API key not configured. Multimodal (image) processing requires Gemini."
         )
 
-    # Check rate limit before proceeding (no fallback for multimodal)
+    # Check rate limit before proceeding
     if not gemini_rate_limiter.can_make_request():
         usage = gemini_rate_limiter.get_usage()
         raise GeminiServiceError(
@@ -256,7 +299,7 @@ def _generate_multimodal_text(
             f"Limits reset at {usage['reset_at_utc']}."
         )
 
-    # Rate limit check — blocks before hitting API quota
+    # Rate limit check
     try:
         gemini_rate_limiter.check_and_record(context="multimodal_ocr")
     except RateLimitExceeded as exc:
@@ -265,48 +308,44 @@ def _generate_multimodal_text(
             "Image processing requires Gemini - please wait for limits to reset."
         )
 
-    if GENAI_SDK == "google.genai":
-        if not genai_client:
-            raise GeminiServiceError("Gemini client not initialized")
+    config = _build_new_sdk_config(generation_config=generation_config) if GENAI_SDK == "google.genai" else None
 
-        config = _build_new_sdk_config(generation_config=generation_config)
+    # Build full model chain: primary + fallbacks
+    models_to_try = [model_name] + [m for m in GEMINI_FALLBACK_MODELS if m != model_name]
+    last_error = None
 
+    for i, current_model in enumerate(models_to_try):
         try:
-            response = genai_client.models.generate_content(
-                model=model_name,
-                contents=[
-                    prompt,
-                    types.Part.from_bytes(data=image_data, mime_type=mime_type),
-                ],
-                config=config,
-            )
-            return (getattr(response, "text", None) or "").strip()
+            result = _call_gemini_multimodal(current_model, prompt, image_data, mime_type, config, generation_config)
+            if i > 0:
+                logger.info(f"✅ Gemini multimodal fallback succeeded with model: {current_model}")
+            return result
         except Exception as e:
             error_str = str(e)
+            last_error = e
+
+            # 429 / RESOURCE_EXHAUSTED → mark exhausted, no multimodal fallback
             if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
                 gemini_rate_limiter.mark_exhausted()
+                raise GeminiServiceError(
+                    f"Gemini API quota exhausted (429 on {current_model}). "
+                    f"Image processing requires Gemini - no fallback available. "
+                    f"Try again after UTC midnight."
+                )
+
+            # 503 / UNAVAILABLE → try next Gemini model
+            if "503" in error_str or "UNAVAILABLE" in error_str:
+                logger.warning(f"⚡ Gemini model {current_model} unavailable (503) for multimodal, trying next...")
+                continue
+
+            # Any other error → re-raise
             raise
 
-    if GENAI_SDK == "google.generativeai":
-        model = genai.GenerativeModel(
-            model_name=model_name,
-            generation_config=generation_config,
-        )
-        image_part = {
-            "mime_type": mime_type,
-            "data": image_data,
-        }
-        try:
-            response = model.generate_content([prompt, image_part])
-            return (getattr(response, "text", None) or "").strip()
-        except Exception as e:
-            error_str = str(e)
-            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-                gemini_rate_limiter.mark_exhausted()
-            raise
-
+    # All Gemini models returned 503
     raise GeminiServiceError(
-        f"Gemini SDK not properly initialized. Current GENAI_SDK: {GENAI_SDK}. Install `google-genai` (recommended)."
+        f"All Gemini models unavailable (503 on all {len(models_to_try)} models). "
+        f"This is a temporary Google API capacity issue. Please try again in a few minutes. "
+        f"Models tried: {', '.join(models_to_try)}"
     )
 
 
@@ -464,7 +503,10 @@ async def process_discharge_summary(
 
 
 async def extract_text_from_image(image_data: bytes, mime_type: str) -> str:
-    """Extract text from image/PDF using Gemini Vision."""
+    """
+    Extract text from image/PDF using Gemini Vision.
+    Automatically tries fallback Gemini models on 503 UNAVAILABLE.
+    """
     try:
         prompt = format_ocr_prompt()
 
@@ -482,20 +524,13 @@ async def extract_text_from_image(image_data: bytes, mime_type: str) -> str:
         logger.info(f"OCR completed: extracted {len(extracted_text)} characters")
         return extracted_text
 
+    except GeminiServiceError:
+        # Already a well-formatted error from the fallback chain — re-raise as-is
+        raise
+
     except Exception as e:
         error_str = str(e)
         logger.error(f"OCR extraction failed: {e}")
-        
-        # Check if this is a 429 RESOURCE_EXHAUSTED error
-        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
-            # Mark the provider as exhausted so future requests are blocked
-            gemini_rate_limiter.mark_exhausted()
-            raise GeminiServiceError(
-                f"Gemini API quota exhausted for today (received 429). "
-                f"Image processing requires Gemini - no fallback available. "
-                f"Try again after UTC midnight or use a different Google account's API key."
-            )
-        
         raise GeminiServiceError(f"Failed to extract text from image: {str(e)}")
 
 

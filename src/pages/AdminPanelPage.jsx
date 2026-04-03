@@ -79,6 +79,30 @@ function PrescriptionQueuePanel({ onAction }) {
     }
   };
 
+  const handleEscalate = async (id) => {
+    if (!adminId.trim()) {
+      alert('Please enter your Admin ID before escalating.');
+      return;
+    }
+    if (!rejectReason.trim()) {
+      alert('Please enter an escalation reason.');
+      return;
+    }
+    setActionStatus((s) => ({ ...s, [id]: 'escalating' }));
+    try {
+      const response = await api.escalatePrescription(id, adminId.trim(), rejectReason.trim());
+      if (response?.demo_mode) setIsDemoMode(true);
+      setRecords((prev) => prev.filter((r) => r.prescription_id !== id));
+      if (selected?.prescription_id === id) setSelected(null);
+      setRejectReason('');
+      if (onAction) onAction();
+    } catch (err) {
+      alert(`Escalation failed: ${err.message}`);
+    } finally {
+      setActionStatus((s) => ({ ...s, [id]: 'done' }));
+    }
+  };
+
   return (
     <div className="glass-card rounded-xl overflow-hidden border border-white/5 flex flex-col h-full">
       {/* Panel header */}
@@ -182,7 +206,7 @@ function PrescriptionQueuePanel({ onAction }) {
             })}
           </div>
 
-          {/* Right — detail / action pane */}
+          {/* Right — enhanced detail / action pane */}
           <div className="p-6 flex flex-col gap-4 overflow-y-auto max-h-[600px] bg-white/[0.01]">
             {!selected ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm gap-2">
@@ -190,116 +214,297 @@ function PrescriptionQueuePanel({ onAction }) {
                 Select a document to review
               </div>
             ) : (
-              <>
-                <h4 className="text-sm font-bold text-white uppercase tracking-wider flex justify-between items-center">
-                  <span>Extracted Data</span>
-                  <span className="text-[10px] text-primary bg-primary/20 px-2 py-1 rounded capitalize">{selected.report_type || 'Prescription'}</span>
-                </h4>
-
-                <div className="space-y-4 text-sm text-slate-300 flex-1">
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    {[
-                      ['Doctor', selected.extracted_data.doctor_name],
-                      ['Patient Name', selected.extracted_data.patient_name],
-                      ['Patient ID', selected.extracted_data.patient_id],
-                      ['Age', selected.extracted_data.patient_age],
-                      ['Date', selected.extracted_data.prescription_date],
-                    ].map(([label, value]) =>
-                      value ? (
-                        <div key={label} className="bg-white/5 p-2 rounded">
-                          <span className="text-slate-500 block mb-1">{label}</span>
-                          <span className="text-white font-medium">{value}</span>
-                        </div>
-                      ) : null
-                    )}
-                  </div>
-
-                  {selected.extracted_data.diagnosis && (
-                    <div className="bg-white/5 p-3 rounded">
-                      <span className="text-slate-500 block mb-1">Diagnosis</span>
-                      <span className="text-white">{selected.extracted_data.diagnosis}</span>
-                    </div>
-                  )}
-
-                  {selected.extracted_data.tests?.length > 0 && (
-                    <div>
-                      <p className="text-slate-500 mb-2">Tests:</p>
-                      <ul className="space-y-2">
-                        {selected.extracted_data.tests.map((t, i) => (
-                          <li key={i} className="text-xs text-white bg-surface-container-low border border-white/10 rounded-lg px-3 py-2 flex justify-between items-center">
-                            <span className="font-semibold">{t.name}</span>
-                            {t.status && (
-                              <span className={`text-[10px] px-2 py-0.5 rounded-full ${t.status === 'completed' ? 'bg-primary/20 text-primary' : 'bg-yellow-500/20 text-yellow-300'} uppercase font-bold`}>
-                                {t.status}
-                              </span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {selected.extracted_data.medications?.length > 0 && (
-                    <div>
-                      <p className="text-slate-500 mb-2">Medications:</p>
-                      <ul className="space-y-2">
-                        {selected.extracted_data.medications.map((m, i) => (
-                          <li key={i} className="text-xs text-white bg-surface-container-low border border-white/10 rounded-lg p-3">
-                            <div className="font-semibold text-sm text-primary mb-1">{m.name} {m.strength && ` ${m.strength}`}</div>
-                            <div className="text-slate-400 grid grid-cols-2 gap-1 mt-2">
-                              {m.form && <span>Form: <span className="text-white">{m.form}</span></span>}
-                              {m.frequency && <span>Freq: <span className="text-white">{m.frequency}</span></span>}
-                              {m.duration && <span className="col-span-2">Dur: <span className="text-white">{m.duration}</span></span>}
-                              {m.instructions && <span className="col-span-2 text-yellow-200/70 italic mt-1">{m.instructions}</span>}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {selected.extracted_data.notes && (
-                    <div className="bg-white/5 p-3 rounded text-xs">
-                      <span className="text-slate-500 block mb-1">Notes:</span>
-                      <span className="text-white">{selected.extracted_data.notes}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Reject reason input */}
-                <input
-                  type="text"
-                  placeholder="Rejection reason (required to reject)…"
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                  className="w-full bg-surface-container-highest border border-white/10 rounded-lg px-4 py-2 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none mt-4"
-                />
-
-                {/* Action buttons */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => handleApprove(selected.prescription_id)}
-                    disabled={actionStatus[selected.prescription_id] === 'approving'}
-                    className="flex-1 py-3 bg-primary text-on-primary font-bold rounded-xl flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(79,219,200,0.3)] transition-all disabled:opacity-50"
-                  >
-                    <span className="material-symbols-outlined text-lg">check_circle</span>
-                    {actionStatus[selected.prescription_id] === 'approving' ? 'Approving…' : 'Approve & Send'}
-                  </button>
-                  <button
-                    onClick={() => handleReject(selected.prescription_id)}
-                    disabled={actionStatus[selected.prescription_id] === 'rejecting'}
-                    className="flex-1 py-3 bg-error/20 text-error font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-error/30 transition-all disabled:opacity-50"
-                  >
-                    <span className="material-symbols-outlined text-lg">cancel</span>
-                    {actionStatus[selected.prescription_id] === 'rejecting' ? 'Rejecting…' : 'Reject'}
-                  </button>
-                </div>
-              </>
+              <AdminDetailPane
+                selected={selected}
+                adminId={adminId}
+                rejectReason={rejectReason}
+                setRejectReason={setRejectReason}
+                actionStatus={actionStatus}
+                handleApprove={handleApprove}
+                handleReject={handleReject}
+                handleEscalate={handleEscalate}
+              />
             )}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// Enhanced Admin Detail Pane — risk flags, confidence, audit trail
+// ---------------------------------------------------------------------------
+
+function AdminDetailPane({
+  selected,
+  adminId,
+  rejectReason,
+  setRejectReason,
+  actionStatus,
+  handleApprove,
+  handleReject,
+  handleEscalate,
+}) {
+  const [adminView, setAdminView] = useState(null);
+  const [viewMode, setViewMode] = useState('processed'); // processed | raw
+  const [loadingView, setLoadingView] = useState(false);
+
+  useEffect(() => {
+    if (!selected?.prescription_id) return;
+    let cancelled = false;
+
+    const fetchAdminView = async () => {
+      setLoadingView(true);
+      try {
+        const data = await api.getAdminFullView(selected.prescription_id);
+        if (!cancelled) setAdminView(data);
+      } catch (err) {
+        console.warn('Admin view fetch failed:', err.message);
+        if (!cancelled) setAdminView(null);
+      } finally {
+        if (!cancelled) setLoadingView(false);
+      }
+    };
+
+    fetchAdminView();
+    return () => { cancelled = true; };
+  }, [selected?.prescription_id]);
+
+  const riskFlags = adminView?.risk_flags || [];
+  const auditLog = adminView?.audit_log || [];
+  const confidence = adminView?.confidence_score ?? selected?.extracted_data?.extraction_confidence ?? 0;
+  const confidencePct = Math.round(confidence * 100);
+
+  return (
+    <>
+      <h4 className="text-sm font-bold text-white uppercase tracking-wider flex justify-between items-center">
+        <span>Extracted Data</span>
+        <span className="text-[10px] text-primary bg-primary/20 px-2 py-1 rounded capitalize">{selected.report_type || 'Prescription'}</span>
+      </h4>
+
+      {/* Confidence Score Bar */}
+      <div className="bg-white/[0.03] p-3 rounded-xl border border-white/5">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Extraction Confidence</span>
+          <span className={`text-xs font-bold font-mono ${confidencePct >= 80 ? 'text-primary' : confidencePct >= 50 ? 'text-yellow-400' : 'text-error'}`}>
+            {confidencePct}%
+          </span>
+        </div>
+        <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${
+              confidencePct >= 80 ? 'bg-gradient-to-r from-teal-500 to-emerald-500' :
+              confidencePct >= 50 ? 'bg-gradient-to-r from-yellow-500 to-amber-500' :
+              'bg-gradient-to-r from-rose-500 to-red-500'
+            }`}
+            style={{ width: `${confidencePct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Risk Flags */}
+      {riskFlags.length > 0 && (
+        <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3">
+          <p className="text-[10px] uppercase tracking-widest text-amber-400 font-bold mb-2 flex items-center gap-1">
+            <span className="material-symbols-outlined text-[12px]">warning</span>
+            Risk Flags ({riskFlags.length})
+          </p>
+          <div className="space-y-1.5">
+            {riskFlags.map((flag, i) => (
+              <p key={i} className="text-xs text-amber-200/80">{flag}</p>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* View Mode Toggle */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setViewMode('processed')}
+          className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+            viewMode === 'processed' ? 'bg-primary/20 text-primary border-primary/30' : 'bg-white/5 text-slate-400 border-white/10'
+          } border`}
+        >
+          Processed Data
+        </button>
+        <button
+          onClick={() => setViewMode('raw')}
+          className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+            viewMode === 'raw' ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' : 'bg-white/5 text-slate-400 border-white/10'
+          } border`}
+        >
+          Raw Extraction
+        </button>
+      </div>
+
+      {/* Data Display */}
+      <div className="space-y-4 text-sm text-slate-300 flex-1">
+        {viewMode === 'processed' ? (
+          <>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {[
+                ['Doctor', selected.extracted_data.doctor_name],
+                ['Patient Name', selected.extracted_data.patient_name],
+                ['Patient ID', selected.extracted_data.patient_id],
+                ['Age', selected.extracted_data.patient_age],
+                ['Date', selected.extracted_data.prescription_date],
+              ].map(([label, value]) =>
+                value ? (
+                  <div key={label} className="bg-white/5 p-2 rounded">
+                    <span className="text-slate-500 block mb-1">{label}</span>
+                    <span className="text-white font-medium">{value}</span>
+                  </div>
+                ) : null
+              )}
+            </div>
+
+            {selected.extracted_data.diagnosis && (
+              <div className="bg-white/5 p-3 rounded">
+                <span className="text-slate-500 block mb-1">Diagnosis</span>
+                <span className="text-white">{selected.extracted_data.diagnosis}</span>
+              </div>
+            )}
+
+            {selected.extracted_data.tests?.length > 0 && (
+              <div>
+                <p className="text-slate-500 mb-2">Tests:</p>
+                <ul className="space-y-2">
+                  {selected.extracted_data.tests.map((t, i) => (
+                    <li key={i} className="text-xs text-white bg-surface-container-low border border-white/10 rounded-lg px-3 py-2 flex justify-between items-center">
+                      <span className="font-semibold">{t.name}</span>
+                      {t.status && (
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full ${t.status === 'completed' ? 'bg-primary/20 text-primary' : 'bg-yellow-500/20 text-yellow-300'} uppercase font-bold`}>
+                          {t.status}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {selected.extracted_data.medications?.length > 0 && (
+              <div>
+                <p className="text-slate-500 mb-2">Medications:</p>
+                <ul className="space-y-2">
+                  {selected.extracted_data.medications.map((m, i) => (
+                    <li key={i} className="text-xs text-white bg-surface-container-low border border-white/10 rounded-lg p-3">
+                      <div className="font-semibold text-sm text-primary mb-1">{m.name} {m.strength && ` ${m.strength}`}</div>
+                      <div className="text-slate-400 grid grid-cols-2 gap-1 mt-2">
+                        {m.form && <span>Form: <span className="text-white">{m.form}</span></span>}
+                        {m.frequency && <span>Freq: <span className="text-white">{m.frequency}</span></span>}
+                        {m.duration && <span className="col-span-2">Dur: <span className="text-white">{m.duration}</span></span>}
+                        {m.instructions && <span className="col-span-2 text-yellow-200/70 italic mt-1">{m.instructions}</span>}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {selected.extracted_data.notes && (
+              <div className="bg-white/5 p-3 rounded text-xs">
+                <span className="text-slate-500 block mb-1">Notes:</span>
+                <span className="text-white">{selected.extracted_data.notes}</span>
+              </div>
+            )}
+          </>
+        ) : (
+          /* Raw data view */
+          <div className="bg-white/[0.03] rounded-xl border border-white/5 p-4">
+            <p className="text-[10px] uppercase tracking-widest text-cyan-400 font-bold mb-3">Raw Extraction Snapshot</p>
+            {loadingView ? (
+              <div className="animate-pulse space-y-2">
+                <div className="h-3 bg-white/10 rounded w-full" />
+                <div className="h-3 bg-white/10 rounded w-5/6" />
+                <div className="h-3 bg-white/10 rounded w-4/6" />
+              </div>
+            ) : adminView?.raw_data ? (
+              <pre className="text-[11px] text-slate-300 font-mono overflow-x-auto whitespace-pre-wrap max-h-[300px] overflow-y-auto leading-relaxed">
+                {JSON.stringify(adminView.raw_data, null, 2)}
+              </pre>
+            ) : (
+              <p className="text-xs text-slate-500 italic">Raw snapshot not available for this record.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Audit Trail */}
+      {auditLog.length > 0 && (
+        <div className="mt-2 bg-white/[0.02] rounded-xl border border-white/5 p-4">
+          <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-3 flex items-center gap-1">
+            <span className="material-symbols-outlined text-[12px]">history</span>
+            Audit Trail ({auditLog.length})
+          </p>
+          <div className="space-y-2">
+            {auditLog.map((entry, i) => (
+              <div key={i} className="flex items-start gap-3">
+                <div className="w-5 h-5 shrink-0 rounded-full bg-white/5 flex items-center justify-center mt-0.5">
+                  <span className={`material-symbols-outlined text-[10px] ${
+                    entry.action === 'approved' ? 'text-primary' :
+                    entry.action === 'rejected' ? 'text-error' :
+                    entry.action === 'escalated' ? 'text-yellow-400' :
+                    'text-slate-400'
+                  }`}>
+                    {entry.action === 'approved' ? 'check' :
+                     entry.action === 'rejected' ? 'close' :
+                     entry.action === 'escalated' ? 'arrow_upward' :
+                     entry.action === 'uploaded' ? 'upload' :
+                     entry.action === 'chunked' ? 'data_array' : 'circle'}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-white font-medium capitalize">{entry.action}</p>
+                  <p className="text-[10px] text-slate-500">
+                    by {entry.actor_role}/{entry.actor_id} — {new Date(entry.timestamp).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Reject reason input */}
+      <input
+        type="text"
+        placeholder="Rejection / Escalation reason (required)…"
+        value={rejectReason}
+        onChange={(e) => setRejectReason(e.target.value)}
+        className="w-full bg-surface-container-highest border border-white/10 rounded-lg px-4 py-2 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none mt-2"
+      />
+
+      {/* Action buttons */}
+      <div className="flex gap-3 mt-2">
+        <button
+          onClick={() => handleApprove(selected.prescription_id)}
+          disabled={actionStatus[selected.prescription_id] === 'approving'}
+          className="flex-1 py-3 bg-primary text-on-primary font-bold rounded-xl flex items-center justify-center gap-2 hover:shadow-[0_0_20px_rgba(79,219,200,0.3)] transition-all disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-lg">check_circle</span>
+          {actionStatus[selected.prescription_id] === 'approving' ? 'Approving…' : 'Approve & Send'}
+        </button>
+        <button
+          onClick={() => handleReject(selected.prescription_id)}
+          disabled={actionStatus[selected.prescription_id] === 'rejecting'}
+          className="flex-1 py-3 bg-error/20 text-error font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-error/30 transition-all disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-lg">cancel</span>
+          {actionStatus[selected.prescription_id] === 'rejecting' ? 'Rejecting…' : 'Reject'}
+        </button>
+        <button
+          onClick={() => handleEscalate(selected.prescription_id)}
+          disabled={actionStatus[selected.prescription_id] === 'escalating'}
+          className="flex-1 py-3 bg-yellow-500/20 text-yellow-500 font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-yellow-500/30 transition-all disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-lg">medical_information</span>
+          {actionStatus[selected.prescription_id] === 'escalating' ? 'Escalating…' : 'Escalate to Doctor'}
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -350,10 +555,11 @@ function AdminPanelPage() {
 
   const stats = useMemo(() => {
     const total = allRecords.length;
-    const pending = allRecords.filter((r) => r.status === 'pending').length;
+    const pending = allRecords.filter((r) => r.status === 'pending_admin_review').length;
     const approved = allRecords.filter((r) => r.status === 'approved').length;
     const rejected = allRecords.filter((r) => r.status === 'rejected').length;
-    return { total, pending, approved, rejected };
+    const escalated = allRecords.filter((r) => r.status === 'escalated_to_doctor').length;
+    return { total, pending, approved, rejected, escalated };
   }, [allRecords]);
 
   return (
@@ -378,7 +584,7 @@ function AdminPanelPage() {
       <main className="p-8 pt-28 max-w-[1600px] mx-auto space-y-8">
         
         {/* Section: Dynamic Stats Ribbon */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
           <StatCard 
             title="Total Processed" 
             value={stats.total} 
@@ -406,6 +612,13 @@ function AdminPanelPage() {
             icon="cancel" 
             colorClass="bg-error/20 text-error" 
             gradientClass="from-error to-rose-500" 
+          />
+          <StatCard 
+            title="Escalated" 
+            value={stats.escalated} 
+            icon="medical_information" 
+            colorClass="bg-yellow-500/20 text-yellow-500" 
+            gradientClass="from-yellow-400 to-amber-600" 
           />
         </div>
 
@@ -487,10 +700,11 @@ function AdminPanelPage() {
                           <span className={`px-2 py-1 inline-flex items-center gap-1 rounded justify-center text-[10px] font-bold uppercase tracking-wider border ${
                             rec.status === 'approved' ? 'bg-primary/10 text-primary border-primary/20' :
                             rec.status === 'rejected' ? 'bg-error/10 text-error border-error/20' :
-                            'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                            rec.status === 'escalated_to_doctor' ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20' :
+                            'bg-orange-500/10 text-orange-400 border-orange-500/20'
                           }`}>
                             <span className="material-symbols-outlined text-[10px]">
-                              {rec.status === 'approved' ? 'check_circle' : rec.status === 'rejected' ? 'cancel' : 'hourglass_top'}
+                              {rec.status === 'approved' ? 'check_circle' : rec.status === 'rejected' ? 'cancel' : rec.status === 'escalated_to_doctor' ? 'medical_information' : 'hourglass_top'}
                             </span>
                             {rec.status}
                           </span>

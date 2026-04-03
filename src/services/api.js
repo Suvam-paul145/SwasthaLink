@@ -305,6 +305,20 @@ const api = {
   },
 
   /**
+   * Escalate a prescription back to doctor.
+   * @param {string} prescriptionId - UUID of the prescription record
+   * @param {string} adminId - ID of the rejecting admin
+   * @param {string} reason - Reason for escalation
+   * @returns {Promise<Object>} Updated status
+   */
+  escalatePrescription: async (prescriptionId, adminId, reason) => {
+    return await apiRequest(API_ENDPOINTS.PRESCRIPTION_ESCALATE(prescriptionId), {
+      method: 'POST',
+      body: JSON.stringify({ admin_id: adminId, reason }),
+    });
+  },
+
+  /**
    * Retrieve patient-readable view for an approved prescription.
    * @param {string} prescriptionId - UUID of the prescription record
    * @returns {Promise<Object>} Patient-facing prescription data
@@ -425,6 +439,81 @@ const api = {
    */
   getRateLimitStatus: async () => {
     return await apiRequest(API_ENDPOINTS.RATE_LIMIT_STATUS, {
+      method: 'GET',
+    });
+  },
+
+  // -------------------------------------------------------------------------
+  // Patient data chunks & chatbot context
+  // -------------------------------------------------------------------------
+
+  /**
+   * Get all data chunks for a patient (medication, routine, explanation, faq).
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Object>} { count, items }
+   */
+  getPatientChunks: async (patientId) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_CHUNKS(patientId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get patient chunks filtered by type.
+   * @param {string} patientId - Patient ID
+   * @param {string} type - medication | routine | explanation | faq_context
+   * @returns {Promise<Object>} { count, items }
+   */
+  getPatientChunksByType: async (patientId, type) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_CHUNKS_BY_TYPE(patientId, type), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get RAG-ready chatbot context for a patient.
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Object>} ChatbotContextPayload
+   */
+  getChatbotContext: async (patientId) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_CHATBOT_CONTEXT(patientId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get pre-built FAQ suggestions for chatbot display.
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Object>} { count, items: [{question, answer}] }
+   */
+  getFaqSuggestions: async (patientId) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_FAQ_SUGGESTIONS(patientId), {
+      method: 'GET',
+    });
+  },
+
+  // -------------------------------------------------------------------------
+  // Admin enhanced views
+  // -------------------------------------------------------------------------
+
+  /**
+   * Get full admin view with raw+processed+risk flags+audit log.
+   * @param {string} prescriptionId - UUID
+   * @returns {Promise<Object>} AdminPanelPayload
+   */
+  getAdminFullView: async (prescriptionId) => {
+    return await apiRequest(API_ENDPOINTS.PRESCRIPTION_ADMIN_VIEW(prescriptionId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get full audit trail for a prescription.
+   * @param {string} prescriptionId - UUID
+   * @returns {Promise<Object>} { count, items }
+   */
+  getAuditLog: async (prescriptionId) => {
+    return await apiRequest(API_ENDPOINTS.PRESCRIPTION_AUDIT_LOG(prescriptionId), {
       method: 'GET',
     });
   },

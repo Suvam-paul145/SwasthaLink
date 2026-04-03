@@ -185,6 +185,16 @@ class MockQuery:
                         d['patient_insights'] = json.loads(d['patient_insights'])
                     except Exception:
                         d['patient_insights'] = None
+                if 'data' in d and isinstance(d['data'], str):
+                    try:
+                        d['data'] = json.loads(d['data'])
+                    except Exception:
+                        d['data'] = {}
+                if 'details' in d and isinstance(d['details'], str):
+                    try:
+                        d['details'] = json.loads(d['details'])
+                    except Exception:
+                        d['details'] = {}
                 rows.append(d)
             return MockData(rows[0] if self._single and rows else rows)
 
@@ -233,6 +243,16 @@ class MockQuery:
                         d['patient_insights'] = json.loads(d['patient_insights'])
                     except Exception:
                         d['patient_insights'] = None
+                if 'data' in d and isinstance(d['data'], str):
+                    try:
+                        d['data'] = json.loads(d['data'])
+                    except Exception:
+                        d['data'] = {}
+                if 'details' in d and isinstance(d['details'], str):
+                    try:
+                        d['details'] = json.loads(d['details'])
+                    except Exception:
+                        d['details'] = {}
                 rows.append(d)
 
             if self._single:
