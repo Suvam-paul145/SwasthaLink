@@ -34,7 +34,8 @@ class RateAlertService:
         self.enabled = _as_bool(os.getenv("RATE_ALERTS_ENABLED", "true"), True)
         self.threshold_percent = _as_int(os.getenv("RATE_ALERT_THRESHOLD_PERCENT", "80"), 80)
         self.limits = {
-            "gemini": _as_int(os.getenv("RATE_ALERT_GEMINI_DAILY_LIMIT", "1000"), 1000),
+            "gemini": _as_int(os.getenv("RATE_ALERT_GEMINI_DAILY_LIMIT", "20"), 20),  # Free tier: 20 RPD
+            "groq": _as_int(os.getenv("RATE_ALERT_GROQ_DAILY_LIMIT", "14400"), 14400),  # Free tier: 14,400 RPD
             "twilio": _as_int(os.getenv("RATE_ALERT_TWILIO_DAILY_LIMIT", "500"), 500),
             "supabase": _as_int(os.getenv("RATE_ALERT_SUPABASE_DAILY_LIMIT", "5000"), 5000),
             "s3": _as_int(os.getenv("RATE_ALERT_S3_DAILY_LIMIT", "1000"), 1000),

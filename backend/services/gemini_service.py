@@ -2,12 +2,20 @@
 Gemini AI Service
 Handles all interactions with Google Gemini 2.5 Flash API
 Includes JSON parsing, error handling, and prompt management
+
+Fallback: When Gemini rate limits are exhausted, automatically
+falls back to Groq (Llama 3.3 70B) to prevent service disruption.
 """
 
 import os
 import json
 import re
-from services.rate_limiter_service import gemini_rate_limiter, RateLimitExceeded
+from services.rate_limiter_service import (
+    gemini_rate_limiter, 
+    groq_rate_limiter,
+    RateLimitExceeded,
+    multi_provider_limiter,
+)
 import logging
 from typing import Dict, Any, Optional
 
@@ -93,6 +101,37 @@ def _build_new_sdk_config(
     return types.GenerateContentConfig(**config_payload)
 
 
+def _try_groq_fallback(
+    prompt: str,
+    system_instruction: Optional[str] = None,
+    temperature: float = 0.3,
+) -> str:
+    """
+    Attempt to use Groq as fallback when Gemini is rate limited.
+    Returns response text or raises GeminiServiceError if Groq also fails.
+    """
+    try:
+        from services.groq_service import generate_text_groq_sync, is_groq_available
+        
+        if not is_groq_available():
+            raise GeminiServiceError(
+                "Both Gemini and Groq rate limits exhausted. "
+                "Please wait until UTC midnight for limits to reset."
+            )
+        
+        logger.info("Gemini rate limit reached. Falling back to Groq...")
+        return generate_text_groq_sync(
+            prompt=prompt,
+            system_instruction=system_instruction,
+            temperature=temperature,
+        )
+    except ImportError:
+        raise GeminiServiceError(
+            "Gemini rate limit reached and Groq fallback not available. "
+            "Install groq package: pip install groq"
+        )
+
+
 def _generate_text(
     prompt: str,
     generation_config: Optional[Dict[str, Any]] = None,
@@ -100,15 +139,39 @@ def _generate_text(
     system_instruction: Optional[str] = None,
     model_name: str = MODEL_NAME,
 ) -> str:
-    """Generate text using whichever Gemini SDK is available."""
+    """
+    Generate text using Gemini API with automatic Groq fallback.
+    
+    If Gemini rate limits are reached, automatically falls back to Groq
+    to prevent service disruption.
+    """
+    # Check if we should use Gemini or fallback
+    if not gemini_rate_limiter.can_make_request():
+        logger.warning("Gemini rate limit approaching/exceeded, using Groq fallback")
+        return _try_groq_fallback(
+            prompt=prompt,
+            system_instruction=system_instruction,
+            temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
+        )
+    
     if not GEMINI_API_KEY:
-        raise GeminiServiceError("Gemini API key not configured")
+        # No Gemini key, try Groq
+        return _try_groq_fallback(
+            prompt=prompt,
+            system_instruction=system_instruction,
+            temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
+        )
 
     # Rate limit check — blocks before hitting API quota
     try:
         gemini_rate_limiter.check_and_record(context="text_generation")
     except RateLimitExceeded as exc:
-        raise GeminiServiceError(str(exc))
+        logger.warning(f"Gemini rate limit exceeded: {exc}")
+        return _try_groq_fallback(
+            prompt=prompt,
+            system_instruction=system_instruction,
+            temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
+        )
 
     if GENAI_SDK == "google.genai":
         if not genai_client:
@@ -149,15 +212,34 @@ def _generate_multimodal_text(
     generation_config: Optional[Dict[str, Any]] = None,
     model_name: str = MODEL_NAME,
 ) -> str:
-    """Generate text for multimodal input (prompt + image/pdf)."""
+    """
+    Generate text for multimodal input (prompt + image/pdf).
+    
+    Note: Multimodal requires Gemini - Groq doesn't support image input.
+    Will fail if Gemini rate limit is exceeded.
+    """
     if not GEMINI_API_KEY:
-        raise GeminiServiceError("Gemini API key not configured")
+        raise GeminiServiceError(
+            "Gemini API key not configured. Multimodal (image) processing requires Gemini."
+        )
+
+    # Check rate limit before proceeding (no fallback for multimodal)
+    if not gemini_rate_limiter.can_make_request():
+        usage = gemini_rate_limiter.get_usage()
+        raise GeminiServiceError(
+            f"Gemini rate limit exhausted (RPD: {usage['rpd_pct']}% used). "
+            f"Image processing requires Gemini - no fallback available. "
+            f"Limits reset at {usage['reset_at_utc']}."
+        )
 
     # Rate limit check — blocks before hitting API quota
     try:
         gemini_rate_limiter.check_and_record(context="multimodal_ocr")
     except RateLimitExceeded as exc:
-        raise GeminiServiceError(str(exc))
+        raise GeminiServiceError(
+            f"Gemini rate limit exceeded: {exc}. "
+            "Image processing requires Gemini - please wait for limits to reset."
+        )
 
     if GENAI_SDK == "google.genai":
         if not genai_client:
@@ -397,37 +479,85 @@ async def validate_bengali_quality(bengali_text: str) -> Dict[str, Any]:
 
 
 def check_gemini_health() -> Dict[str, Any]:
-    """Check if Gemini API is accessible and healthy."""
+    """
+    Check if Gemini API is accessible and healthy.
+    Includes rate limit status and fallback provider availability.
+    """
+    gemini_usage = gemini_rate_limiter.get_usage()
+    
+    # Import Groq health check
     try:
-        if not GEMINI_API_KEY:
-            return {
-                "status": "down",
-                "message": "API key not configured",
-                "available": False
-            }
-
+        from services.groq_service import check_groq_health, is_groq_available
+        groq_status = check_groq_health() if is_groq_available() else {"available": False}
+    except ImportError:
+        groq_status = {"available": False, "message": "Groq SDK not installed"}
+    
+    result = {
+        "gemini": {
+            "rate_limit": gemini_usage,
+        },
+        "groq": groq_status,
+        "active_provider": multi_provider_limiter.get_available_provider() or "none",
+    }
+    
+    # Check Gemini health
+    if not GEMINI_API_KEY:
+        result["gemini"]["status"] = "down"
+        result["gemini"]["message"] = "API key not configured"
+        result["gemini"]["available"] = False
+        return result
+    
+    if not gemini_rate_limiter.can_make_request():
+        result["gemini"]["status"] = "rate_limited"
+        result["gemini"]["message"] = (
+            f"Rate limit reached ({gemini_usage['rpd_pct']}% of daily limit). "
+            f"Resets at {gemini_usage['reset_at_utc']}"
+        )
+        result["gemini"]["available"] = False
+        
+        # Check if fallback is available
+        if groq_status.get("available"):
+            result["status"] = "degraded"
+            result["message"] = "Gemini rate limited, using Groq fallback"
+        else:
+            result["status"] = "critical"
+            result["message"] = "All LLM providers exhausted"
+        return result
+    
+    try:
+        # Quick health ping (this will use rate limiter)
         response_text = _generate_text(
             prompt="Say 'ok'",
             generation_config={"temperature": 0},
         )
 
         if response_text:
-            return {
-                "status": "ok",
-                "message": "Gemini API is healthy",
-                "available": True
-            }
+            result["gemini"]["status"] = "ok"
+            result["gemini"]["message"] = "Gemini API is healthy"
+            result["gemini"]["available"] = True
+            result["status"] = "ok"
+            result["message"] = "Primary provider healthy"
         else:
-            return {
-                "status": "degraded",
-                "message": "API responding but content blocked",
-                "available": False
-            }
+            result["gemini"]["status"] = "degraded"
+            result["gemini"]["message"] = "API responding but content blocked"
+            result["gemini"]["available"] = False
 
     except Exception as e:
         logger.error(f"Gemini health check failed: {e}")
-        return {
-            "status": "down",
-            "message": str(e),
-            "available": False
-        }
+        result["gemini"]["status"] = "down"
+        result["gemini"]["message"] = str(e)
+        result["gemini"]["available"] = False
+    
+    return result
+
+
+def get_rate_limit_status() -> Dict[str, Any]:
+    """
+    Get current rate limit status for all providers.
+    Useful for monitoring dashboards and alerts.
+    """
+    return {
+        "providers": multi_provider_limiter.get_status(),
+        "active_provider": multi_provider_limiter.get_available_provider(),
+        "all_exhausted": multi_provider_limiter.get_available_provider() is None,
+    }
