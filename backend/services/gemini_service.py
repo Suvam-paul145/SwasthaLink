@@ -63,15 +63,16 @@ from core.exceptions import GeminiServiceError
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-MODEL_NAME = "gemini-2.5-flash"
+MODEL_NAME = "gemini-3-flash-preview"
 
 # Fallback chain: when the primary model is unavailable (503),
 # automatically try the next model in this list.
+# Order: Gemini 3 Flash → 2.5 Flash → 3.1 Flash Lite → 2.5 Flash Lite → 2.5 Flash Preview TTS
 GEMINI_FALLBACK_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    "gemini-2.5-flash",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash-preview-tts",
 ]
 
 # Initialize Gemini API
