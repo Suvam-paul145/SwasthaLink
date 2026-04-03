@@ -5,110 +5,117 @@ import { useAuth } from "../context/AuthContext";
 function DetailedClarityHubPage() {
   const { user } = useAuth();
   const patientName = user?.name || "Patient";
-  const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [voiceLanguage, setVoiceLanguage] = useState("Both");
-  const [activeMode, setActiveMode] = useState("Care Plan");
-  const [voiceTimeline, setVoiceTimeline] = useState([
+  const [isChatPanelOpen, setIsChatPanelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('chat');
+  const [chatMessages, setChatMessages] = useState([
+    {
+      id: "welcome",
+      sender: "assistant",
+      text: "Hi! I can help with your care plan, medicines, or questions. Type or tap mic to speak.",
+      subtext: "আপনার কেয়ার প্ল্যান, ওষুধ বা প্রশ্নে সাহায্য করতে পারি। টাইপ করুন বা মাইক ট্যাপ করুন।"
+    },
     {
       id: "voice-welcome",
-      speaker: "assistant",
-      title: "Ready to assist",
-      content: "Tap the mic to explain your treatment in simple language.",
-      translation: "সহজ ভাষায় চিকিৎসা পরিকল্পনা বুঝতে মাইক আইকনে ট্যাপ করুন।"
+      sender: "assistant",
+      text: "Ready to assist\n\nTap the mic to explain your treatment in simple language.",
+      subtext: "সহজ ভাষায় চিকিৎসা পরিকল্পনা বুঝতে মাইক আইকনে ট্যাপ করুন।"
     }
   ]);
+  const [chatInput, setChatInput] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const [isVoicePanelOpen, setIsVoicePanelOpen] = useState(false);
 
-  const assistantModes = useMemo(
-    () => ["Care Plan", "Medicine", "Diet", "Emergency"],
-    []
-  );
 
-  const voiceShortcuts = useMemo(
+  const quickActions = useMemo(
     () => [
       { icon: "medication", label: "Next dose" },
       { icon: "schedule", label: "Set reminder" },
-      { icon: "local_hospital", label: "Urgent signs" },
-      { icon: "translate", label: "বাংলা only" },
+      { icon: "restaurant", label: "Diet" },
+      { icon: "warning", label: "Warning signs" }
     ],
     []
   );
 
-  const pushAssistantResponse = (shortcutLabel) => {
-    const responses = {
+
+  const respondToPrompt = (promptLabel) => {
+    const cannedResponses = {
       "Next dose": {
-        title: "Medication update",
-        content: "Insulin 10 units at 8:00 PM, BP tablet after dinner.",
-        translation: "রাত ৮টায় ইনসুলিন ১০ ইউনিট, রাতের খাবারের পর BP ট্যাবলেট।"
+        text: "Insulin 10 units at 8:00 PM, BP tablet after dinner.",
+        subtext: "রাত ৮টায় ইনসুলিন ১০ ইউনিট, রাতের খাবারের পর BP ট্যাবলেট।"
       },
       "Set reminder": {
-        title: "Reminder draft",
-        content: "I can remind at 7:30 PM and 9:00 PM for medicine and sugar check.",
-        translation: "ওষুধ ও সুগার চেকের জন্য ৭:৩০ PM এবং ৯:০০ PM রিমাইন্ডার সেট করা যাবে।"
+        text: "Reminders set for 7:30 PM medicine and 9:00 PM sugar check.",
+        subtext: "ওষুধ ও সুগার চেকের জন্য ৭:৩০ PM এবং ৯:০০ PM রিমাইন্ডার সেট।"
       },
-      "Urgent signs": {
-        title: "Immediate care",
-        content: "Severe chest pain, breathlessness, or sugar above 300 needs emergency support.",
-        translation: "তীব্র বুক ব্যথা, শ্বাসকষ্ট বা ৩০০-এর বেশি সুগার হলে দ্রুত জরুরি সহায়তা নিন।"
+      "Diet": {
+        text: "Low-salt meals, avoid sugary drinks, 2 glasses water before sleep.",
+        subtext: "কম লবণের খাবার, মিষ্টি পানীয় এড়ান, ঘুমের আগে ২ গ্লাস পানি।"
       },
-      "বাংলা only": {
-        title: "Language switched",
-        content: "Voice responses can now focus on Bengali-first instructions.",
-        translation: "এখন থেকে ভয়েস নির্দেশনা বাংলা-প্রধানভাবে দেওয়া হবে।"
+      "Warning signs": {
+        text: "Sugar >300, dizziness, chest pain, breathlessness - call emergency.",
+        subtext: "শর্করা >৩০০, মাথা ঘোরা, বুক ব্যথা, শ্বাসকষ্ট - জরুরি সাহায্য নিন।"
       },
-      default: {
-        title: "CareGuide",
-        content: "Your care summary is ready. Say 'repeat slowly' for a calmer pace.",
-        translation: "আপনার কেয়ার সারাংশ প্রস্তুত। ধীরে শুনতে চাইলে বলুন 'repeat slowly'।"
+      custom: {
+        text: "Got it. Need short answer, Bengali explanation, or repeat?",
+        subtext: "বুঝলাম। সংক্ষেপ, বাংলা ব্যাখ্যা, নাকি পুনরাবৃত্তি?"
       }
     };
 
-    const response = responses[shortcutLabel] ?? responses.default;
-    setVoiceTimeline((prev) => [
-      ...prev,
-      {
+    const response = cannedResponses[promptLabel] || cannedResponses.custom;
+    // Typing simulation
+    setIsListening(true);
+    setTimeout(() => {
+      setChatMessages(prev => [...prev, {
         id: `${Date.now()}-assistant`,
-        speaker: "assistant",
-        title: response.title,
-        content: response.content,
-        translation: response.translation,
-      },
-    ]);
+        sender: "assistant",
+        text: response.text,
+        subtext: response.subtext
+      }]);
+      setIsListening(false);
+    }, 1200);
   };
 
-  const handleShortcut = (shortcut) => {
-    setVoiceTimeline((prev) => [
-      ...prev,
-      {
-        id: `${Date.now()}-user`,
-        speaker: "user",
-        title: "You asked",
-        content: shortcut.label,
-      },
-    ]);
-    pushAssistantResponse(shortcut.label);
+
+  const handleQuickAction = (action) => {
+    setChatMessages(prev => [...prev, {
+      id: `${Date.now()}-user`,
+      sender: "user",
+      text: action.label
+    }]);
+    respondToPrompt(action.label);
   };
+
 
   const toggleListening = () => {
     const nextListening = !isListening;
     setIsListening(nextListening);
 
     if (nextListening) {
-      setVoiceTimeline((prev) => [
+      setChatMessages((prev) => [
         ...prev,
         {
           id: `${Date.now()}-user-voice`,
-          speaker: "user",
-          title: "Voice input",
-          content: "Explain my night routine in short steps.",
+          sender: "user",
+          text: "Voice input active...",
         },
       ]);
-      window.setTimeout(() => {
-        pushAssistantResponse("default");
-        setIsListening(false);
-      }, 1300);
+      // Simulate voice response
+      setTimeout(() => respondToPrompt("custom"), 1000);
     }
   };
+
+  const handleSend = () => {
+    const trimmed = chatInput.trim();
+    if (!trimmed) return;
+    setChatMessages(prev => [...prev, {
+      id: `${Date.now()}-user`,
+      sender: "user",
+      text: trimmed
+    }]);
+    setChatInput("");
+    respondToPrompt("custom");
+  };
+
 
   return (
     <div className="p-12 relative z-10 max-w-7xl mx-auto">
@@ -292,14 +299,15 @@ function DetailedClarityHubPage() {
             <header className="relative px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className={`relative w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ${isListening ? "bg-gradient-to-br from-rose-300 to-orange-300 shadow-rose-900/40" : "bg-gradient-to-br from-teal-300 to-cyan-500 shadow-teal-900/40"}`}>
-                  <span className="material-symbols-outlined text-[#08383a]" style={{ fontVariationSettings: "'FILL' 1" }}>graphic_eq</span>
+                  <span className="material-symbols-outlined text-[#08383a]" style={{ fontVariationSettings: "'FILL' 1" }}>smart_toy</span>
                   <span className={`absolute -right-1 -bottom-1 w-3 h-3 rounded-full border-2 border-[#0c1d2a] ${isListening ? "bg-rose-400 animate-pulse" : "bg-emerald-400"}`}></span>
                 </div>
                 <div>
-                  <p className="text-white text-sm font-bold tracking-wide">Voice Assistant</p>
-                  <p className="text-teal-200/90 text-xs">Clear guidance in real time</p>
+                  <p className="text-white text-sm font-bold tracking-wide">Clarity Assistant</p>
+                  <p className="text-teal-200/90 text-xs">Text & Voice • Bilingual</p>
                 </div>
               </div>
+
               <button
                 onClick={() => setIsVoicePanelOpen(false)}
                 className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
@@ -309,59 +317,35 @@ function DetailedClarityHubPage() {
               </button>
             </header>
 
-            <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02] space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] uppercase tracking-[0.18em] text-teal-200/80">Assistant Mode</p>
-                <div className="flex items-center gap-1 rounded-xl bg-white/5 border border-white/10 p-1">
-                  {["Both", "EN", "BN"].map((lang) => (
-                    <button
-                      key={lang}
-                      onClick={() => setVoiceLanguage(lang)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold tracking-wider transition-all ${voiceLanguage === lang ? "bg-teal-300 text-[#053739]" : "text-slate-300 hover:bg-white/10"}`}
-                    >
-                      {lang}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {assistantModes.map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => setActiveMode(mode)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${activeMode === mode ? "bg-teal-400/20 border-teal-300/40 text-teal-100" : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10"}`}
-                  >
-                    {mode}
-                  </button>
-                ))}
-              </div>
-
+            <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02]">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-teal-200/80 mb-3">Quick Actions</p>
               <div className="grid grid-cols-2 gap-2">
-                {voiceShortcuts.map((shortcut) => (
+                {quickActions.map((action) => (
                   <button
-                    key={shortcut.label}
-                    onClick={() => handleShortcut(shortcut)}
+                    key={action.label}
+                    onClick={() => handleQuickAction(action)}
                     className="rounded-xl border border-white/10 bg-white/5 hover:bg-teal-400/20 hover:border-teal-300/40 transition-all px-3 py-2 flex items-center gap-2 text-left"
                   >
-                    <span className="material-symbols-outlined text-teal-200 text-[18px]">{shortcut.icon}</span>
-                    <span className="text-xs text-white font-medium leading-tight">{shortcut.label}</span>
+                    <span className="material-symbols-outlined text-teal-200 text-[18px]">{action.icon}</span>
+                    <span className="text-xs text-white font-medium leading-tight">{action.label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
+
             <section className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-              {voiceTimeline.map((entry) => (
+              {chatMessages.map((message) => (
                 <div
-                  key={entry.id}
-                  className={`max-w-[90%] rounded-2xl px-4 py-3 shadow-lg ${entry.speaker === "assistant" ? "bg-white/10 border border-white/10 text-slate-100" : "bg-teal-500/80 text-slate-950 ml-auto"}`}
+                  key={message.id}
+                  className={`max-w-[88%] rounded-2xl px-4 py-3 shadow-lg ${
+                    message.sender === "assistant"
+                      ? "bg-white/10 border border-white/10 text-slate-100"
+                      : "bg-teal-500/85 text-slate-950 ml-auto"
+                  }`}
                 >
-                  <p className="text-[11px] uppercase tracking-[0.16em] font-semibold opacity-80 mb-1">{entry.title}</p>
-                  <p className="text-sm leading-relaxed">{entry.content}</p>
-                  {entry.translation && voiceLanguage !== "EN" ? (
-                    <p className="text-xs mt-1 text-teal-100/90">{entry.translation}</p>
-                  ) : null}
+                  <p className="text-sm leading-relaxed">{message.text}</p>
+                  {message.subtext ? <p className="text-xs mt-1 text-teal-100/90">{message.subtext}</p> : null}
                 </div>
               ))}
 
@@ -377,30 +361,40 @@ function DetailedClarityHubPage() {
               ) : null}
             </section>
 
+
             <footer className="p-4 border-t border-white/10 bg-white/[0.03]">
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                <button className="rounded-xl bg-white/5 hover:bg-white/10 transition-colors py-2 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1">
-                  <span className="material-symbols-outlined text-[18px]">volume_up</span>
-                  Replay
+              <div className="flex items-center gap-2">
+                <button className="w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 transition-all flex items-center justify-center text-slate-300" aria-label="Attach">
+                  <span className="material-symbols-outlined">attach_file</span>
                 </button>
-                <button className="rounded-xl bg-white/5 hover:bg-white/10 transition-colors py-2 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1">
-                  <span className="material-symbols-outlined text-[18px]">summarize</span>
-                  Summarize
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-[#112638]/90 px-4 py-3 focus-within:border-teal-400/50 transition-colors">
+                    <textarea
+                      rows="1"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Type your question..."
+                      className="flex-1 bg-transparent outline-none text-sm text-white placeholder-slate-400 resize-none"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={toggleListening}
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${isListening ? "bg-gradient-to-r from-rose-400 to-orange-300 text-white shadow-rose-500/40" : "bg-teal-400/20 text-teal-200 hover:bg-teal-400/40"}`}
+                  aria-label="Voice"
+                >
+                  <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>{isListening ? "stop" : "mic"}</span>
                 </button>
-                <button className="rounded-xl bg-white/5 hover:bg-white/10 transition-colors py-2 text-xs font-semibold text-slate-200 flex items-center justify-center gap-1">
-                  <span className="material-symbols-outlined text-[18px]">save</span>
-                  Save note
+                <button
+                  onClick={handleSend}
+                  className="w-11 h-11 rounded-xl bg-gradient-to-br from-teal-300 to-cyan-400 text-[#043437] shadow-lg shadow-teal-900/40 hover:scale-105 flex items-center justify-center"
+                  aria-label="Send"
+                >
+                  <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
                 </button>
               </div>
-
-              <button
-                onClick={toggleListening}
-                className={`w-full rounded-2xl px-4 py-3 font-bold tracking-wide shadow-lg transition-all duration-300 flex items-center justify-center gap-2 ${isListening ? "bg-gradient-to-r from-rose-400 to-orange-300 text-[#3b1010] shadow-rose-900/40" : "bg-gradient-to-r from-teal-300 to-cyan-400 text-[#043437] shadow-teal-900/40 hover:scale-[1.01]"}`}
-              >
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>{isListening ? "stop_circle" : "mic"}</span>
-                {isListening ? "Stop Listening" : "Start Voice Assistant"}
-              </button>
             </footer>
+
           </div>
         </div>
 
@@ -411,8 +405,9 @@ function DetailedClarityHubPage() {
         >
           <span className="absolute inset-0 rounded-full border-4 border-teal-200/35 animate-ping"></span>
           <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-            {isVoicePanelOpen ? "graphic_eq" : "record_voice_over"}
+            {isVoicePanelOpen ? "chat" : "smart_toy"}
           </span>
+
 
           {!isVoicePanelOpen ? (
             <span className="absolute bottom-full right-0 mb-5 px-3 py-2 rounded-xl bg-[#173542]/95 border border-white/10 text-right shadow-lg">
