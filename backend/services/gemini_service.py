@@ -183,12 +183,24 @@ def _generate_text(
             system_instruction=system_instruction,
         )
 
-        response = genai_client.models.generate_content(
-            model=model_name,
-            contents=prompt,
-            config=config,
-        )
-        return (getattr(response, "text", None) or "").strip()
+        try:
+            response = genai_client.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config=config,
+            )
+            return (getattr(response, "text", None) or "").strip()
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                gemini_rate_limiter.mark_exhausted()
+                logger.warning(f"Gemini 429 received, marked as exhausted. Trying Groq fallback...")
+                return _try_groq_fallback(
+                    prompt=prompt,
+                    system_instruction=system_instruction,
+                    temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
+                )
+            raise
 
     if GENAI_SDK == "google.generativeai":
         model = genai.GenerativeModel(
@@ -197,8 +209,20 @@ def _generate_text(
             safety_settings=safety_settings,
             system_instruction=system_instruction,
         )
-        response = model.generate_content(prompt)
-        return (getattr(response, "text", None) or "").strip()
+        try:
+            response = model.generate_content(prompt)
+            return (getattr(response, "text", None) or "").strip()
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                gemini_rate_limiter.mark_exhausted()
+                logger.warning(f"Gemini 429 received, marked as exhausted. Trying Groq fallback...")
+                return _try_groq_fallback(
+                    prompt=prompt,
+                    system_instruction=system_instruction,
+                    temperature=generation_config.get("temperature", 0.3) if generation_config else 0.3,
+                )
+            raise
 
     raise GeminiServiceError(
         f"Gemini SDK not properly initialized. Current GENAI_SDK: {GENAI_SDK}. Install `google-genai` (recommended)."
@@ -247,15 +271,21 @@ def _generate_multimodal_text(
 
         config = _build_new_sdk_config(generation_config=generation_config)
 
-        response = genai_client.models.generate_content(
-            model=model_name,
-            contents=[
-                prompt,
-                types.Part.from_bytes(data=image_data, mime_type=mime_type),
-            ],
-            config=config,
-        )
-        return (getattr(response, "text", None) or "").strip()
+        try:
+            response = genai_client.models.generate_content(
+                model=model_name,
+                contents=[
+                    prompt,
+                    types.Part.from_bytes(data=image_data, mime_type=mime_type),
+                ],
+                config=config,
+            )
+            return (getattr(response, "text", None) or "").strip()
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                gemini_rate_limiter.mark_exhausted()
+            raise
 
     if GENAI_SDK == "google.generativeai":
         model = genai.GenerativeModel(
@@ -266,8 +296,14 @@ def _generate_multimodal_text(
             "mime_type": mime_type,
             "data": image_data,
         }
-        response = model.generate_content([prompt, image_part])
-        return (getattr(response, "text", None) or "").strip()
+        try:
+            response = model.generate_content([prompt, image_part])
+            return (getattr(response, "text", None) or "").strip()
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                gemini_rate_limiter.mark_exhausted()
+            raise
 
     raise GeminiServiceError(
         f"Gemini SDK not properly initialized. Current GENAI_SDK: {GENAI_SDK}. Install `google-genai` (recommended)."
@@ -447,7 +483,19 @@ async def extract_text_from_image(image_data: bytes, mime_type: str) -> str:
         return extracted_text
 
     except Exception as e:
+        error_str = str(e)
         logger.error(f"OCR extraction failed: {e}")
+        
+        # Check if this is a 429 RESOURCE_EXHAUSTED error
+        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+            # Mark the provider as exhausted so future requests are blocked
+            gemini_rate_limiter.mark_exhausted()
+            raise GeminiServiceError(
+                f"Gemini API quota exhausted for today (received 429). "
+                f"Image processing requires Gemini - no fallback available. "
+                f"Try again after UTC midnight or use a different Google account's API key."
+            )
+        
         raise GeminiServiceError(f"Failed to extract text from image: {str(e)}")
 
 
@@ -543,7 +591,14 @@ def check_gemini_health() -> Dict[str, Any]:
             result["gemini"]["available"] = False
 
     except Exception as e:
+        error_str = str(e)
         logger.error(f"Gemini health check failed: {e}")
+        
+        # Mark as exhausted if we got a 429 during health check
+        if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+            gemini_rate_limiter.mark_exhausted()
+            logger.warning("Gemini marked as exhausted after health check 429")
+        
         result["gemini"]["status"] = "down"
         result["gemini"]["message"] = str(e)
         result["gemini"]["available"] = False

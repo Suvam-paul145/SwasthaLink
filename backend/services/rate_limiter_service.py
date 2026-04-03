@@ -5,15 +5,25 @@ Tracks usage per-minute and per-day for Gemini, Groq, and other LLM APIs.
 Proactively blocks requests *before* they hit the API quota to prevent
 exhaustion of free tier limits.
 
+PERSISTENT TRACKING:
+  - Saves usage counters to disk so restarts don't lose state
+  - Automatically marks provider as EXHAUSTED when 429 is received
+  - Resets at UTC midnight (matches provider behavior)
+
 Usage:
     from services.rate_limiter_service import gemini_rate_limiter, groq_rate_limiter
     gemini_rate_limiter.check_and_record()  # raises if over limit
     groq_rate_limiter.check_and_record()    # raises if over limit
+    
+    # If you catch a 429 from the API:
+    gemini_rate_limiter.mark_exhausted()    # blocks until midnight
 """
 
 import logging
 import time
 import os
+import json
+from pathlib import Path
 from collections import deque
 from threading import Lock
 from datetime import datetime, timezone
@@ -81,11 +91,19 @@ class RateLimitExceeded(Exception):
 
 class APIRateLimiter:
     """
-    Sliding-window rate limiter with console alerts.
+    Sliding-window rate limiter with console alerts and PERSISTENT tracking.
     
     Works with any LLM provider by accepting configuration at init.
     Uses UTC midnight reset for daily limits to match most provider behavior.
+    
+    Persistence:
+      - Saves daily usage to disk so it survives restarts
+      - Tracks "exhausted" state when 429 is received from API
+      - Automatically resets at UTC midnight
     """
+
+    # Directory to store persistence files
+    PERSIST_DIR = Path(os.getenv("RATE_LIMIT_PERSIST_DIR", ".rate_limits"))
 
     def __init__(self, provider_name: str, config: dict):
         self.provider_name = provider_name
@@ -106,6 +124,13 @@ class APIRateLimiter:
 
         # Track if we already printed a warning for current window
         self._last_warn_minute: float = 0.0
+        
+        # Track if provider is exhausted (received 429 from API)
+        self._is_exhausted: bool = False
+        self._exhausted_until: str = ""  # UTC date string
+        
+        # Load persisted state
+        self._load_persisted_state()
 
     # ── helpers ────────────────────────────────────────────────────────────────
 
@@ -126,7 +151,102 @@ class APIRateLimiter:
         if today != self._current_utc_day:
             self._day_window.clear()
             self._current_utc_day = today
+            self._is_exhausted = False  # Reset exhausted flag at midnight
+            self._exhausted_until = ""
+            self._save_persisted_state()  # Save the reset state
             logger.info(f"{self.provider_name} rate limiter: Daily counters reset for new UTC day")
+
+    # ── persistence ────────────────────────────────────────────────────────────
+
+    def _get_persist_path(self) -> Path:
+        """Get path to persistence file for this provider."""
+        self.PERSIST_DIR.mkdir(parents=True, exist_ok=True)
+        return self.PERSIST_DIR / f"{self.provider_name.lower()}_usage.json"
+
+    def _load_persisted_state(self) -> None:
+        """Load usage state from disk if it exists and is for today."""
+        try:
+            path = self._get_persist_path()
+            if not path.exists():
+                return
+            
+            with open(path, 'r') as f:
+                data = json.load(f)
+            
+            saved_day = data.get("date", "")
+            today = self._get_utc_day()
+            
+            if saved_day == today:
+                # Same day - restore state
+                self._is_exhausted = data.get("is_exhausted", False)
+                self._exhausted_until = data.get("exhausted_until", "")
+                saved_count = data.get("daily_count", 0)
+                
+                # Rebuild day_window with placeholder timestamps
+                self._day_window = deque([time.time()] * saved_count)
+                
+                if self._is_exhausted:
+                    logger.warning(
+                        f"{self.provider_name} rate limiter: Loaded EXHAUSTED state from disk "
+                        f"(used {saved_count}/{self.rpd_limit} today). Blocked until midnight UTC."
+                    )
+                else:
+                    logger.info(
+                        f"{self.provider_name} rate limiter: Restored {saved_count} requests from disk"
+                    )
+            else:
+                # New day - clear the file
+                path.unlink(missing_ok=True)
+                logger.info(f"{self.provider_name} rate limiter: New day, cleared old state")
+                
+        except Exception as e:
+            logger.warning(f"{self.provider_name} rate limiter: Failed to load state: {e}")
+
+    def _save_persisted_state(self) -> None:
+        """Save current usage state to disk."""
+        try:
+            path = self._get_persist_path()
+            data = {
+                "provider": self.provider_name,
+                "date": self._current_utc_day,
+                "daily_count": len(self._day_window),
+                "daily_limit": self.rpd_limit,
+                "is_exhausted": self._is_exhausted,
+                "exhausted_until": self._exhausted_until,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            with open(path, 'w') as f:
+                json.dump(data, f, indent=2)
+        except Exception as e:
+            logger.warning(f"{self.provider_name} rate limiter: Failed to save state: {e}")
+
+    def mark_exhausted(self) -> None:
+        """
+        Mark this provider as EXHAUSTED (received 429 from API).
+        
+        Call this when you catch a 429 RESOURCE_EXHAUSTED error from the API.
+        The provider will be blocked until UTC midnight.
+        """
+        with self._lock:
+            self._is_exhausted = True
+            self._exhausted_until = self._get_utc_day()
+            # Fill up the day window to reflect exhaustion
+            self._day_window = deque([time.time()] * self.rpd_limit)
+            self._save_persisted_state()
+            
+            logger.critical(
+                f"\n{'='*70}\n"
+                f"  {self.provider_name.upper()} API EXHAUSTED (429 received from API)\n"
+                f"  All requests will be BLOCKED until UTC midnight.\n"
+                f"  Resets at: {self._get_utc_midnight_reset()}\n"
+                f"{'='*70}\n"
+            )
+
+    def is_exhausted(self) -> bool:
+        """Check if this provider is currently exhausted."""
+        with self._lock:
+            self._reset_if_new_day()
+            return self._is_exhausted
 
     def _prune_minute_window(self, now: float) -> None:
         """Remove timestamps older than 60 seconds."""
@@ -158,10 +278,19 @@ class APIRateLimiter:
         """
         Check if a request can be made without exceeding limits.
         Does NOT record the request - use for pre-flight checks.
+        
+        Returns False if:
+          - Provider is marked as exhausted (received 429 from API)
+          - Usage is at or above block threshold
         """
         now = time.time()
         with self._lock:
             self._reset_if_new_day()
+            
+            # Check if exhausted first
+            if self._is_exhausted:
+                return False
+            
             self._prune_minute_window(now)
 
             rpm_used = len(self._minute_window)
@@ -196,6 +325,7 @@ class APIRateLimiter:
         - Records the request timestamp.
         - Prints WARNING at warning threshold.
         - Raises ``RateLimitExceeded`` at block threshold.
+        - Saves state to disk for persistence across restarts.
         
         Args:
             context: Description of the API call for logging
@@ -205,6 +335,16 @@ class APIRateLimiter:
 
         with self._lock:
             self._reset_if_new_day()
+            
+            # Check if exhausted first
+            if self._is_exhausted:
+                raise RateLimitExceeded(
+                    f"{self.provider_name} API is EXHAUSTED (received 429 from API). "
+                    f"Blocked until {self._get_utc_midnight_reset()}.",
+                    provider=self.provider_name,
+                    remaining=0,
+                )
+            
             self._prune_minute_window(now)
 
             rpm_used = len(self._minute_window)
@@ -219,7 +359,7 @@ class APIRateLimiter:
             if rpm_pct >= self.block_pct or rpd_pct >= self.block_pct:
                 limit_type = "RPM" if rpm_pct >= self.block_pct else "RPD"
                 self._print_banner(
-                    "BLOCKED", "🚫",
+                    "BLOCKED", "X",
                     f"SWITCH TO FALLBACK PROVIDER OR WAIT! ({limit_type} exhausted)",
                     rpm_used, rpd_used,
                 )
@@ -237,7 +377,7 @@ class APIRateLimiter:
                 # Throttle warning output to once per 15 s
                 if now - self._last_warn_minute > 15.0:
                     self._print_banner(
-                        "WARNING", "⚠️",
+                        "WARNING", "!",
                         f"Only {remaining} requests left. Consider using fallback.",
                         rpm_used, rpd_used,
                     )
@@ -247,6 +387,9 @@ class APIRateLimiter:
             self._minute_window.append(now)
             self._day_window.append(now)
             self._tokens_minute += tokens_used
+            
+            # Save to disk for persistence
+            self._save_persisted_state()
 
             if context:
                 logger.debug(
@@ -263,6 +406,7 @@ class APIRateLimiter:
 
             rpm_used = len(self._minute_window)
             rpd_used = len(self._day_window)
+            is_exhausted = self._is_exhausted
 
         return {
             "provider": self.provider_name,
@@ -271,7 +415,10 @@ class APIRateLimiter:
             "rpm_pct": round(rpm_used / self.rpm_limit * 100, 1) if self.rpm_limit else 0,
             "rpd_pct": round(rpd_used / self.rpd_limit * 100, 1) if self.rpd_limit else 0,
             "remaining_today": max(self.rpd_limit - rpd_used, 0),
-            "can_make_request": rpm_used / self.rpm_limit < self.block_pct and rpd_used / self.rpd_limit < self.block_pct,
+            "is_exhausted": is_exhausted,
+            "can_make_request": (not is_exhausted and 
+                                 rpm_used / self.rpm_limit < self.block_pct and 
+                                 rpd_used / self.rpd_limit < self.block_pct),
             "reset_at_utc": self._get_utc_midnight_reset(),
         }
 
