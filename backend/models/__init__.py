@@ -55,6 +55,13 @@ from models.prescription import (
     PrescriptionApproveRequest,
     PrescriptionRejectRequest,
     PrescriptionPatientViewResponse,
+    # Multi-layer pipeline models
+    RawExtractionPayload,
+    DoctorDashboardPayload,
+    AdminPanelPayload,
+    PatientDataChunk,
+    ChatbotContextPayload,
+    AuditLogEntry,
 )
 
 __all__ = [
@@ -76,4 +83,7 @@ __all__ = [
     "PrescriptionRecord", "PrescriptionExtractResponse",
     "PrescriptionApproveRequest", "PrescriptionRejectRequest",
     "PrescriptionPatientViewResponse",
+    # Pipeline
+    "RawExtractionPayload", "DoctorDashboardPayload", "AdminPanelPayload",
+    "PatientDataChunk", "ChatbotContextPayload", "AuditLogEntry",
 ]

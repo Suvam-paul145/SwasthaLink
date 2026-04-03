@@ -16,6 +16,8 @@ function PrescriptionQueuePanel({ onAction }) {
   const [actionStatus, setActionStatus] = useState({}); // { [id]: 'approving'|'rejecting'|'done' }
   const [rejectReason, setRejectReason] = useState('');
   const [adminId, setAdminId] = useState('');
+  const [adminView, setAdminView] = useState(null);
+  const [auditLog, setAuditLog] = useState([]);
 
   const fetchPending = useCallback(async () => {
     setLoading(true);
@@ -78,6 +80,14 @@ function PrescriptionQueuePanel({ onAction }) {
       setActionStatus((s) => ({ ...s, [id]: 'done' }));
     }
   };
+
+  // Fetch admin view and audit log when selected prescription changes
+  useEffect(() => {
+    if (!selected) return;
+    const id = selected.prescription_id;
+    api.getAdminFullView(id).then(v => setAdminView(v)).catch(() => setAdminView(null));
+    api.getAuditLog(id).then(r => setAuditLog(r.items || [])).catch(() => setAuditLog([]));
+  }, [selected?.prescription_id]);
 
   return (
     <div className="glass-card rounded-xl overflow-hidden border border-white/5 flex flex-col h-full">
@@ -196,6 +206,16 @@ function PrescriptionQueuePanel({ onAction }) {
                   <span className="text-[10px] text-primary bg-primary/20 px-2 py-1 rounded capitalize">{selected.report_type || 'Prescription'}</span>
                 </h4>
 
+                {/* Risk Flags Banner */}
+                {adminView?.risk_flags?.length > 0 && (
+                  <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 space-y-1">
+                    <p className="text-[10px] uppercase tracking-wider text-amber-400 font-bold">⚠️ Risk Flags</p>
+                    {adminView.risk_flags.map((flag, i) => (
+                      <p key={i} className="text-xs text-amber-200">{flag}</p>
+                    ))}
+                  </div>
+                )}
+
                 <div className="space-y-4 text-sm text-slate-300 flex-1">
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     {[
@@ -262,6 +282,32 @@ function PrescriptionQueuePanel({ onAction }) {
                     <div className="bg-white/5 p-3 rounded text-xs">
                       <span className="text-slate-500 block mb-1">Notes:</span>
                       <span className="text-white">{selected.extracted_data.notes}</span>
+                    </div>
+                  )}
+
+                  {/* Audit Trail */}
+                  {auditLog.length > 0 && (
+                    <div className="mt-4">
+                      <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2 font-bold">Audit Trail</p>
+                      <div className="space-y-2">
+                        {auditLog.map((entry, i) => (
+                          <div key={i} className="flex items-start gap-3 text-[11px] bg-white/[0.02] rounded-lg p-2.5 border border-white/5">
+                            <span className={`material-symbols-outlined text-sm mt-0.5 ${
+                              entry.action === 'uploaded' ? 'text-blue-400'
+                              : entry.action === 'approved' ? 'text-emerald-400'
+                              : entry.action === 'rejected' ? 'text-rose-400'
+                              : entry.action === 'chunked' ? 'text-cyan-400'
+                              : 'text-slate-400'
+                            }`}>
+                              {entry.action === 'uploaded' ? 'upload' : entry.action === 'approved' ? 'check_circle' : entry.action === 'rejected' ? 'cancel' : entry.action === 'chunked' ? 'data_object' : 'history'}
+                            </span>
+                            <div>
+                              <p className="text-white font-medium capitalize">{entry.action}</p>
+                              <p className="text-slate-500">{entry.actor_role}: {entry.actor_id} — {new Date(entry.timestamp).toLocaleString()}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

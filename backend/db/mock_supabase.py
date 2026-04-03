@@ -185,6 +185,11 @@ class MockQuery:
                         d['patient_insights'] = json.loads(d['patient_insights'])
                     except Exception:
                         d['patient_insights'] = None
+                if 'raw_extraction_snapshot' in d and isinstance(d['raw_extraction_snapshot'], str):
+                    try:
+                        d['raw_extraction_snapshot'] = json.loads(d['raw_extraction_snapshot'])
+                    except Exception:
+                        d['raw_extraction_snapshot'] = None
                 rows.append(d)
             return MockData(rows[0] if self._single and rows else rows)
 
@@ -233,6 +238,11 @@ class MockQuery:
                         d['patient_insights'] = json.loads(d['patient_insights'])
                     except Exception:
                         d['patient_insights'] = None
+                if 'raw_extraction_snapshot' in d and isinstance(d['raw_extraction_snapshot'], str):
+                    try:
+                        d['raw_extraction_snapshot'] = json.loads(d['raw_extraction_snapshot'])
+                    except Exception:
+                        d['raw_extraction_snapshot'] = None
                 rows.append(d)
 
             if self._single:

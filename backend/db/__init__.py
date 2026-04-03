@@ -33,6 +33,18 @@ from db.profile_db import (
     list_patients,
 )
 
+from db.patient_chunks_db import (
+    create_chunk,
+    get_chunks_by_patient,
+    get_chunks_by_type,
+    get_chunks_for_prescription,
+)
+
+from db.audit_db import (
+    create_audit_entry,
+    get_audit_log,
+)
+
 __all__ = [
     "supabase_client",
     "log_session", "persist_session_history", "append_session_event",
@@ -44,4 +56,6 @@ __all__ = [
     "list_prescriptions_by_doctor", "list_approved_prescriptions_for_patient",
     "approve_prescription_db", "reject_prescription_db", "get_prescription_by_id",
     "create_patient_profile", "update_phone_verified", "list_patients",
+    "create_chunk", "get_chunks_by_patient", "get_chunks_by_type", "get_chunks_for_prescription",
+    "create_audit_entry", "get_audit_log",
 ]

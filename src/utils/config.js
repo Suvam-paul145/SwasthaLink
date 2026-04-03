@@ -28,8 +28,15 @@ export const API_ENDPOINTS = {
   PRESCRIPTIONS_FOR_PATIENT: (patientId) => `/api/prescriptions/for-patient/${patientId}`,
   PRESCRIPTIONS_ALL: '/api/prescriptions/all',
   PRESCRIPTION_DOCTOR_VIEW: (id) => `/api/prescriptions/${id}/doctor-view`,
+  PRESCRIPTION_ADMIN_VIEW: (id) => `/api/prescriptions/${id}/admin-view`,
+  PRESCRIPTION_AUDIT_LOG: (id) => `/api/prescriptions/${id}/audit-log`,
   RATE_LIMIT_STATUS: '/api/rate-limit-status',
   PATIENTS_LIST: '/api/patients',
+  PATIENT_CHUNKS: (patientId) => `/api/patients/${patientId}/chunks`,
+  PATIENT_CHUNKS_BY_TYPE: (patientId, type) => `/api/patients/${patientId}/chunks/${type}`,
+  PATIENT_CHATBOT_CONTEXT: (patientId) => `/api/patients/${patientId}/chatbot-context`,
+  PATIENT_FAQ_SUGGESTIONS: (patientId) => `/api/patients/${patientId}/faq-suggestions`,
+  PATIENT_CHATBOT_QUERY: (patientId) => `/api/patients/${patientId}/chatbot-query`,
 
   // Utility endpoints
   HEALTH: '/api/health',

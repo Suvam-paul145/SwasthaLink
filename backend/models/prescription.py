@@ -142,3 +142,70 @@ class PrescriptionPatientViewResponse(BaseModel):
     approved_at: Optional[str] = None
     patient_insights: Optional[PatientInsights] = None
     report_type: str = "prescription"
+
+
+# ---------------------------------------------------------------------------
+# Multi-layer pipeline models
+# ---------------------------------------------------------------------------
+
+class RawExtractionPayload(BaseModel):
+    """Layer 1: Unprocessed extraction result — NEVER overwritten after creation."""
+    patient_id: Optional[str] = None
+    doctor_id: str
+    timestamp: str
+    source_type: str = "prescription"  # prescription | report
+    raw_extraction: Dict[str, Any]
+    confidence_score: float
+    status: str = "extracted"
+
+
+class DoctorDashboardPayload(BaseModel):
+    """Layer 2a: Clean, structured summary for doctor consumption."""
+    patient_id: Optional[str] = None
+    summary: Dict[str, Any] = Field(default_factory=dict)
+    detailed_view: Dict[str, Any] = Field(default_factory=dict)
+    editable: bool = True
+    status: str = "pending_admin_review"
+
+
+class AdminPanelPayload(BaseModel):
+    """Layer 2b: Full visibility payload with risk flags and audit trail."""
+    patient_id: Optional[str] = None
+    doctor_id: str = ""
+    raw_data: Dict[str, Any] = Field(default_factory=dict)
+    processed_data: Dict[str, Any] = Field(default_factory=dict)
+    risk_flags: List[str] = Field(default_factory=list)
+    approval_status: str = "pending_admin_review"
+    audit_log: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class PatientDataChunk(BaseModel):
+    """Layer 3: Single chunk of patient-optimized data."""
+    chunk_id: str
+    prescription_id: str
+    patient_id: str
+    chunk_type: str  # medication | routine | explanation | faq_context
+    data: Dict[str, Any]
+    version: int = 1
+    created_at: str = ""
+
+
+class ChatbotContextPayload(BaseModel):
+    """RAG-ready retrieval context for chatbot — strict no-hallucination."""
+    patient_id: str
+    context_sources: List[str] = Field(default_factory=list)
+    retrieval_mode: str = "semantic_search"
+    response_policy: Dict[str, bool] = Field(
+        default_factory=lambda: {"strict_context_usage": True, "allow_hallucination": False}
+    )
+
+
+class AuditLogEntry(BaseModel):
+    """Lifecycle event for the audit trail."""
+    id: str
+    prescription_id: str
+    action: str
+    actor_role: str
+    actor_id: str
+    timestamp: str
+    details: Optional[Dict[str, Any]] = None

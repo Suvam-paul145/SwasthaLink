@@ -1,17 +1,29 @@
 import { useEffect, useState } from 'react';
-import MedicalHeart3D from '../components/MedicalHeart3D';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import ChatbotPanel from '../components/ChatbotPanel';
+
+const TABS = [
+  { id: 'overview', label: 'Overview', icon: 'dashboard' },
+  { id: 'medications', label: 'Medications', icon: 'medication' },
+  { id: 'routine', label: 'Daily Routine', icon: 'schedule' },
+  { id: 'recovery', label: 'Recovery', icon: 'trending_up' },
+  { id: 'explanations', label: 'Explanations', icon: 'help_outline' },
+  { id: 'documents', label: 'Documents', icon: 'folder_supervised' },
+];
 
 function FamilyDashboardPage() {
   const { user } = useAuth();
   const patientName = user?.name || 'Patient';
-  const patientId = user?.id || user?.email || '';
+  const patientId = user?.user_id || user?.id || user?.email || '';
 
-  // Fetch approved prescriptions for this patient
+  const [activeTab, setActiveTab] = useState('overview');
   const [prescriptions, setPrescriptions] = useState([]);
   const [rxLoading, setRxLoading] = useState(true);
+  const [chunks, setChunks] = useState({});
+  const [chunksLoading, setChunksLoading] = useState(false);
 
+  // Fetch prescriptions
   useEffect(() => {
     if (!patientId) { setRxLoading(false); return; }
     (async () => {
@@ -21,281 +33,364 @@ function FamilyDashboardPage() {
         setPrescriptions(result.items || []);
       } catch (err) {
         console.warn('Failed to load prescriptions:', err.message);
-      } finally {
-        setRxLoading(false);
-      }
+      } finally { setRxLoading(false); }
     })();
   }, [patientId]);
+
+  // Fetch chunks when tab changes
+  useEffect(() => {
+    if (!patientId) return;
+    const typeMap = { medications: 'medication', routine: 'routine', explanations: 'explanation', recovery: 'medication' };
+    const chunkType = typeMap[activeTab];
+    if (!chunkType || chunks[chunkType]) return;
+
+    setChunksLoading(true);
+    api.getPatientChunksByType(patientId, chunkType)
+      .then(res => setChunks(prev => ({ ...prev, [chunkType]: res.items || [] })))
+      .catch(() => {})
+      .finally(() => setChunksLoading(false));
+  }, [activeTab, patientId]);
 
   const latestRx = prescriptions[0];
   const insights = latestRx?.patient_insights;
   const extracted = latestRx?.extracted_data || latestRx || {};
+  const medicationChunks = chunks.medication || [];
+  const routineChunks = chunks.routine || [];
+  const explanationChunks = chunks.explanation || [];
+
+  // Flatten medication data
+  const allMedications = medicationChunks.flatMap(c => c.data?.medications || []);
+  const routineSteps = routineChunks.flatMap(c => c.data?.steps || []);
+  const explanations = explanationChunks.flatMap(c => c.data?.explanations || []);
+
+  // Fallback: use prescription data directly if no chunks exist
+  const fallbackMeds = (extracted?.medications || []);
+  const displayMeds = allMedications.length > 0 ? allMedications : fallbackMeds;
 
   return (
-    <div className="min-h-screen bg-[#070e17] text-white p-6 lg:p-10 relative overflow-hidden pb-32">
-      {/* Ambient glow blobs — match signup/login */}
-      <div className="absolute -top-28 -right-20 w-72 h-72 bg-teal-400/10 rounded-full blur-[100px]" />
-      <div className="absolute -bottom-32 -left-20 w-80 h-80 bg-cyan-400/10 rounded-full blur-[120px]" />
+    <div style={{ minHeight: '100vh', background: '#070e17', color: '#fff', padding: '24px', paddingBottom: '100px', position: 'relative', overflow: 'hidden' }}>
+      {/* Ambient glow */}
+      <div style={{ position: 'absolute', top: '-100px', right: '-80px', width: '280px', height: '280px', background: 'rgba(13,148,136,.1)', borderRadius: '50%', filter: 'blur(100px)' }} />
+      <div style={{ position: 'absolute', bottom: '-120px', left: '-80px', width: '300px', height: '300px', background: 'rgba(34,211,238,.08)', borderRadius: '50%', filter: 'blur(120px)' }} />
 
-      <div className="max-w-7xl mx-auto space-y-10 relative z-10">
-        {/* Header & Urgent Actions */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <span className="bg-teal-500/20 text-teal-300 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase border border-teal-500/20">AI Clinical Insights</span>
-              <div className="flex items-center gap-2 text-primary text-xs font-medium uppercase tracking-wider">
-                <span className="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                Dynamic Profile
-              </div>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-headline font-extrabold tracking-tight text-white">Family Dashboard</h1>
-            <p className="text-slate-300 text-lg max-w-xl font-light">
-              AI-generated clinical insights and care tracking for <span className="text-teal-300 font-semibold">{patientName}</span>.
-            </p>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative', zIndex: 10 }}>
+        {/* Header */}
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <span style={{ background: 'rgba(13,148,136,.2)', color: '#5eead4', padding: '4px 12px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', border: '1px solid rgba(13,148,136,.2)' }}>AI Clinical Insights</span>
           </div>
-          <div className="flex gap-4 w-full md:w-auto">
-            <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-error/90 text-white font-bold hover:shadow-[0_8px_20px_rgba(255,84,73,0.3)] transition-all text-sm">
-              <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>emergency</span> Emergency Contact
-            </button>
-          </div>
+          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>Family Dashboard</h1>
+          <p style={{ color: '#94a3b8', fontSize: '16px', marginTop: '6px' }}>
+            AI-generated clinical insights for <span style={{ color: '#5eead4', fontWeight: 600 }}>{patientName}</span>
+          </p>
         </div>
 
-        {/* Dynamic Insights Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
-          
-          {/* Insight 1: Current Condition / AI Summary */}
-          <div className="glass-card p-8 rounded-3xl border border-white/10 space-y-6 flex flex-col justify-between relative overflow-hidden group">
-            <div className="absolute right-[-20px] top-[-20px] w-32 h-32 bg-primary opacity-10 rounded-full blur-3xl group-hover:opacity-20 transition-all"></div>
-            <div className="flex justify-between items-start relative z-10">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Clinical Status</p>
-                <h4 className="text-2xl font-headline font-extrabold text-white mt-2">Current Condition</h4>
-              </div>
-              <span className="material-symbols-outlined text-primary bg-primary/10 p-3 rounded-2xl">monitoring</span>
-            </div>
-            <div className="flex-1 relative z-10">
-              {rxLoading ? (
-                <div className="animate-pulse flex flex-col gap-2 mt-4">
-                  <div className="h-4 bg-white/10 rounded w-3/4"></div>
-                  <div className="h-4 bg-white/10 rounded w-full"></div>
-                  <div className="h-4 bg-white/10 rounded w-5/6"></div>
-                </div>
-              ) : insights?.current_condition_summary ? (
-                <p className="text-sm text-slate-300 leading-relaxed font-medium mt-4">
-                  {insights.current_condition_summary}
-                </p>
-              ) : (
-                <p className="text-sm text-slate-500 italic mt-4">Waiting for physician document processing to generate clinical status.</p>
-              )}
-            </div>
-            <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest pt-4 border-t border-white/5 relative z-10">
-              <span>AI Generated</span>
-              <span className="text-primary">Auto-Updated</span>
-            </div>
-          </div>
+        {/* Tab Navigation */}
+        <div style={{ display: 'flex', gap: '4px', marginBottom: '28px', overflowX: 'auto', paddingBottom: '4px' }}>
+          {TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                padding: '10px 18px', borderRadius: '14px', border: 'none', cursor: 'pointer',
+                fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap',
+                display: 'flex', alignItems: 'center', gap: '8px',
+                background: activeTab === tab.id ? 'linear-gradient(135deg, #0d9488, #0f766e)' : 'rgba(255,255,255,.04)',
+                color: activeTab === tab.id ? '#fff' : '#94a3b8',
+                border: activeTab === tab.id ? 'none' : '1px solid rgba(255,255,255,.06)',
+                transition: 'all .2s',
+              }}
+              id={`tab-${tab.id}`}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Insight 2: Critical Instructions */}
-          <div className="glass-card p-8 rounded-3xl border border-white/10 flex flex-col justify-between group relative overflow-hidden">
-             <div className="absolute right-[-20px] top-[-20px] w-32 h-32 bg-amber-500 opacity-10 rounded-full blur-3xl group-hover:opacity-20 transition-all"></div>
-            <div className="relative z-10 flex flex-col h-full">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Important</p>
-                  <h4 className="text-2xl font-headline font-extrabold text-white mt-2">Critical Instructions</h4>
-                </div>
-                <span className="material-symbols-outlined text-amber-400 bg-amber-400/10 p-2.5 rounded-xl">priority_high</span>
-              </div>
-              
-              <div className="flex-1 overflow-y-auto pr-2">
-                {rxLoading ? (
-                  <div className="animate-pulse space-y-3">
-                    <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-white/10 shrink-0"></div><div className="h-3 bg-white/10 rounded w-full"></div></div>
-                    <div className="flex items-center gap-3"><div className="w-8 h-8 rounded-lg bg-white/10 shrink-0"></div><div className="h-3 bg-white/10 rounded w-5/6"></div></div>
+        {/* Tab Content */}
+        <div style={{ minHeight: '400px' }}>
+
+          {/* OVERVIEW TAB */}
+          {activeTab === 'overview' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px' }}>
+              {/* Clinical Status */}
+              <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(255,255,255,.08)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
+                  <div>
+                    <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.2em', color: '#64748b' }}>Clinical Status</p>
+                    <h4 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Current Condition</h4>
                   </div>
-                ) : insights?.critical_instructions?.length > 0 ? (
-                  <ul className="space-y-4">
-                    {insights.critical_instructions.map((inst, idx) => (
-                      <li key={idx} className="flex gap-4">
-                        <div className="w-8 h-8 shrink-0 rounded-lg bg-amber-500/10 flex items-center justify-center border border-amber-500/20 text-amber-400 font-headline font-bold text-xs">{idx + 1}</div>
-                        <p className="text-sm text-slate-300 leading-snug">{inst}</p>
+                  <span className="material-symbols-outlined" style={{ color: '#0d9488', background: 'rgba(13,148,136,.1)', padding: '10px', borderRadius: '14px' }}>monitoring</span>
+                </div>
+                {rxLoading ? (<SkeletonBlock />) : insights?.health_summary ? (
+                  <p style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: 1.7 }}>{insights.health_summary}</p>
+                ) : extracted?.diagnosis ? (
+                  <p style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: 1.7 }}>Diagnosis: {extracted.diagnosis}</p>
+                ) : <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>Waiting for clinical data.</p>}
+              </div>
+
+              {/* Critical Instructions */}
+              <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(255,255,255,.08)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <div>
+                    <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.2em', color: '#64748b' }}>Important</p>
+                    <h4 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Critical Instructions</h4>
+                  </div>
+                  <span className="material-symbols-outlined" style={{ color: '#f59e0b', background: 'rgba(245,158,11,.1)', padding: '10px', borderRadius: '14px' }}>priority_high</span>
+                </div>
+                {rxLoading ? (<SkeletonBlock />) : insights?.critical_instructions?.length > 0 ? (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {insights.critical_instructions.map((inst, i) => (
+                      <li key={i} style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(245,158,11,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(245,158,11,.2)', color: '#f59e0b', fontWeight: 700, fontSize: '11px', flexShrink: 0 }}>{i + 1}</div>
+                        <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5 }}>{inst}</p>
                       </li>
                     ))}
                   </ul>
-                ) : (
-                  <p className="text-sm text-slate-500 italic">No critical instructions extracted.</p>
-                )}
+                ) : <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>No critical instructions.</p>}
               </div>
-            </div>
-          </div>
 
-          {/* Insight 3: Lifestyle Changes & Next Steps */}
-          <div className="glass-card p-8 rounded-3xl border border-white/10 space-y-6 flex flex-col justify-between relative overflow-hidden group">
-            <div className="absolute right-[-20px] top-[-20px] w-32 h-32 bg-cyan-500 opacity-10 rounded-full blur-3xl group-hover:opacity-20 transition-all"></div>
-            <div className="flex justify-between items-start relative z-10">
-              <div>
-                <p className="text-[11px] uppercase tracking-[0.2em] text-slate-400">Care Plan</p>
-                <h4 className="text-2xl font-headline font-extrabold text-white mt-2">Lifestyle Changes</h4>
-              </div>
-              <span className="material-symbols-outlined text-cyan-300 bg-cyan-300/10 p-3 rounded-2xl">self_improvement</span>
-            </div>
-            <div className="flex-1 relative z-10 overflow-y-auto pr-2">
-              {rxLoading ? (
-                 <div className="animate-pulse space-y-3 mt-4">
-                    <div className="h-3 bg-white/10 rounded w-full"></div>
-                    <div className="h-3 bg-white/10 rounded w-5/6"></div>
-                    <div className="h-3 bg-white/10 rounded w-4/6"></div>
+              {/* Doctor Info */}
+              <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(255,255,255,.08)', gridColumn: 'span 1' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'rgba(13,148,136,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid rgba(13,148,136,.2)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '28px', color: '#0d9488' }}>stethoscope</span>
                   </div>
-              ) : insights?.lifestyle_changes?.length > 0 ? (
-                <ul className="space-y-3 mt-2">
-                  {insights.lifestyle_changes.map((change, idx) => (
-                    <li key={idx} className="flex items-start gap-3">
-                      <span className="material-symbols-outlined text-cyan-400 text-sm mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
-                      <span className="text-sm text-slate-300">{change}</span>
-                    </li>
-                  ))}
-                </ul>
+                  <div>
+                    <p style={{ fontSize: '10px', color: '#0d9488', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.2em' }}>Lead Physician</p>
+                    <h4 style={{ fontSize: '18px', fontWeight: 700, margin: '4px 0 0' }}>{extracted?.doctor_name || 'Pending Assignment'}</h4>
+                    <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{extracted?.diagnosis || 'Diagnosis Pending'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Clarity Center Link */}
+              <div style={{ background: 'linear-gradient(135deg, rgba(13,148,136,.08), transparent)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(13,148,136,.2)' }}>
+                <h4 style={{ fontSize: '18px', fontWeight: 800, marginBottom: '10px' }}>🧠 Clarity Center</h4>
+                <p style={{ fontSize: '13px', color: '#94a3b8', lineHeight: 1.6, marginBottom: '20px' }}>AI translation of complex medical jargon for clear family communication.</p>
+                <a href="/clarity-hub" style={{ display: 'block', textAlign: 'center', padding: '12px', borderRadius: '12px', background: '#2dd4bf', color: '#071325', fontWeight: 700, fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.1em', textDecoration: 'none' }}>
+                  Go To Clarity Center
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* MEDICATIONS TAB */}
+          {activeTab === 'medications' && (
+            <div>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px' }}>💊 Your Medications</h3>
+              {chunksLoading || rxLoading ? <SkeletonGrid /> : displayMeds.length === 0 ? (
+                <EmptyState message="No medications found in your records." />
               ) : (
-                <p className="text-sm text-slate-500 italic mt-4">No specific lifestyle changes recommended.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                  {displayMeds.map((med, i) => (
+                    <div key={i} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '16px', padding: '22px', border: '1px solid rgba(255,255,255,.08)', transition: 'border-color .2s' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '12px' }}>
+                        <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#e2e8f0' }}>{med.name}</h4>
+                        {med.form && <span style={{ fontSize: '10px', background: 'rgba(13,148,136,.15)', color: '#5eead4', padding: '3px 8px', borderRadius: '6px', fontWeight: 600 }}>{med.form}</span>}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px' }}>
+                        {med.strength && <Detail label="Strength" value={med.strength} />}
+                        {med.frequency && <Detail label="Frequency" value={med.frequency} />}
+                        {med.duration && <Detail label="Duration" value={med.duration} />}
+                        {med.instructions && <Detail label="Instructions" value={med.instructions} />}
+                      </div>
+                      {med.purpose && <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '12px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,.06)' }}>💡 {med.purpose}</p>}
+                      {med.warnings && <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '6px' }}>⚠️ {med.warnings}</p>}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          </div>
+          )}
 
-          {/* Caretaker / Doctor Info & Follow-up */}
-          <div className="glass-card py-6 px-8 rounded-3xl border border-white/10 col-span-1 md:col-span-2 flex flex-col md:flex-row gap-8 items-center bg-white/[0.01]">
-            <div className="relative shrink-0">
-              <div className="w-20 h-20 rounded-2xl bg-surface-container flex items-center justify-center border-2 border-primary/20 p-1 relative overflow-hidden">
-                 <span className="material-symbols-outlined text-4xl text-primary">stethoscope</span>
-              </div>
-              <div className="absolute -bottom-1 -right-1 bg-primary text-[#071325] p-0.5 rounded-lg border-2 border-[#071325]">
-                <span className="material-symbols-outlined text-[14px] font-bold">verified</span>
-              </div>
-            </div>
-            <div className="flex-1 text-center md:text-left space-y-1">
-              <p className="text-primary font-bold text-[10px] uppercase tracking-[0.2em] mb-1">Lead Physician</p>
-              <h4 className="text-2xl font-headline font-bold text-white">
-                {extracted?.doctor_name ? `Dr. ${extracted.doctor_name}` : 'Pending Doctor Assignment'}
-              </h4>
-              <p className="text-slate-400 text-sm">{extracted?.diagnosis || 'Diagnosis Pending'}</p>
-              
-              <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-3">
-                {insights?.follow_up_required && (
-                   <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20">
-                    <span className="material-symbols-outlined text-sm text-primary">event_available</span>
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">
-                      Follow-up: {insights.follow_up_date || 'Recommended'}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="flex gap-3 mt-4 md:mt-0">
-               <button className="bg-white/5 hover:bg-white/10 transition-colors p-4 rounded-2xl border border-white/10 text-white group flex items-center justify-center" aria-label="Book Appointment">
-                <span className="material-symbols-outlined group-hover:scale-110 transition-transform">calendar_month</span>
-              </button>
-              <button className="bg-white/5 hover:bg-white/10 transition-colors p-4 rounded-2xl border border-white/10 text-white group flex items-center justify-center" aria-label="Message Doctor">
-                <span className="material-symbols-outlined group-hover:scale-110 transition-transform">chat</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Clarity Center Link */}
-          <div className="glass-card p-8 rounded-3xl border border-teal-500/20 bg-gradient-to-br from-teal-500/5 to-transparent flex flex-col justify-between">
+          {/* DAILY ROUTINE TAB */}
+          {activeTab === 'routine' && (
             <div>
-              <div className="flex justify-between items-center mb-4">
-                <h4 className="text-xl font-headline font-extrabold text-white">Clarity Center</h4>
-                <span className="material-symbols-outlined text-teal-300">auto_awesome</span>
-              </div>
-              <p className="text-slate-400 text-sm leading-relaxed mb-6">
-                AI translation of complex medical jargon for clear family communication and translation.
-              </p>
-            </div>
-            <a href="/clarity-hub" className="block text-center w-full py-3.5 rounded-xl bg-teal-400 text-[#071325] font-bold text-xs uppercase tracking-widest hover:shadow-[0_8px_16px_rgba(45,212,191,0.25)] transition-all">
-              Go To Clarity Center
-            </a>
-          </div>
-
-          {/* My Documents Header */}
-          <div className="col-span-1 md:col-span-2 lg:col-span-3 mt-6">
-            <h2 className="text-2xl font-headline font-bold text-white mb-2 flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary">folder_supervised</span>
-              Clinical Documents
-            </h2>
-            <p className="text-sm text-slate-400 mb-6">All approved medical reports and prescriptions</p>
-          </div>
-
-          {/* My Prescriptions Mapping */}
-          <div className="col-span-1 md:col-span-2 lg:col-span-3 -mt-6">
-            {/* The rest is dynamically mapped prescriptions */}
-            <div className="glass-card p-6 md:p-8 rounded-3xl border border-white/10 min-h-[300px]">
-              
-              {rxLoading ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-teal-400 border-t-transparent" />
-                  <span className="text-sm text-slate-400 tracking-wider">Retrieving documents...</span>
-                </div>
-              ) : prescriptions.length === 0 ? (
-                <div className="text-center py-12 space-y-3">
-                  <span className="material-symbols-outlined text-5xl text-slate-700 block mb-4">clinical_notes</span>
-                  <h4 className="font-bold text-white text-lg">No Documents Available</h4>
-                  <p className="text-slate-500 text-sm">Your physician has not yet published any clinical documents to your dashboard.</p>
-                </div>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px' }}>📅 Daily Care Routine</h3>
+              {chunksLoading ? <SkeletonBlock /> : routineSteps.length === 0 ? (
+                <EmptyState message="No daily routine instructions available yet." />
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {prescriptions.map((rx) => {
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {routineSteps.map((step, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,.03)', borderRadius: '14px', padding: '18px 22px', border: '1px solid rgba(255,255,255,.06)' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #0d9488, #0f766e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>{step.order || i + 1}</div>
+                      <div>
+                        <p style={{ fontSize: '14px', fontWeight: 600, color: '#e2e8f0' }}>{step.action}</p>
+                        <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{step.timing}{step.instructions ? ` — ${step.instructions}` : ''}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* RECOVERY TAB */}
+          {activeTab === 'recovery' && (
+            <div>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px' }}>📈 Recovery Timeline</h3>
+              {displayMeds.length === 0 ? (
+                <EmptyState message="No medication durations available to build recovery timeline." />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {displayMeds.filter(m => m.duration).map((med, i) => {
+                    const durationDays = parseInt(med.duration) || 7;
+                    const progress = Math.min(100, Math.round((1 / durationDays) * 100 * 2));
+                    return (
+                      <div key={i} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '14px', padding: '18px 22px', border: '1px solid rgba(255,255,255,.06)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                          <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#e2e8f0' }}>{med.name}</h4>
+                          <span style={{ fontSize: '12px', color: '#5eead4', fontWeight: 600 }}>{med.duration}</span>
+                        </div>
+                        <div style={{ background: 'rgba(255,255,255,.06)', borderRadius: '8px', height: '8px', overflow: 'hidden' }}>
+                          <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg, #0d9488, #2dd4bf)', borderRadius: '8px', transition: 'width 1s ease' }} />
+                        </div>
+                        <p style={{ fontSize: '11px', color: '#64748b', marginTop: '6px' }}>{med.frequency || 'As directed'}</p>
+                      </div>
+                    );
+                  })}
+                  {displayMeds.filter(m => !m.duration).length > 0 && (
+                    <p style={{ fontSize: '12px', color: '#475569', fontStyle: 'italic', marginTop: '8px' }}>
+                      {displayMeds.filter(m => !m.duration).length} medication(s) without specified duration
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* EXPLANATIONS TAB */}
+          {activeTab === 'explanations' && (
+            <div>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px' }}>❓ Why These Medicines</h3>
+              {chunksLoading ? <SkeletonBlock /> : explanations.length === 0 ? (
+                // Fallback to prescription data
+                displayMeds.length === 0 ? (
+                  <EmptyState message="No explanation data available." />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {displayMeds.map((med, i) => (
+                      <div key={i} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '14px', padding: '20px 24px', border: '1px solid rgba(255,255,255,.06)' }}>
+                        <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#5eead4', marginBottom: '8px' }}>{med.name}</h4>
+                        <p style={{ fontSize: '13px', color: '#cbd5e1' }}>💡 {med.purpose || 'Prescribed by your doctor for your treatment.'}</p>
+                        {med.warnings && <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '8px' }}>⚠️ {med.warnings}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {explanations.map((exp, i) => (
+                    <div key={i} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '14px', padding: '20px 24px', border: '1px solid rgba(255,255,255,.06)' }}>
+                      <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#5eead4', marginBottom: '8px' }}>{exp.medicine}</h4>
+                      <p style={{ fontSize: '13px', color: '#cbd5e1' }}>💡 {exp.reason}</p>
+                      {exp.how_it_works && <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>🔬 {exp.how_it_works}</p>}
+                      {exp.caution && <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '6px' }}>⚠️ {exp.caution}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* DOCUMENTS TAB */}
+          {activeTab === 'documents' && (
+            <div>
+              <h3 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '20px' }}>📁 Clinical Documents</h3>
+              {rxLoading ? <SkeletonGrid /> : prescriptions.length === 0 ? (
+                <EmptyState message="No clinical documents available." />
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                  {prescriptions.map(rx => {
                     const ed = rx.extracted_data || rx;
                     const meds = ed.medications || rx.medications || [];
                     const type = rx.report_type || 'prescription';
-                    
                     return (
-                      <div key={rx.prescription_id} className="bg-white/[0.03] rounded-2xl p-6 border border-white/10 hover:border-teal-300/30 hover:bg-white/[0.05] transition-all group flex flex-col h-full">
-                        <div className="flex items-start justify-between mb-4">
+                      <div key={rx.prescription_id} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '16px', padding: '22px', border: '1px solid rgba(255,255,255,.08)', display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '14px' }}>
                           <div>
-                            <p className="text-white font-bold text-sm tracking-tight">{ed.doctor_name ? `Dr. ${ed.doctor_name}` : 'Medical Team'}</p>
-                            <p className="text-slate-500 text-[10px] uppercase font-bold mt-0.5 tracking-wider">{new Date(rx.created_at || ed.prescription_date).toLocaleDateString()}</p>
+                            <p style={{ fontSize: '14px', fontWeight: 700 }}>{ed.doctor_name || 'Medical Team'}</p>
+                            <p style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: '2px' }}>
+                              {new Date(rx.created_at || ed.prescription_date).toLocaleDateString()}
+                            </p>
                           </div>
-                          <span className="bg-teal-500/10 text-teal-300 text-[9px] font-bold px-2 py-1 rounded-md uppercase tracking-widest border border-teal-500/20">{type}</span>
+                          <span style={{ fontSize: '9px', background: 'rgba(13,148,136,.1)', color: '#5eead4', padding: '3px 8px', borderRadius: '6px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', border: '1px solid rgba(13,148,136,.2)' }}>{type}</span>
                         </div>
-                        
-                        <div className="flex-1">
-                          {ed.diagnosis || rx.diagnosis ? (
-                            <div className="mb-4">
-                              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Primary Diagnosis</p>
-                              <p className="text-slate-200 text-xs leading-relaxed line-clamp-2">{ed.diagnosis || rx.diagnosis}</p>
-                            </div>
-                          ) : null}
-                          
-                          {meds.length > 0 && (
-                            <div className="space-y-2.5">
-                              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Medication Summary</p>
-                              {meds.slice(0, 3).map((med, i) => (
-                                <div key={i} className="flex items-center gap-3">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0" />
-                                  <div className="text-xs truncate">
-                                    <span className="text-white font-bold">{med.name}</span>
-                                    {med.frequency && <span className="text-teal-400 ml-2 font-medium">{med.frequency}</span>}
-                                  </div>
-                                </div>
-                              ))}
-                              {meds.length > 3 && (
-                                <p className="text-[10px] text-slate-600 font-bold ml-4">+ {meds.length - 3} more items</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        
-                        <button className="w-full mt-6 py-2 rounded-lg border border-white/5 bg-white/5 text-[10px] text-white font-bold uppercase tracking-widest hover:bg-white/10 transition-all">
-                          View Full Details
-                        </button>
+                        {(ed.diagnosis || rx.diagnosis) && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <p style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.1em', marginBottom: '4px' }}>Diagnosis</p>
+                            <p style={{ fontSize: '12px', color: '#cbd5e1' }}>{ed.diagnosis || rx.diagnosis}</p>
+                          </div>
+                        )}
+                        {meds.length > 0 && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <p style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.1em', marginBottom: '8px' }}>Medications</p>
+                            {meds.slice(0, 3).map((med, i) => (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#2dd4bf', flexShrink: 0 }} />
+                                <span style={{ fontSize: '12px', fontWeight: 600 }}>{med.name}</span>
+                                {med.frequency && <span style={{ fontSize: '11px', color: '#5eead4' }}>{med.frequency}</span>}
+                              </div>
+                            ))}
+                            {meds.length > 3 && <p style={{ fontSize: '10px', color: '#475569', marginLeft: '14px' }}>+ {meds.length - 3} more</p>}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
                 </div>
               )}
             </div>
-          </div>
-          
+          )}
         </div>
       </div>
+
+      {/* Chatbot Panel */}
+      <ChatbotPanel />
+    </div>
+  );
+}
+
+/* Helper Components */
+function Detail({ label, value }) {
+  return (
+    <div>
+      <p style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.1em' }}>{label}</p>
+      <p style={{ fontSize: '12px', color: '#cbd5e1', marginTop: '2px' }}>{value}</p>
+    </div>
+  );
+}
+
+function SkeletonBlock() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ height: '14px', background: 'rgba(255,255,255,.06)', borderRadius: '6px', width: '75%' }} />
+      <div style={{ height: '14px', background: 'rgba(255,255,255,.06)', borderRadius: '6px', width: '100%' }} />
+      <div style={{ height: '14px', background: 'rgba(255,255,255,.06)', borderRadius: '6px', width: '60%' }} />
+    </div>
+  );
+}
+
+function SkeletonGrid() {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+      {[1, 2, 3].map(i => (
+        <div key={i} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '16px', padding: '24px', height: '160px' }}>
+          <SkeletonBlock />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function EmptyState({ message }) {
+  return (
+    <div style={{ textAlign: 'center', padding: '60px 0' }}>
+      <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#334155', display: 'block', marginBottom: '16px' }}>clinical_notes</span>
+      <h4 style={{ fontWeight: 700, fontSize: '16px', marginBottom: '8px' }}>No Data Available</h4>
+      <p style={{ fontSize: '13px', color: '#475569' }}>{message}</p>
     </div>
   );
 }

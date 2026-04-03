@@ -551,6 +551,8 @@ def _record_to_db_row(record: PrescriptionRecord) -> Dict[str, Any]:
         "raw_ocr_text": ed.raw_ocr_text,
         "patient_insights": ed.patient_insights.model_dump() if ed.patient_insights else None,
         "linked_prescription_id": record.linked_prescription_id,
+        "payload_version": 1,
+        "raw_extraction_snapshot": json.dumps(ed.model_dump()),
     }
     return row
 
@@ -643,6 +645,19 @@ async def create_prescription_record(
         raise ValueError("Supabase client is required but not configured.")
     await _db_create(_record_to_db_row(record))
 
+    # Audit: log upload event
+    try:
+        from db.audit_db import create_audit_entry
+        await create_audit_entry(
+            prescription_id=record.prescription_id,
+            action="uploaded",
+            actor_role="doctor",
+            actor_id=doctor_id,
+            details={"report_type": extracted_data.report_type, "confidence": extracted_data.extraction_confidence},
+        )
+    except Exception as audit_exc:
+        logger.warning(f"Audit log failed (non-critical): {audit_exc}")
+
     logger.info(f"Prescription record created: {record.prescription_id}")
     return record
 
@@ -672,11 +687,47 @@ async def list_approved_for_patient(patient_id: str) -> List[PrescriptionRecord]
 
 
 async def approve_record(prescription_id: str, admin_id: str) -> Optional[PrescriptionRecord]:
-    """Approve a pending prescription record."""
+    """Approve a pending prescription record and trigger chunking pipeline."""
     if not supabase_client:
         return None
     row = await _db_approve(prescription_id, admin_id)
-    return _db_row_to_record(row) if row else None
+    if not row:
+        return None
+    record = _db_row_to_record(row)
+
+    # Audit: log approval
+    try:
+        from db.audit_db import create_audit_entry
+        await create_audit_entry(
+            prescription_id=prescription_id,
+            action="approved",
+            actor_role="admin",
+            actor_id=admin_id,
+        )
+    except Exception as audit_exc:
+        logger.warning(f"Audit log failed (non-critical): {audit_exc}")
+
+    # Auto-trigger chunking pipeline
+    try:
+        from services.data_chunker_service import chunk_and_store
+        insights_raw = record.extracted_data.patient_insights
+        insights_dict = insights_raw.model_dump() if insights_raw else None
+        chunks = await chunk_and_store(record, insights_dict)
+        logger.info(f"Auto-chunked {len(chunks)} chunks for prescription {prescription_id}")
+
+        # Audit: log chunking
+        from db.audit_db import create_audit_entry as _audit
+        await _audit(
+            prescription_id=prescription_id,
+            action="chunked",
+            actor_role="system",
+            actor_id="auto-pipeline",
+            details={"chunk_count": len(chunks)},
+        )
+    except Exception as chunk_exc:
+        logger.warning(f"Chunking pipeline failed (non-critical): {chunk_exc}")
+
+    return record
 
 
 async def reject_record(
@@ -686,7 +737,24 @@ async def reject_record(
     if not supabase_client:
         return None
     row = await _db_reject(prescription_id, admin_id, rejection_reason)
-    return _db_row_to_record(row) if row else None
+    if not row:
+        return None
+    record = _db_row_to_record(row)
+
+    # Audit: log rejection
+    try:
+        from db.audit_db import create_audit_entry
+        await create_audit_entry(
+            prescription_id=prescription_id,
+            action="rejected",
+            actor_role="admin",
+            actor_id=admin_id,
+            details={"reason": rejection_reason},
+        )
+    except Exception as audit_exc:
+        logger.warning(f"Audit log failed (non-critical): {audit_exc}")
+
+    return record
 
 
 async def get_record(prescription_id: str) -> Optional[PrescriptionRecord]:

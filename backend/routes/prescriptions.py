@@ -277,6 +277,102 @@ async def get_doctor_prescription_view(prescription_id: str):
         raise HTTPException(status_code=500, detail="Failed to retrieve prescription")
 
 
+@router.get("/api/prescriptions/{prescription_id}/admin-view")
+async def get_admin_prescription_view(prescription_id: str):
+    """Return full AdminPanelPayload with risk flags, raw/processed toggle, and audit trail."""
+    try:
+        record = await get_record(prescription_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Prescription not found")
+        from db.audit_db import get_audit_log
+        from services.payload_transformer import build_admin_panel_payload
+        audit_entries = await get_audit_log(prescription_id)
+        payload = build_admin_panel_payload(record, audit_entries)
+        return payload.model_dump()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error fetching admin view for {prescription_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve prescription")
+
+
+@router.get("/api/patients/{patient_id}/chunks")
+async def get_patient_chunks(patient_id: str):
+    """Return all data chunks for a patient."""
+    try:
+        from db.patient_chunks_db import get_chunks_by_patient
+        chunks = await get_chunks_by_patient(patient_id)
+        return {"count": len(chunks), "items": chunks}
+    except Exception as exc:
+        logger.error(f"Error fetching chunks for patient {patient_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch patient chunks")
+
+
+@router.get("/api/patients/{patient_id}/chunks/{chunk_type}")
+async def get_patient_chunks_by_type(patient_id: str, chunk_type: str):
+    """Return patient chunks filtered by type (medication|routine|explanation|faq_context)."""
+    try:
+        from db.patient_chunks_db import get_chunks_by_type
+        chunks = await get_chunks_by_type(patient_id, chunk_type)
+        return {"count": len(chunks), "items": chunks}
+    except Exception as exc:
+        logger.error(f"Error fetching {chunk_type} chunks for patient {patient_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch patient chunks")
+
+
+@router.get("/api/patients/{patient_id}/chatbot-context")
+async def get_chatbot_context(patient_id: str):
+    """Return RAG-ready chatbot context for a patient."""
+    try:
+        from services.chatbot_context_service import get_patient_context
+        context = await get_patient_context(patient_id)
+        return context.model_dump()
+    except Exception as exc:
+        logger.error(f"Error fetching chatbot context for patient {patient_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch chatbot context")
+
+
+@router.get("/api/patients/{patient_id}/faq-suggestions")
+async def get_faq_suggestions(patient_id: str):
+    """Return pre-built FAQ question/answer pairs from stored chunks."""
+    try:
+        from services.chatbot_context_service import get_faq_suggestions as _get_faqs
+        faqs = await _get_faqs(patient_id)
+        return {"count": len(faqs), "items": faqs}
+    except Exception as exc:
+        logger.error(f"Error fetching FAQ suggestions for patient {patient_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch FAQ suggestions")
+
+
+@router.post("/api/patients/{patient_id}/chatbot-query")
+async def chatbot_query(patient_id: str, request: dict):
+    """Answer a patient question using stored chunks only — no hallucination."""
+    try:
+        question = request.get("question", "")
+        if not question:
+            raise HTTPException(status_code=400, detail="Question is required")
+        from services.chatbot_context_service import answer_from_context
+        result = await answer_from_context(patient_id, question)
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error answering chatbot query for patient {patient_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to process chatbot query")
+
+
+@router.get("/api/prescriptions/{prescription_id}/audit-log")
+async def get_prescription_audit_log(prescription_id: str):
+    """Return the full audit trail for a prescription."""
+    try:
+        from db.audit_db import get_audit_log
+        entries = await get_audit_log(prescription_id)
+        return {"count": len(entries), "items": entries}
+    except Exception as exc:
+        logger.error(f"Error fetching audit log for {prescription_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch audit log")
+
+
 @router.get("/api/rate-limit-status")
 async def get_rate_limit_status():
     """Return current Gemini API rate limit usage."""
