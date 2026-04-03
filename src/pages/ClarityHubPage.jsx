@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { getGroqChatbotAnswer } from "../services/groq";
+import api from "../services/api";
 
 function ClarityHubPage() {
   const navigate = useNavigate();
@@ -13,10 +15,11 @@ function ClarityHubPage() {
     {
       id: "welcome",
       sender: "assistant",
-      text: "Hi Rahat, I can help with medicines, diet, warning signs, and follow-up steps.",
-      subtext: "হাই রাহাত, আমি ওষুধ, খাবার, বিপদের লক্ষণ এবং ফলো-আপ বুঝিয়ে দিতে পারি।"
+      text: "Hi, I can help with medicines, diet, warning signs, and follow-up steps. Ask anything about your prescription.",
+      subtext: "হাই, আমি ওষুধ, খাবার, বিপদের লক্ষণ এবং ফলো-আপ বুঝিয়ে দিতে পারি। প্রেসক্রিপশন নিয়ে যেকোনো কিছু জিজ্ঞাসা করুন।"
     },
   ]);
+  const [prescriptionContext, setPrescriptionContext] = useState("");
 
   const quickActions = useMemo(
     () => [
@@ -58,44 +61,50 @@ function ClarityHubPage() {
     [user?.role]
   );
 
-  const respondToPrompt = (promptLabel) => {
-    const cannedResponses = {
-      "Medication plan": {
-        text: "Next dose: insulin 10 units at 8:00 PM, then BP tablet after dinner. I can set reminders for both.",
-        subtext: "পরের ডোজ: রাত ৮টায় ইনসুলিন ১০ ইউনিট, তারপর রাতের খাবারের পরে BP ট্যাবলেট। চাইলে রিমাইন্ডার সেট করে দিই।"
-      },
-      "Diet tips": {
-        text: "Tonight, choose low-salt meals, avoid sugary drinks, and drink 2 glasses of water before sleep.",
-        subtext: "আজ রাতের খাবারে কম লবণ রাখুন, মিষ্টি পানীয় এড়িয়ে চলুন, ঘুমানোর আগে ২ গ্লাস পানি পান করুন।"
-      },
-      "Danger signs": {
-        text: "If sugar is above 300, severe dizziness, chest pain, or breathlessness appears, contact emergency care immediately.",
-        subtext: "শর্করা ৩০০-এর বেশি হলে, তীব্র মাথা ঘোরা, বুক ব্যথা বা শ্বাসকষ্ট হলে দ্রুত জরুরি সেবা নিন।"
-      },
-      "Follow-up dates": {
-        text: "Your next review is in 3 days. Bring BP/sugar logs and current medication strips.",
-        subtext: "আপনার পরবর্তী রিভিউ ৩ দিনের মধ্যে। BP/শর্করার রেকর্ড এবং বর্তমান ওষুধের স্ট্রিপ সাথে আনুন।"
-      },
-      custom: {
-        text: "I noted your question. Want a short answer, step-by-step guide, or Bengali-only explanation?",
-        subtext: "আপনার প্রশ্ন নোট করা হয়েছে। সংক্ষিপ্ত উত্তর, ধাপে ধাপে গাইড, নাকি শুধু বাংলা ব্যাখ্যা চান?"
-      },
-    };
+  // Fetch prescription context for the patient (on mount)
+  React.useEffect(() => {
+    async function fetchPrescription() {
+      if (user?.id) {
+        try {
+          // Get the latest prescription for this patient
+          const prescriptions = await api.getPrescriptionsForPatient(user.id);
+          if (prescriptions?.items?.length) {
+            const latest = prescriptions.items[0];
+            // Fetch patient-readable prescription view
+            const view = await api.getPatientPrescriptionView(latest.id);
+            setPrescriptionContext(view?.summary || JSON.stringify(view));
+          }
+        } catch (e) {
+          setPrescriptionContext("");
+        }
+      }
+    }
+    fetchPrescription();
+  }, [user?.id]);
 
-    const response = cannedResponses[promptLabel] ?? cannedResponses.custom;
+  // Handles both quick actions and freeform questions
+  const respondToPrompt = async (promptLabel, customText = null) => {
     setIsAssistantTyping(true);
-    window.setTimeout(() => {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-assistant`,
-          sender: "assistant",
-          text: response.text,
-          subtext: response.subtext,
-        },
-      ]);
-      setIsAssistantTyping(false);
-    }, 800);
+    let question = customText || promptLabel;
+    let answer = "";
+    try {
+      if (prescriptionContext) {
+        answer = await getGroqChatbotAnswer(question, prescriptionContext);
+      } else {
+        answer = "Sorry, I could not find your prescription context.";
+      }
+    } catch (e) {
+      answer = "Sorry, there was an error contacting the assistant.";
+    }
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-assistant`,
+        sender: "assistant",
+        text: answer,
+      },
+    ]);
+    setIsAssistantTyping(false);
   };
 
   const handleQuickAction = (action) => {
@@ -123,7 +132,7 @@ function ClarityHubPage() {
       },
     ]);
     setChatInput("");
-    respondToPrompt("custom");
+    respondToPrompt("custom", trimmed);
   };
 
   return (
@@ -302,7 +311,7 @@ function ClarityHubPage() {
                   <span className="absolute -right-1 -bottom-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0c1d2a]"></span>
                 </div>
                 <div>
-                  <p className="text-white text-sm font-bold tracking-wide">CareGuide Assistant</p>
+                  <p className="text-white text-sm font-bold tracking-wide">Clarity Assistant</p>
                   <p className="text-teal-200/90 text-xs">Online • Bilingual Support</p>
                 </div>
               </div>
@@ -379,9 +388,7 @@ function ClarityHubPage() {
                   />
                 </div>
 
-                <button className="w-10 h-10 shrink-0 rounded-xl bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center" aria-label="Voice input">
-                  <span className="material-symbols-outlined text-slate-200">mic</span>
-                </button>
+
 
                 <button
                   onClick={handleSend}
@@ -398,12 +405,10 @@ function ClarityHubPage() {
         <button
           onClick={() => setIsAssistantOpen((prev) => !prev)}
           className="relative w-20 h-20 rounded-full bg-gradient-to-br from-teal-300 via-teal-400 to-cyan-500 text-[#043437] shadow-[0_20px_40px_rgba(20,184,166,0.45)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border border-white/35"
-          aria-label="Toggle care assistant"
+          aria-label="Toggle clarity assistant"
         >
           <span className="absolute inset-0 rounded-full border-4 border-teal-200/30 animate-ping"></span>
-          <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-            {isAssistantOpen ? "chat" : "record_voice_over"}
-          </span>
+          <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
         </button>
       </div>
     </div>
