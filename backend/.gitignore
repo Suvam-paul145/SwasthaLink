@@ -3,6 +3,9 @@
 .env.local
 .env.production
 
+# Rate limiter state - persisted across restarts, machine-specific
+.rate_limits/
+
 # Python
 __pycache__/
 *.py[cod]
