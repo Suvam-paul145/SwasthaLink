@@ -121,6 +121,33 @@ class MockQuery:
         self._single = True
         return self
 
+    def delete(self):
+        self.action = "delete"
+        return self
+
+    @staticmethod
+    def _maybe_json_decode(row_dict):
+        for key in (
+            "medications",
+            "event_data",
+            "tests",
+            "patient_insights",
+            "raw_extraction_snapshot",
+            "payload",
+            "metadata",
+            "details",
+            "data",
+        ):
+            if key in row_dict and isinstance(row_dict[key], str):
+                try:
+                    row_dict[key] = json.loads(row_dict[key])
+                except Exception:
+                    if key in ("tests",):
+                        row_dict[key] = []
+                    elif key in ("patient_insights", "raw_extraction_snapshot"):
+                        row_dict[key] = None
+        return row_dict
+
     def execute(self):
         c = self.db.cursor()
 
@@ -164,32 +191,7 @@ class MockQuery:
             )
             rows = []
             for r in c.fetchall():
-                d = dict(r)
-                if 'medications' in d and isinstance(d['medications'], str):
-                    try:
-                        d['medications'] = json.loads(d['medications'])
-                    except Exception:
-                        pass
-                if 'event_data' in d and isinstance(d['event_data'], str):
-                    try:
-                        d['event_data'] = json.loads(d['event_data'])
-                    except Exception:
-                        pass
-                if 'tests' in d and isinstance(d['tests'], str):
-                    try:
-                        d['tests'] = json.loads(d['tests'])
-                    except Exception:
-                        d['tests'] = []
-                if 'patient_insights' in d and isinstance(d['patient_insights'], str):
-                    try:
-                        d['patient_insights'] = json.loads(d['patient_insights'])
-                    except Exception:
-                        d['patient_insights'] = None
-                if 'raw_extraction_snapshot' in d and isinstance(d['raw_extraction_snapshot'], str):
-                    try:
-                        d['raw_extraction_snapshot'] = json.loads(d['raw_extraction_snapshot'])
-                    except Exception:
-                        d['raw_extraction_snapshot'] = None
+                d = self._maybe_json_decode(dict(r))
                 rows.append(d)
             return MockData(rows[0] if self._single and rows else rows)
 
@@ -217,39 +219,23 @@ class MockQuery:
 
             rows = []
             for r in c.fetchall():
-                d = dict(r)
-                if 'medications' in d and isinstance(d['medications'], str):
-                    try:
-                        d['medications'] = json.loads(d['medications'])
-                    except Exception:
-                        pass
-                if 'event_data' in d and isinstance(d['event_data'], str):
-                    try:
-                        d['event_data'] = json.loads(d['event_data'])
-                    except Exception:
-                        pass
-                if 'tests' in d and isinstance(d['tests'], str):
-                    try:
-                        d['tests'] = json.loads(d['tests'])
-                    except Exception:
-                        d['tests'] = []
-                if 'patient_insights' in d and isinstance(d['patient_insights'], str):
-                    try:
-                        d['patient_insights'] = json.loads(d['patient_insights'])
-                    except Exception:
-                        d['patient_insights'] = None
-                if 'raw_extraction_snapshot' in d and isinstance(d['raw_extraction_snapshot'], str):
-                    try:
-                        d['raw_extraction_snapshot'] = json.loads(d['raw_extraction_snapshot'])
-                    except Exception:
-                        d['raw_extraction_snapshot'] = None
-                rows.append(d)
+                rows.append(self._maybe_json_decode(dict(r)))
 
             if self._single:
                 if not rows:
                     return MockData(None)
                 return MockData(rows[0])
             return MockData(rows)
+
+        elif self.action == "delete":
+            where = ""
+            vals = []
+            if self.filters:
+                where = " WHERE " + " AND ".join([f"{f[0]} {f[1]} ?" for f in self.filters])
+                vals.extend([f[2] for f in self.filters])
+            c.execute(f"DELETE FROM {self.table}{where}", tuple(vals))
+            self.db.commit()
+            return MockData([])
 
 
 class MockSupabaseClient:

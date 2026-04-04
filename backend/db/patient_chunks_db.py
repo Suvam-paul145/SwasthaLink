@@ -1,5 +1,5 @@
 """
-CRUD operations for the patient_data_chunks table.
+CRUD operations for the patient_context_chunks table.
 Handles chunked, patient-optimized prescription data.
 """
 
@@ -18,7 +18,7 @@ async def create_chunk(chunk: Dict[str, Any]) -> Dict[str, Any]:
     c = conn.cursor()
     data_json = json.dumps(chunk["data"]) if isinstance(chunk["data"], dict) else chunk["data"]
     c.execute(
-        "INSERT OR REPLACE INTO patient_data_chunks "
+        "INSERT OR REPLACE INTO patient_context_chunks "
         "(chunk_id, prescription_id, patient_id, chunk_type, data, version, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
@@ -42,7 +42,7 @@ async def get_chunks_by_patient(patient_id: str) -> List[Dict[str, Any]]:
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "SELECT * FROM patient_data_chunks WHERE patient_id = ? ORDER BY created_at DESC",
+        "SELECT * FROM patient_context_chunks WHERE patient_id = ? ORDER BY created_at DESC",
         (patient_id,),
     )
     rows = []
@@ -63,7 +63,7 @@ async def get_chunks_by_type(patient_id: str, chunk_type: str) -> List[Dict[str,
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "SELECT * FROM patient_data_chunks WHERE patient_id = ? AND chunk_type = ? ORDER BY created_at DESC",
+        "SELECT * FROM patient_context_chunks WHERE patient_id = ? AND chunk_type = ? ORDER BY created_at DESC",
         (patient_id, chunk_type),
     )
     rows = []
@@ -84,7 +84,7 @@ async def get_chunks_for_prescription(prescription_id: str) -> List[Dict[str, An
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "SELECT * FROM patient_data_chunks WHERE prescription_id = ? ORDER BY chunk_type",
+        "SELECT * FROM patient_context_chunks WHERE prescription_id = ? ORDER BY chunk_type",
         (prescription_id,),
     )
     rows = []

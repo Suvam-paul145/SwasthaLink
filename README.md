@@ -66,6 +66,22 @@ Converting complex clinical discharge summaries into patient-readable language w
 - Frontend: Vercel
 - Backend: Render (with UptimeRobot for cold-start prevention)
 
+### CI/CD Architecture
+
+- CI entrypoint: `.github/workflows/ci.yml`
+- Reusable CI logic: `.github/workflows/ci-reusable.yml`
+- CD orchestration: `.github/workflows/cd.yml`
+- Composite setup actions:
+  - `.github/actions/setup-node/action.yml`
+  - `.github/actions/setup-python/action.yml`
+- Docker build files:
+  - `Dockerfile.frontend`
+  - `backend/Dockerfile`
+- Kubernetes manifests:
+  - Base: `infra/k8s/base/`
+  - Overlays: `infra/k8s/overlays/staging`, `infra/k8s/overlays/production`
+- Full architecture notes: `docs/cicd-architecture.md`
+
 ### Zero-PHI Architecture
 
 ```

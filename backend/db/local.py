@@ -57,7 +57,7 @@ def init_db():
             raw_extraction_snapshot TEXT
         );
 
-        CREATE TABLE IF NOT EXISTS patient_data_chunks (
+        CREATE TABLE IF NOT EXISTS patient_context_chunks (
             chunk_id TEXT PRIMARY KEY,
             prescription_id TEXT NOT NULL,
             patient_id TEXT NOT NULL,
@@ -68,7 +68,7 @@ def init_db():
             FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id)
         );
 
-        CREATE TABLE IF NOT EXISTS audit_log (
+        CREATE TABLE IF NOT EXISTS audit_events (
             id TEXT PRIMARY KEY,
             prescription_id TEXT NOT NULL,
             action TEXT NOT NULL,
@@ -119,6 +119,7 @@ def init_db():
     conn.close()
     # Run migration for existing databases
     _migrate_prescriptions_table()
+    _migrate_table_names()
 
 
 def _migrate_prescriptions_table():
@@ -140,6 +141,41 @@ def _migrate_prescriptions_table():
         except Exception:
             pass  # Column already exists
     conn.commit()
+    conn.close()
+
+
+def _migrate_table_names():
+    """Rename legacy tables to the current names when needed."""
+    conn = get_connection()
+    c = conn.cursor()
+    try:
+        c.execute("BEGIN IMMEDIATE")
+
+        c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='audit_events'"
+        )
+        has_audit_events = c.fetchone() is not None
+        c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log'"
+        )
+        has_audit_log = c.fetchone() is not None
+        if has_audit_log and not has_audit_events:
+            c.execute("ALTER TABLE audit_log RENAME TO audit_events")
+
+        c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='patient_context_chunks'"
+        )
+        has_patient_context_chunks = c.fetchone() is not None
+        c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='patient_data_chunks'"
+        )
+        has_patient_data_chunks = c.fetchone() is not None
+        if has_patient_data_chunks and not has_patient_context_chunks:
+            c.execute("ALTER TABLE patient_data_chunks RENAME TO patient_context_chunks")
+    except Exception:
+        conn.rollback()
+    else:
+        conn.commit()
     conn.close()
 
 

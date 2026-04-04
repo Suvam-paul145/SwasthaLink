@@ -710,10 +710,18 @@ async def approve_record(prescription_id: str, admin_id: str) -> Optional[Prescr
     # Auto-trigger chunking pipeline
     try:
         from services.data_chunker_service import chunk_and_store
+        from services.chatbot_context_service import get_patient_context
         insights_raw = record.extracted_data.patient_insights
         insights_dict = insights_raw.model_dump() if insights_raw else None
         chunks = await chunk_and_store(record, insights_dict)
         logger.info(f"Auto-chunked {len(chunks)} chunks for prescription {prescription_id}")
+        patient_id = record.extracted_data.patient_id
+        if patient_id:
+            await get_patient_context(patient_id)
+        else:
+            logger.warning(
+                "Skipped chatbot context refresh due to missing patient_id"
+            )
 
         # Audit: log chunking
         from db.audit_db import create_audit_entry as _audit
