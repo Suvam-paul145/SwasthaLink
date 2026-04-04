@@ -1,8 +1,10 @@
 """Discharge processing, quiz, and file upload routes."""
 
+import asyncio
 import logging
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi.responses import JSONResponse
 
 from models import (
     ProcessRequest, ProcessResponse,
@@ -11,12 +13,13 @@ from models import (
 )
 from services.gemini_service import process_discharge_summary, extract_text_from_image
 from services.s3_service import upload_file
+from services.twilio_service import schedule_followup_messages
 from services.rate_alert_service import rate_alert_service
 from core.exceptions import GeminiServiceError, S3ServiceError
 from db.supabase_service import (
     log_session, persist_session_history, append_session_event,
     update_session_quiz_score, generate_session_id, save_discharge_result,
-    get_patient_discharge_history,
+    get_patient_discharge_history, create_share_token, get_patient_contact,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,8 +79,47 @@ async def process_summary(request: ProcessRequest):
         except Exception as e:
             logger.warning(f"Session logging failed (non-critical): {e}")
 
+        share_token = None
+        try:
+            token_result = await create_share_token(
+                session_id=session_id,
+                patient_id=request.patient_id,
+                expires_in_days=30,
+            )
+            if token_result.get("success"):
+                share_token = token_result.get("token")
+            else:
+                logger.warning(f"Share token generation failed: {token_result.get('error')}")
+        except Exception as e:
+            logger.warning(f"Share token generation failed (non-critical): {e}")
+
         logger.info(f"Successfully processed summary. Session ID: {session_id}")
-        return result
+
+        # Fire-and-forget scheduling of Day-3 and Day-7 follow-up WhatsApp nudges.
+        try:
+            patient_contact = await get_patient_contact(request.patient_id)
+            phone_number = (patient_contact or {}).get("phone_number")
+            patient_name = (patient_contact or {}).get("patient_name", "Patient")
+            medications = [med.name for med in result.medications if getattr(med, "name", None)]
+
+            if phone_number:
+                asyncio.create_task(
+                    schedule_followup_messages(
+                        session_id=session_id,
+                        patient_id=request.patient_id,
+                        phone_number=phone_number,
+                        patient_name=patient_name,
+                        medications=medications,
+                    )
+                )
+            else:
+                logger.warning(f"Skipping follow-up scheduling: no phone found for patient_id={request.patient_id}")
+        except Exception as e:
+            logger.warning(f"Follow-up scheduling failed (non-critical): {e}")
+
+        response_payload = result.model_dump(by_alias=True)
+        response_payload["share_token"] = share_token
+        return JSONResponse(content=response_payload)
 
     except GeminiServiceError as e:
         logger.error(f"Gemini service error: {e}")

@@ -7,6 +7,14 @@ Supports both sandbox (development) and production WhatsApp Business API
 import os
 import logging
 from typing import Dict, Any, Optional
+from datetime import datetime, timedelta, timezone
+
+try:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    APSCHEDULER_AVAILABLE = True
+except Exception:
+    AsyncIOScheduler = None
+    APSCHEDULER_AVAILABLE = False
 
 try:
     from twilio.rest import Client
@@ -22,6 +30,13 @@ except ImportError:
 
 from core.config import read_env
 from core.exceptions import TwilioServiceError
+from db.supabase_service import (
+    create_followup_message_jobs,
+    get_pending_followup_jobs,
+    get_followup_job,
+    mark_followup_job_sent,
+    mark_followup_job_failed,
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,6 +44,8 @@ logger = logging.getLogger(__name__)
 
 if not TWILIO_SDK_AVAILABLE:
     logger.warning("Twilio SDK not installed. Install with: pip install twilio")
+if not APSCHEDULER_AVAILABLE:
+    logger.warning("APScheduler not installed. Install with: pip install apscheduler")
 
 # Load Twilio credentials from environment
 TWILIO_ACCOUNT_SID = read_env("TWILIO_ACCOUNT_SID")
@@ -40,6 +57,7 @@ TWILIO_WHATSAPP_NUMBER = read_env("TWILIO_WHATSAPP_NUMBER") or "whatsapp:+141552
 # Initialize Twilio client
 twilio_client = None
 TWILIO_AUTH_MODE = "unconfigured"
+_followup_scheduler: Optional["AsyncIOScheduler"] = None
 if not TWILIO_SDK_AVAILABLE:
     logger.warning("Twilio client disabled because Twilio SDK is unavailable")
 elif TWILIO_ACCOUNT_SID and TWILIO_API_KEY_SID and TWILIO_API_KEY_SECRET:
@@ -69,6 +87,19 @@ def _format_phone_number(phone: str) -> str:
     if phone.startswith("whatsapp:"):
         return phone
     return f"whatsapp:{phone}"
+
+
+def _parse_dt(value: str) -> Optional[datetime]:
+    """Parse ISO datetime safely."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
 
 
 def _truncate_message(message: str, max_length: int = 1600) -> str:
@@ -156,6 +187,166 @@ async def send_whatsapp_message(phone_number: str, message: str) -> Dict[str, An
             "status": "failed",
             "error": f"Failed to send WhatsApp message: {str(e)}"
         }
+
+
+async def send_followup_whatsapp(phone_number: str, patient_name: str, message: str) -> Dict[str, Any]:
+    """Send one follow-up WhatsApp message in Twilio sandbox-compatible format."""
+    display_name = (patient_name or "Patient").strip()
+    body = f"Hi {display_name},\n\n{message}\n\n-SwasthaLink Care Team"
+    return await send_whatsapp_message(phone_number=phone_number, message=body)
+
+
+def _get_followup_scheduler() -> Optional["AsyncIOScheduler"]:
+    """Get or create process-local APScheduler instance."""
+    global _followup_scheduler
+    if not APSCHEDULER_AVAILABLE:
+        return None
+    if _followup_scheduler is None:
+        _followup_scheduler = AsyncIOScheduler(timezone="UTC")
+    return _followup_scheduler
+
+
+def _schedule_single_followup_job(job: Dict[str, Any]) -> None:
+    """Register one DB-backed follow-up job in APScheduler (best effort)."""
+    scheduler = _get_followup_scheduler()
+    if not scheduler:
+        return
+
+    job_id = job.get("id")
+    run_at = _parse_dt(job.get("scheduled_for", ""))
+    if not job_id or not run_at:
+        return
+
+    if run_at <= datetime.now(timezone.utc):
+        return
+
+    scheduler.add_job(
+        _send_followup_job_by_id,
+        "date",
+        run_date=run_at,
+        id=f"followup:{job_id}",
+        replace_existing=True,
+        args=[job_id],
+        misfire_grace_time=3600 * 12,
+        coalesce=True,
+    )
+
+
+async def _send_followup_job_by_id(job_id: str) -> None:
+    """Execute one queued follow-up job by ID."""
+    job = await get_followup_job(job_id)
+    if not job:
+        return
+    if job.get("status") != "pending":
+        return
+
+    send_result = await send_followup_whatsapp(
+        phone_number=job.get("phone_number", ""),
+        patient_name=job.get("patient_name", "Patient"),
+        message=job.get("message_text", ""),
+    )
+    if send_result.get("success"):
+        await mark_followup_job_sent(job_id=job_id, twilio_sid=send_result.get("sid"))
+    else:
+        await mark_followup_job_failed(job_id=job_id, error=send_result.get("error", "Unknown Twilio error"))
+
+
+async def process_due_followup_messages() -> None:
+    """Catch-up runner: sends pending jobs that are already due."""
+    now_utc = datetime.now(timezone.utc)
+    pending = await get_pending_followup_jobs(limit=200)
+
+    for job in pending:
+        job_id = job.get("id")
+        scheduled_for = _parse_dt(job.get("scheduled_for", ""))
+        if not job_id or not scheduled_for:
+            continue
+        if scheduled_for <= now_utc:
+            await _send_followup_job_by_id(job_id)
+
+
+def start_followup_scheduler() -> None:
+    """Start APScheduler and periodic catch-up loop."""
+    scheduler = _get_followup_scheduler()
+    if not scheduler:
+        return
+
+    if not scheduler.running:
+        scheduler.start()
+
+    scheduler.add_job(
+        process_due_followup_messages,
+        "interval",
+        minutes=2,
+        id="followup-catchup",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+
+async def restore_followup_jobs() -> None:
+    """Reload pending DB jobs into APScheduler and send any already overdue."""
+    pending = await get_pending_followup_jobs(limit=500)
+    for job in pending:
+        _schedule_single_followup_job(job)
+    await process_due_followup_messages()
+
+
+def stop_followup_scheduler() -> None:
+    """Stop APScheduler on app shutdown."""
+    scheduler = _get_followup_scheduler()
+    if scheduler and scheduler.running:
+        scheduler.shutdown(wait=False)
+
+
+async def schedule_followup_messages(
+    session_id: str,
+    patient_id: str,
+    phone_number: str,
+    patient_name: str,
+    medications: list[str],
+) -> Dict[str, Any]:
+    """Create Day-3 and Day-7 follow-up jobs and enqueue them in APScheduler."""
+    now_utc = datetime.now(timezone.utc)
+    day3_time = now_utc + timedelta(days=3)
+    day7_time = now_utc + timedelta(days=7)
+
+    jobs = [
+        {
+            "session_id": session_id,
+            "patient_id": patient_id,
+            "patient_name": patient_name,
+            "phone_number": phone_number,
+            "day_offset": 3,
+            "scheduled_for": day3_time.isoformat(),
+            "message_text": "How are you feeling? Any side effects from your medications?",
+            "medications": medications or [],
+        },
+        {
+            "session_id": session_id,
+            "patient_id": patient_id,
+            "patient_name": patient_name,
+            "phone_number": phone_number,
+            "day_offset": 7,
+            "scheduled_for": day7_time.isoformat(),
+            "message_text": "Reminder: Your follow-up appointment is coming up. Reply HELP for your medication list.",
+            "medications": medications or [],
+        },
+    ]
+
+    save_result = await create_followup_message_jobs(jobs)
+    if not save_result.get("success"):
+        return save_result
+
+    for job in save_result.get("jobs", []):
+        _schedule_single_followup_job(job)
+
+    return {
+        "success": True,
+        "scheduled_count": len(save_result.get("jobs", [])),
+        "jobs": save_result.get("jobs", []),
+    }
 
 
 async def send_bulk_whatsapp_messages(recipients: list[Dict[str, str]]) -> Dict[str, Any]:

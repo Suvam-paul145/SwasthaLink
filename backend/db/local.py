@@ -103,6 +103,23 @@ def init_db():
             warning_signs TEXT DEFAULT '[]',
             quiz_questions TEXT DEFAULT '[]'
         );
+
+        CREATE TABLE IF NOT EXISTS followup_messages (
+            id TEXT PRIMARY KEY,
+            created_at TEXT,
+            session_id TEXT NOT NULL,
+            patient_id TEXT NOT NULL,
+            patient_name TEXT,
+            phone_number TEXT NOT NULL,
+            day_offset INTEGER NOT NULL,
+            scheduled_for TEXT NOT NULL,
+            message_text TEXT NOT NULL,
+            medications TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'pending',
+            sent_at TEXT,
+            twilio_sid TEXT,
+            error TEXT
+        );
     ''')
     conn.commit()
     conn.close()
