@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: swasthalink-frontend
+  namespace: swasthalink
+spec:
+  selector:
+    app: swasthalink-frontend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
+  type: ClusterIP

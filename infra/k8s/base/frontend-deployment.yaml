@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swasthalink-frontend
+  namespace: swasthalink
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: swasthalink-frontend
+  template:
+    metadata:
+      labels:
+        app: swasthalink-frontend
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/suvam-paul145/swasthalink-frontend:latest
+          ports:
+            - containerPort: 80

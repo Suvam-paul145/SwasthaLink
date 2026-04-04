@@ -1,0 +1,38 @@
+name: Setup Python
+description: Setup Python with pip cache and install requirements
+
+inputs:
+  python-version:
+    description: Python version
+    required: false
+    default: "3.11"
+  working-directory:
+    description: Directory containing requirements
+    required: false
+    default: "backend"
+  install-dev:
+    description: Install dev requirements if present
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: pip
+        cache-dependency-path: |
+          ${{ inputs.working-directory }}/requirements.txt
+          ${{ inputs.working-directory }}/requirements-dev.txt
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -r requirements.txt
+        if [ "${{ inputs.install-dev }}" = "true" ] && [ -f requirements-dev.txt ]; then
+          python -m pip install -r requirements-dev.txt
+        fi
