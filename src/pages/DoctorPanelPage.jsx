@@ -248,9 +248,97 @@ function DoctorPanelPage() {
           </div>
         </section>
 
-        {/* Right Column — Upload & Results */}
-        <section className="col-span-12 lg:col-span-8 space-y-6">
-          {/* Upload Configuration */}
+        {/* Middle Column — Discharge Summary (NEW) */}
+        <section className="col-span-12 lg:col-span-8 flex flex-col gap-6">
+          <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
+            <div className="px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
+              <div>
+                <p className="text-sm font-bold text-white">Clinical Discharge Summary</p>
+                <p className="text-xs text-slate-400">Process complex discharge notes to patient-friendly formats</p>
+              </div>
+              <span className="material-symbols-outlined text-teal-300">summarize</span>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              {/* Patient Selector */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Patient</label>
+                  <div className="rounded-2xl border border-white/10 bg-[#0d1f2d] px-3 py-2 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-teal-200">person</span>
+                    <select
+                      value={selectedPatientId || ''}
+                      onChange={(e) => setSelectedPatientId(e.target.value)}
+                      className="w-full bg-transparent text-sm text-white outline-none"
+                    >
+                      <option value="" className="bg-[#0d1f2d] text-white">Select a patient...</option>
+                      {patientDirectory.map((patient) => (
+                        <option key={patient.id} value={patient.id} className="bg-[#0d1f2d] text-white">
+                          {patient.name} ({patient.id})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Target Role</label>
+                  <div className="rounded-2xl border border-white/10 bg-[#0d1f2d] px-3 py-2 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-cyan-200">manage_accounts</span>
+                    <select
+                      defaultValue="patient"
+                      id="discharge-role-select"
+                      className="w-full bg-transparent text-sm text-white outline-none"
+                    >
+                      <option value="patient" className="bg-[#0d1f2d] text-white">Patient</option>
+                      <option value="caregiver" className="bg-[#0d1f2d] text-white">Caregiver</option>
+                      <option value="elderly" className="bg-[#0d1f2d] text-white">Elderly Patient</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Discharge Notes</label>
+                <textarea
+                  id="discharge-text-input"
+                  rows="4"
+                  className="w-full bg-[#0d1f2d] text-sm text-white border border-white/10 p-4 outline-none rounded-2xl resize-y focus:border-teal-400/50 transition-colors"
+                  placeholder="Paste clinical discharge summary here (min 50 chars)..."
+                ></textarea>
+              </div>
+
+              <button
+                onClick={async () => {
+                   const text = document.getElementById('discharge-text-input').value;
+                   const role = document.getElementById('discharge-role-select').value;
+                   if (!selectedPatientId) return alert("Select a patient");
+                   if (text.length < 50) return alert("Text too short (min 50 chars)");
+
+                   setUploadStatus("Processing Discharge...");
+                   try {
+                     const response = await api.processSummary({
+                       discharge_text: text,
+                       role: role,
+                       language: 'en',
+                       patient_id: selectedPatientId,
+                       doctor_id: doctorId
+                     });
+                     alert("Discharge processed successfully!");
+                     setUploadStatus("Idle");
+                   } catch(e) {
+                     alert("Error processing: " + e.message);
+                     setUploadStatus("Idle");
+                   }
+                }}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-300 to-cyan-400 text-[#06383a] font-bold hover:shadow-[0_12px_28px_rgba(20,184,166,0.35)] transition-all"
+              >
+                Simplify &amp; Save Discharge Summary
+              </button>
+            </div>
+          </div>
+
+          {/* Upload Configuration for Prescriptions */}
           <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
             <div className="px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
               <div>

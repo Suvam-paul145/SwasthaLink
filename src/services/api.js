@@ -445,6 +445,17 @@ const api = {
   },
 
   /**
+   * Get all past discharge sessions for a patient.
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Object>} { results }
+   */
+  getPatientHistory: async (patientId) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_HISTORY(patientId), {
+      method: 'GET',
+    });
+  },
+
+  /**
    * Get patient chunks filtered by type.
    * @param {string} patientId - Patient ID
    * @param {string} type - Chunk type (medication|routine|explanation|faq_context)

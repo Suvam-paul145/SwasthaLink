@@ -410,3 +410,77 @@ def get_schema_sql() -> str:
 -- See backend/db/local.py for the SQLite schema used in development.
 -- For production Supabase, apply the SQL from the README or LIBRARY.md.
 """
+
+
+async def save_discharge_result(
+    session_id: str,
+    patient_id: str,
+    doctor_id: str,
+    quiz_questions: list,
+    medications: list,
+    follow_up: dict,
+    warning_signs: list,
+    risk_score: int
+) -> Dict[str, Any]:
+    """Save the final extraction results for a patient's historical tracking."""
+    import json
+    try:
+        if not supabase_client:
+            return {"success": False, "error": "Supabase not configured"}
+
+        payload = {
+            "id": generate_session_id(),
+            "session_id": session_id,
+            "patient_id": patient_id,
+            "doctor_id": doctor_id,
+            # Suppabase takes dict/list, SQLite mock handles json.dumps in mock_supabase if we need, but in our mock we might need string if sqlite directly
+            # Wait, our MockSupabaseClient converts dicts/lists to JSON strings automatically.
+            "quiz_questions": quiz_questions,
+            "medications": medications,
+            "follow_up": follow_up,
+            "warning_signs": warning_signs,
+            "risk_score": risk_score,
+            "created_at": datetime.utcnow().isoformat()
+        }
+
+        result = supabase_client.table("discharge_results").insert(payload).execute()
+        return {
+            "success": True,
+            "data": result.data[0] if result.data else payload
+        }
+    except Exception as e:
+        logger.error(f"Failed to save discharge result: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def get_patient_history(patient_id: str) -> List[Dict[str, Any]]:
+    """Get all discharge results for a specific patient ordered by most recent."""
+    try:
+        if not supabase_client:
+            return []
+
+        result = (
+            supabase_client
+            .table("discharge_results")
+            .select("*")
+            .eq("patient_id", patient_id)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        
+        # In mock SQLite, these might be returned as JSON strings
+        import json
+        history_data = result.data or []
+        for row in history_data:
+            for key in ["quiz_questions", "medications", "follow_up", "warning_signs"]:
+                if key in row and isinstance(row[key], str):
+                    try:
+                        row[key] = json.loads(row[key])
+                    except Exception:
+                        pass
+                        
+        return history_data
+    except Exception as e:
+        logger.error(f"Failed to get patient history for {patient_id}: {e}")
+        return []
+

@@ -396,6 +396,15 @@ async def validate_bengali_quality(bengali_text: str) -> Dict[str, Any]:
         }
 
 
+def compute_risk_score(quiz_score: int, medication_count: int, role: str, warning_count: int) -> int:
+    """Compute a readmission risk score (0-100) based on discharge output and heuristics."""
+    base = (3 - quiz_score) * 20          # 0, 20, 40, or 60
+    med_factor = min(medication_count * 4, 24)  # max 24 pts
+    warn_factor = min(warning_count * 3, 12)    # max 12 pts
+    role_factor = 4 if role == "elderly" else 0
+    return min(base + med_factor + warn_factor + role_factor, 100)
+
+
 def check_gemini_health() -> Dict[str, Any]:
     """Check if Gemini API is accessible and healthy."""
     try:

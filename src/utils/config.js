@@ -37,6 +37,7 @@ export const API_ENDPOINTS = {
   PATIENT_CHATBOT_CONTEXT: (patientId) => `/api/patients/${patientId}/chatbot-context`,
   PATIENT_FAQ_SUGGESTIONS: (patientId) => `/api/patients/${patientId}/faq-suggestions`,
   PATIENT_CHATBOT_QUERY: (patientId) => `/api/patients/${patientId}/chatbot-query`,
+  PATIENT_HISTORY: (patientId) => `/api/patient/${patientId}/history`,
 
   // Utility endpoints
   HEALTH: '/api/health',

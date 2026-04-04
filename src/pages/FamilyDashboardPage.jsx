@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import ChatbotPanel from '../components/ChatbotPanel';
+import RiskGauge from '../components/RiskGauge';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -22,18 +23,28 @@ function FamilyDashboardPage() {
   const [rxLoading, setRxLoading] = useState(true);
   const [chunks, setChunks] = useState({});
   const [chunksLoading, setChunksLoading] = useState(false);
+  const [dischargeHistory, setDischargeHistory] = useState([]);
+  const [dischargeLoading, setDischargeLoading] = useState(false);
 
-  // Fetch prescriptions
+  // Fetch prescriptions and history
   useEffect(() => {
     if (!patientId) { setRxLoading(false); return; }
     (async () => {
       setRxLoading(true);
+      setDischargeLoading(true);
       try {
-        const result = await api.getPatientPrescriptions(patientId);
-        setPrescriptions(result.items || []);
+        const [rxResult, historyResult] = await Promise.all([
+          api.getPatientPrescriptions(patientId).catch(() => ({ items: [] })),
+          api.getPatientHistory(patientId).catch(() => ({ results: [] }))
+        ]);
+        setPrescriptions(rxResult.items || []);
+        setDischargeHistory(historyResult.results || []);
       } catch (err) {
-        console.warn('Failed to load prescriptions:', err.message);
-      } finally { setRxLoading(false); }
+        console.warn('Failed to load data:', err.message);
+      } finally { 
+        setRxLoading(false); 
+        setDischargeLoading(false);
+      }
     })();
   }, [patientId]);
 
@@ -163,6 +174,21 @@ function FamilyDashboardPage() {
                     <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{extracted?.diagnosis || 'Diagnosis Pending'}</p>
                   </div>
                 </div>
+              </div>
+
+              {/* Readmission Risk */}
+              <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(255,255,255,.08)', gridColumn: 'span 1' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
+                  <div>
+                    <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.2em', color: '#64748b' }}>Risk Assessment</p>
+                    <h4 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Readmission Risk</h4>
+                  </div>
+                </div>
+                {dischargeLoading ? <SkeletonBlock /> : dischargeHistory.length > 0 && dischargeHistory[0].risk_score !== undefined ? (
+                  <RiskGauge score={dischargeHistory[0].risk_score} level={dischargeHistory[0].risk_level} />
+                ) : (
+                  <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic', textAlign: 'center', marginTop: '20px' }}>Risk score not computed yet. Ask Doctor to process discharge summary.</p>
+                )}
               </div>
 
               {/* Clarity Center Link */}

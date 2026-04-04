@@ -114,6 +114,19 @@ def init_db():
             event_type TEXT,
             event_data TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS discharge_results (
+            id TEXT PRIMARY KEY,
+            session_id TEXT,
+            patient_id TEXT NOT NULL,
+            doctor_id TEXT NOT NULL,
+            quiz_questions TEXT,
+            medications TEXT,
+            follow_up TEXT,
+            warning_signs TEXT,
+            risk_score INTEGER,
+            created_at TEXT
+        );
     ''')
     conn.commit()
     conn.close()
