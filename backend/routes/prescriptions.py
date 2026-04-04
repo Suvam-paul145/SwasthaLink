@@ -328,7 +328,19 @@ async def get_chatbot_context(patient_id: str):
         context = await get_patient_context(patient_id)
         return context.model_dump()
     except Exception as exc:
-        logger.error(f"Error fetching chatbot context for patient {patient_id}: {exc}")
+        logger.error(f"Error fetching chatbot context for patient [redacted]: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch chatbot context")
+
+
+@router.get("/api/chatbot/context/{patient_id}")
+async def get_chatbot_context_alias(patient_id: str):
+    """Compatibility alias: return RAG-ready chatbot context for a patient."""
+    try:
+        from services.chatbot_context_service import get_patient_context
+        context = await get_patient_context(patient_id)
+        return context.model_dump()
+    except Exception as exc:
+        logger.error(f"Error fetching chatbot context for patient [redacted]: {exc}")
         raise HTTPException(status_code=500, detail="Failed to fetch chatbot context")
 
 
@@ -340,7 +352,7 @@ async def get_faq_suggestions(patient_id: str):
         faqs = await _get_faqs(patient_id)
         return {"count": len(faqs), "items": faqs}
     except Exception as exc:
-        logger.error(f"Error fetching FAQ suggestions for patient {patient_id}: {exc}")
+        logger.error(f"Error fetching FAQ suggestions for patient [redacted]: {exc}")
         raise HTTPException(status_code=500, detail="Failed to fetch FAQ suggestions")
 
 

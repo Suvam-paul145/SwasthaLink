@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - name: ghcr.io/suvam-paul145/swasthalink-backend:latest
+    newName: ghcr.io/suvam-paul145/swasthalink-backend
+    newTag: staging
+  - name: ghcr.io/suvam-paul145/swasthalink-frontend:latest
+    newName: ghcr.io/suvam-paul145/swasthalink-frontend
+    newTag: staging
+
+patches:
+  - target:
+      kind: Deployment
+      name: swasthalink-backend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+  - target:
+      kind: Deployment
+      name: swasthalink-frontend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1

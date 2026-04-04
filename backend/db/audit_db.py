@@ -1,5 +1,5 @@
 """
-CRUD operations for the audit_log table.
+CRUD operations for the audit_events table.
 Tracks every lifecycle event: upload, extraction, approval, rejection, escalation, chunking.
 """
 
@@ -34,7 +34,7 @@ async def create_audit_entry(
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "INSERT INTO audit_log (id, prescription_id, action, actor_role, actor_id, timestamp, details) "
+        "INSERT INTO audit_events (id, prescription_id, action, actor_role, actor_id, timestamp, details) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (
             entry["id"],
@@ -57,7 +57,7 @@ async def get_audit_log(prescription_id: str) -> List[Dict[str, Any]]:
     conn = get_connection()
     c = conn.cursor()
     c.execute(
-        "SELECT * FROM audit_log WHERE prescription_id = ? ORDER BY timestamp ASC",
+        "SELECT * FROM audit_events WHERE prescription_id = ? ORDER BY timestamp ASC",
         (prescription_id,),
     )
     rows = []
