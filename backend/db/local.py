@@ -52,31 +52,7 @@ def init_db():
             report_type TEXT DEFAULT 'prescription',
             raw_ocr_text TEXT,
             patient_insights TEXT,
-            linked_prescription_id TEXT,
-            payload_version INTEGER DEFAULT 1,
-            raw_extraction_snapshot TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS patient_context_chunks (
-            chunk_id TEXT PRIMARY KEY,
-            prescription_id TEXT NOT NULL,
-            patient_id TEXT NOT NULL,
-            chunk_type TEXT NOT NULL,
-            data TEXT NOT NULL,
-            version INTEGER DEFAULT 1,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id)
-        );
-
-        CREATE TABLE IF NOT EXISTS audit_events (
-            id TEXT PRIMARY KEY,
-            prescription_id TEXT NOT NULL,
-            action TEXT NOT NULL,
-            actor_role TEXT NOT NULL,
-            actor_id TEXT NOT NULL,
-            timestamp TEXT NOT NULL,
-            details TEXT,
-            FOREIGN KEY (prescription_id) REFERENCES prescriptions(prescription_id)
+            linked_prescription_id TEXT
         );
 
         CREATE TABLE IF NOT EXISTS sessions (
@@ -117,22 +93,21 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS discharge_results (
             id TEXT PRIMARY KEY,
-            session_id TEXT,
+            created_at TEXT,
             patient_id TEXT NOT NULL,
-            doctor_id TEXT NOT NULL,
-            quiz_questions TEXT,
-            medications TEXT,
-            follow_up TEXT,
-            warning_signs TEXT,
-            risk_score INTEGER,
-            created_at TEXT
+            doctor_id TEXT,
+            simplified_english TEXT NOT NULL,
+            simplified_bengali TEXT NOT NULL,
+            medications TEXT DEFAULT '[]',
+            follow_up TEXT DEFAULT '{}',
+            warning_signs TEXT DEFAULT '[]',
+            quiz_questions TEXT DEFAULT '[]'
         );
     ''')
     conn.commit()
     conn.close()
     # Run migration for existing databases
     _migrate_prescriptions_table()
-    _migrate_table_names()
 
 
 def _migrate_prescriptions_table():
@@ -145,8 +120,6 @@ def _migrate_prescriptions_table():
         ("raw_ocr_text", "TEXT"),
         ("patient_insights", "TEXT"),
         ("linked_prescription_id", "TEXT"),
-        ("payload_version", "INTEGER DEFAULT 1"),
-        ("raw_extraction_snapshot", "TEXT"),
     ]
     for col_name, col_type in new_columns:
         try:
@@ -157,43 +130,10 @@ def _migrate_prescriptions_table():
     conn.close()
 
 
-def _migrate_table_names():
-    """Rename legacy tables to the current names when needed."""
-    conn = get_connection()
-    c = conn.cursor()
-    try:
-        c.execute("BEGIN IMMEDIATE")
-
-        c.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='audit_events'"
-        )
-        has_audit_events = c.fetchone() is not None
-        c.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log'"
-        )
-        has_audit_log = c.fetchone() is not None
-        if has_audit_log and not has_audit_events:
-            c.execute("ALTER TABLE audit_log RENAME TO audit_events")
-
-        c.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='patient_context_chunks'"
-        )
-        has_patient_context_chunks = c.fetchone() is not None
-        c.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='patient_data_chunks'"
-        )
-        has_patient_data_chunks = c.fetchone() is not None
-        if has_patient_data_chunks and not has_patient_context_chunks:
-            c.execute("ALTER TABLE patient_data_chunks RENAME TO patient_context_chunks")
-    except Exception:
-        conn.rollback()
-    else:
-        conn.commit()
-    conn.close()
-
-
 def seed_mock_users():
     """Seed three mock credential users for local development testing."""
+    import uuid
+
     mock_users = [
         {
             "id": "mock-patient-001",

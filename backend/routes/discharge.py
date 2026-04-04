@@ -1,6 +1,7 @@
 """Discharge processing, quiz, and file upload routes."""
 
 import logging
+from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 
 from models import (
@@ -8,13 +9,14 @@ from models import (
     QuizSubmitRequest, QuizSubmitResponse,
     UploadResponse,
 )
-from services.gemini_service import process_discharge_summary, extract_text_from_image, compute_risk_score
+from services.gemini_service import process_discharge_summary, extract_text_from_image
 from services.s3_service import upload_file
 from services.rate_alert_service import rate_alert_service
 from core.exceptions import GeminiServiceError, S3ServiceError
 from db.supabase_service import (
     log_session, persist_session_history, append_session_event,
-    update_session_quiz_score, generate_session_id, save_discharge_result, get_patient_history
+    update_session_quiz_score, generate_session_id, save_discharge_result,
+    get_patient_discharge_history,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,43 +39,28 @@ async def process_summary(request: ProcessRequest):
             previous_simplified=request.previous_simplified,
         )
         rate_alert_service.track_usage("gemini", context="/api/process")
-        result.session_id = session_id
-
-        # Compute Readmission Risk Score
-        # Quiz score is unknown at this point, assume 1 or 0? Wait, the model asks:
-        # "quiz_score: int" -> but patient hasn't taken it yet!
-        # Ah! Task A-2 says: (3 - quiz_score) * 20. But they haven't taken it yet! 
-        # Actually, let's assume worst case for now or omit it for risk score initially? 
-        # Wait, if they haven't taken it, we can assume a default 0 (worst) or pass 0 for quiz_score initially and update later,
-        # Or maybe the risk score is just baseline? Let's pass 0 for quiz_score at initial processing.
-        risk_score = compute_risk_score(
-            quiz_score=0, 
-            medication_count=len(result.medications), 
-            role=request.role.value, 
+        from services.risk_scoring import compute_risk_score
+        
+        # Calculate worst-case baseline risk score since the quiz has not been taken yet (quiz_score = 0)
+        r_score, r_level = compute_risk_score(
+            quiz_score=0,
+            medication_count=len(result.medications),
+            role=request.role.value,
             warning_count=len(result.warning_signs)
         )
-        result.risk_score = risk_score
-        result.risk_level = "low" if risk_score < 35 else "moderate" if risk_score < 65 else "high"
+        
+        result.risk_score = r_score
+        result.risk_level = r_level
+        result.session_id = session_id
 
         try:
-            # Task A-1: Save discharge result to patient history if patient_id is provided
-            if request.patient_id:
-                quiz_dump = [q.model_dump() for q in result.comprehension_questions]
-                meds_dump = [m.model_dump() for m in result.medications]
-                followup_dump = result.follow_up.model_dump() if result.follow_up else {}
-                
-                await save_discharge_result(
-                    session_id=session_id,
-                    patient_id=request.patient_id,
-                    doctor_id=request.doctor_id,
-                    quiz_questions=quiz_dump,
-                    medications=meds_dump,
-                    follow_up=followup_dump,
-                    warning_signs=result.warning_signs,
-                    risk_score=risk_score
-                )
+            await save_discharge_result(
+                patient_id=request.patient_id,
+                doctor_id=request.doctor_id,
+                gemini_result=result.model_dump(by_alias=True)
+            )
         except Exception as e:
-            logger.warning(f"Failed to save discharge result to patient history: {e}")
+            logger.warning(f"Failed to save discharge result to Supabase: {e}")
 
         try:
             await log_session(role=request.role.value, language=request.language.value,
@@ -176,14 +163,13 @@ async def upload_document(file: UploadFile = File(...), session_id: str = Form(N
 
 
 @router.get("/api/patient/{patient_id}/history")
-async def patient_history(patient_id: str):
-    """Get all past discharge sessions for a patient."""
+async def get_patient_history(patient_id: str):
+    """Get history of discharge results for a patient."""
     try:
-        history = await get_patient_history(patient_id)
-        if not history:
-            return {"results": []}
-            
-        return {"results": history}
+        result = await get_patient_discharge_history(patient_id=patient_id, limit=50)
+        if not result.get("success"):
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to fetch patient history"))
+        return {"patient_id": patient_id, "history": result.get("history", [])}
     except Exception as e:
         logger.error(f"Error fetching patient history: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch patient history")
+        raise HTTPException(status_code=500, detail=str(e))

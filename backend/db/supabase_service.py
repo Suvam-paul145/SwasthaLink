@@ -8,6 +8,7 @@ import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 import uuid
+import inspect
 
 try:
     from supabase import create_client
@@ -17,7 +18,6 @@ except ImportError:
     SUPABASE_SDK_AVAILABLE = False
 
 from core.config import read_env
-from db.mock_supabase import MockSupabaseClient
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +37,7 @@ SUPABASE_KEY = read_env(
 )
 
 # Initialize Supabase client (local mock)
+from db.mock_supabase import MockSupabaseClient
 supabase_client = MockSupabaseClient()
 
 logger.info("Local SQLite mock client initialized successfully")
@@ -45,6 +46,14 @@ logger.info("Local SQLite mock client initialized successfully")
 class SupabaseServiceError(Exception):
     """Custom exception for Supabase service errors"""
     pass
+
+
+async def _execute_query(query):
+    """Execute Supabase query in both async (real) and sync (mock) modes."""
+    result = query.execute()
+    if inspect.isawaitable(result):
+        return await result
+    return result
 
 
 def _history_enabled() -> bool:
@@ -246,7 +255,7 @@ async def update_session_quiz_score(session_id: str, quiz_score: int, re_explain
             logger.warning("Supabase client not available")
             return {"success": False, "error": "Supabase not configured"}
 
-        supabase_client.table("sessions").update({
+        result = supabase_client.table("sessions").update({
             "quiz_score": quiz_score,
             "re_explained": re_explained
         }).eq("id", session_id).execute()
@@ -275,7 +284,7 @@ async def update_session_whatsapp_status(session_id: str, whatsapp_sent: bool) -
             logger.warning("Supabase client not available")
             return {"success": False, "error": "Supabase not configured"}
 
-        supabase_client.table("sessions").update({
+        result = supabase_client.table("sessions").update({
             "whatsapp_sent": whatsapp_sent
         }).eq("id", session_id).execute()
 
@@ -386,6 +395,8 @@ def check_supabase_health() -> Dict[str, Any]:
                 "available": False
             }
 
+        result = supabase_client.table("sessions").select("id").limit(1).execute()
+
         return {
             "status": "ok",
             "message": "Supabase service is healthy",
@@ -405,79 +416,80 @@ def check_supabase_health() -> Dict[str, Any]:
 def get_schema_sql() -> str:
     """Get SQL schema for creating Supabase tables."""
     return """
--- See backend/db/local.py for the SQLite schema used in development.
--- For production Supabase, apply the SQL from the README or LIBRARY.md.
+create extension if not exists pgcrypto;
+
+create table if not exists public.discharge_results (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  patient_id text not null,
+  doctor_id text,
+  simplified_english text not null,
+  simplified_bengali text not null,
+  medications jsonb not null default '[]'::jsonb,
+  follow_up jsonb,
+  warning_signs jsonb not null default '[]'::jsonb,
+  quiz_questions jsonb not null default '[]'::jsonb
+);
+
+create index if not exists idx_discharge_results_patient_created
+  on public.discharge_results (patient_id, created_at desc);
 """
 
 
-async def save_discharge_result(
-    session_id: str,
-    patient_id: str,
-    doctor_id: str,
-    quiz_questions: list,
-    medications: list,
-    follow_up: dict,
-    warning_signs: list,
-    risk_score: int
-) -> Dict[str, Any]:
-    """Save the final extraction results for a patient's historical tracking."""
+async def save_discharge_result(patient_id: str, doctor_id: Optional[str], gemini_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Save the final discharge result to Supabase."""
     try:
         if not supabase_client:
             return {"success": False, "error": "Supabase not configured"}
 
-        payload = {
-            "id": generate_session_id(),
-            "session_id": session_id,
+        data = {
+            "id": str(uuid.uuid4()),
+            "created_at": datetime.utcnow().isoformat(),
             "patient_id": patient_id,
             "doctor_id": doctor_id,
-            # Suppabase takes dict/list, SQLite mock handles json.dumps in mock_supabase if we need, but in our mock we might need string if sqlite directly
-            # Wait, our MockSupabaseClient converts dicts/lists to JSON strings automatically.
-            "quiz_questions": quiz_questions,
-            "medications": medications,
-            "follow_up": follow_up,
-            "warning_signs": warning_signs,
-            "risk_score": risk_score,
-            "created_at": datetime.utcnow().isoformat()
+            "simplified_english": gemini_result.get("simplified_english"),
+            "simplified_bengali": gemini_result.get("simplified_bengali"),
+            "medications": gemini_result.get("medications", []),
+            "follow_up": gemini_result.get("follow_up", {}),
+            "warning_signs": gemini_result.get("warning_signs", []),
+            "quiz_questions": (
+                gemini_result.get("quiz_questions")
+                or gemini_result.get("comprehension_questions", [])
+            ),
         }
 
-        result = supabase_client.table("discharge_results").insert(payload).execute()
+        result = await _execute_query(
+            supabase_client.table("discharge_results").insert(data)
+        )
+
         return {
             "success": True,
-            "data": result.data[0] if result.data else payload
+            "data": result.data[0] if getattr(result, "data", None) else data
         }
     except Exception as e:
         logger.error(f"Failed to save discharge result: {e}")
         return {"success": False, "error": str(e)}
 
 
-async def get_patient_history(patient_id: str) -> List[Dict[str, Any]]:
-    """Get all discharge results for a specific patient ordered by most recent."""
+async def get_patient_discharge_history(patient_id: str, limit: int = 50) -> Dict[str, Any]:
+    """Fetch discharge history for one patient."""
     try:
         if not supabase_client:
-            return []
+            return {"success": False, "error": "Supabase not configured", "history": []}
 
-        result = (
+        result = await _execute_query(
             supabase_client
             .table("discharge_results")
             .select("*")
             .eq("patient_id", patient_id)
             .order("created_at", desc=True)
-            .execute()
+            .limit(limit)
         )
-        
-        # In mock SQLite, these might be returned as JSON strings
-        import json
-        history_data = result.data or []
-        for row in history_data:
-            for key in ["quiz_questions", "medications", "follow_up", "warning_signs"]:
-                if key in row and isinstance(row[key], str):
-                    try:
-                        row[key] = json.loads(row[key])
-                    except Exception:
-                        pass
-                        
-        return history_data
+        return {
+            "success": True,
+            "patient_id": patient_id,
+            "history": result.data if getattr(result, "data", None) else []
+        }
     except Exception as e:
-        logger.error(f"Failed to get patient history for {patient_id}: {e}")
-        return []
-
+        logger.error(f"Failed to fetch patient discharge history: {e}")
+        return {"success": False, "error": str(e), "history": []}
