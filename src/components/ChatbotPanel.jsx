@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { getGroqChatbotReply } from '../services/groq';
 
 const ChatbotPanel = () => {
   const { user } = useAuth();
@@ -12,7 +13,7 @@ const ChatbotPanel = () => {
   const [loading, setLoading] = useState(false);
   const [faqs, setFaqs] = useState([]);
   const messagesEndRef = useRef(null);
-  const patientId = user?.user_id || user?.id || '';
+  const patientId = user?.user_id || user?.id || user?.email || '';
 
   useEffect(() => {
     if (isOpen && patientId) {
@@ -33,7 +34,7 @@ const ChatbotPanel = () => {
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setLoading(true);
     try {
-      const result = await api.askChatbot(patientId, q);
+      const result = await getGroqChatbotReply(patientId, q);
       setMessages(prev => [...prev, {
         role: 'bot',
         text: result.answer || 'Sorry, I could not find an answer.',

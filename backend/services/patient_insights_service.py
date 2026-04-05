@@ -125,10 +125,10 @@ async def generate_patient_insights(extracted_data) -> Optional[dict]:
 
     Called after admin approval.  Returns a dict suitable for PatientInsights model.
     """
-    from services.gemini_service import GEMINI_API_KEY, _generate_text
+    from services.gemini_service import _generate_text, is_gemini_configured
     from core.exceptions import GeminiServiceError
 
-    if not GEMINI_API_KEY:
+    if not is_gemini_configured():
         logger.warning("Gemini API key not configured — skipping insights generation")
         return None
 

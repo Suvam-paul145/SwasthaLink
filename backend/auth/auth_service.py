@@ -2,8 +2,8 @@
 Authentication service for role-based login.
 
 Primary mode:
-  - Supabase email/password authentication
-  - Optional role + name from user metadata or profiles table
+  - Local SQLite via MockSupabaseClient (with bcrypt + JWT)
+  - Falls back gracefully if dependencies are missing
 """
 
 import logging
@@ -11,6 +11,13 @@ from typing import Any, Dict, Optional
 
 from db.mock_supabase import MockSupabaseClient
 from core.exceptions import AuthServiceError
+
+# Import JWT utility for generating tokens on signup
+try:
+    from auth.jwt_utils import create_access_token
+    JWT_AVAILABLE = True
+except ImportError:
+    JWT_AVAILABLE = False
 
 supabase_client = MockSupabaseClient()
 logger = logging.getLogger(__name__)
@@ -184,17 +191,15 @@ def signup_user(name: str, email: str, password: str, phone: str, role: str = "p
 
         user_id = getattr(auth_user, "id", None)
 
-        try:
-            supabase_client.table("profiles").insert({
-                "user_id": user_id,
-                "full_name": name.strip(),
-                "email": normalized_email,
-                "role": validated_role,
-                "phone": phone,
-                "phone_verified": False,
-            }).execute()
-        except Exception as profile_exc:
-            logger.warning(f"Profile insert failed (may already exist): {profile_exc}")
+        # Generate a JWT token for the new user
+        access_token = None
+        if JWT_AVAILABLE:
+            access_token = create_access_token(
+                user_id=user_id,
+                email=normalized_email,
+                role=validated_role,
+                name=name.strip(),
+            )
 
         return {
             "user_id": user_id,
@@ -206,6 +211,7 @@ def signup_user(name: str, email: str, password: str, phone: str, role: str = "p
                 "phone": phone,
                 "phone_verified": False,
             },
+            "access_token": access_token,
             "is_demo": False,
         }
 

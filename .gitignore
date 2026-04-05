@@ -73,3 +73,10 @@ backend\.env
 .env
 .env.example
 .claude
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+SwasthaLink.db
+backend/SwasthaLink.db

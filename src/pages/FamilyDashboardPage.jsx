@@ -333,6 +333,7 @@ function FamilyDashboardPage() {
                     const ed = rx.extracted_data || rx;
                     const meds = ed.medications || rx.medications || [];
                     const type = rx.report_type || 'prescription';
+                    const imageUrl = rx.image_url || null;
                     return (
                       <div key={rx.prescription_id} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '16px', padding: '22px', border: '1px solid rgba(255,255,255,.08)', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '14px' }}>
@@ -362,6 +363,10 @@ function FamilyDashboardPage() {
                             ))}
                             {meds.length > 3 && <p style={{ fontSize: '10px', color: '#475569', marginLeft: '14px' }}>+ {meds.length - 3} more</p>}
                           </div>
+                        )}
+                        {/* Prescription Image from S3 */}
+                        {imageUrl && (
+                          <PrescriptionImageViewer imageUrl={imageUrl} prescriptionId={rx.prescription_id} />
                         )}
                       </div>
                     );
@@ -417,6 +422,67 @@ function EmptyState({ message }) {
       <span className="material-symbols-outlined" style={{ fontSize: '48px', color: '#334155', display: 'block', marginBottom: '16px' }}>clinical_notes</span>
       <h4 style={{ fontWeight: 700, fontSize: '16px', marginBottom: '8px' }}>No Data Available</h4>
       <p style={{ fontSize: '13px', color: '#475569' }}>{message}</p>
+    </div>
+  );
+}
+
+function PrescriptionImageViewer({ imageUrl, prescriptionId }) {
+  const [showImage, setShowImage] = useState(false);
+  const [imgLoading, setImgLoading] = useState(true);
+  const [imgError, setImgError] = useState(false);
+
+  return (
+    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
+      <button
+        onClick={() => { setShowImage(!showImage); setImgError(false); setImgLoading(true); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
+          background: showImage ? 'rgba(13,148,136,.15)' : 'rgba(255,255,255,.04)',
+          border: '1px solid rgba(13,148,136,.3)', borderRadius: '10px', padding: '8px 14px',
+          color: '#5eead4', fontSize: '12px', fontWeight: 600, width: '100%', justifyContent: 'center',
+          transition: 'all .2s',
+        }}
+        id={`view-rx-image-${prescriptionId}`}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+          {showImage ? 'visibility_off' : 'image'}
+        </span>
+        {showImage ? 'Hide Prescription Image' : 'View Prescription Image'}
+      </button>
+      {showImage && (
+        <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', background: 'rgba(0,0,0,.3)', border: '1px solid rgba(255,255,255,.08)', position: 'relative' }}>
+          {imgLoading && !imgError && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px', color: '#5eead4', fontSize: '13px', gap: '10px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '20px', animation: 'spin 1.5s linear infinite' }}>progress_activity</span>
+              Loading image...
+            </div>
+          )}
+          {imgError ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', color: '#f87171' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '32px', marginBottom: '8px' }}>broken_image</span>
+              <p style={{ fontSize: '12px' }}>Image unavailable or link expired</p>
+              <button
+                onClick={() => { setImgError(false); setImgLoading(true); }}
+                style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', color: '#94a3b8', fontSize: '11px', cursor: 'pointer' }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <img
+              src={imageUrl}
+              alt="Prescription document"
+              onLoad={() => setImgLoading(false)}
+              onError={() => { setImgLoading(false); setImgError(true); }}
+              style={{
+                width: '100%', height: 'auto', display: imgLoading ? 'none' : 'block',
+                borderRadius: '12px', cursor: 'zoom-in',
+              }}
+              onClick={() => window.open(imageUrl, '_blank')}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

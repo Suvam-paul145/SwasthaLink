@@ -453,12 +453,12 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
       5. Parse result into PrescriptionExtractedData.
     """
     from services.gemini_service import (  # local import to avoid circular
-        GEMINI_API_KEY,
         _generate_text,
+        is_gemini_configured,
     )
     from core.exceptions import GeminiServiceError
 
-    if not GEMINI_API_KEY:
+    if not is_gemini_configured():
         raise GeminiServiceError("Gemini API key not configured")
 
     context_snippets = retrieve_context(ocr_text, top_k=4)

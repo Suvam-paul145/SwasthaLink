@@ -1,7 +1,6 @@
 """Discharge processing, quiz, and file upload routes."""
 
 import logging
-from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 
 from models import (
@@ -53,14 +52,15 @@ async def process_summary(request: ProcessRequest):
         result.risk_level = r_level
         result.session_id = session_id
 
-        try:
-            await save_discharge_result(
-                patient_id=request.patient_id,
-                doctor_id=request.doctor_id,
-                gemini_result=result.model_dump(by_alias=True)
-            )
-        except Exception as e:
-            logger.warning(f"Failed to save discharge result to Supabase: {e}")
+        if request.patient_id:
+            try:
+                await save_discharge_result(
+                    patient_id=request.patient_id,
+                    doctor_id=request.doctor_id,
+                    gemini_result=result.model_dump(by_alias=True)
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save discharge result to Supabase: {e}")
 
         try:
             await log_session(role=request.role.value, language=request.language.value,
@@ -81,7 +81,7 @@ async def process_summary(request: ProcessRequest):
 
     except GeminiServiceError as e:
         logger.error(f"Gemini service error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=getattr(e, "status_code", 500), detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -154,7 +154,10 @@ async def upload_document(file: UploadFile = File(...), session_id: str = Form(N
 
     except GeminiServiceError as e:
         logger.error(f"OCR extraction failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to extract text: {str(e)}")
+        raise HTTPException(
+            status_code=getattr(e, "status_code", 500),
+            detail=f"Failed to extract text: {str(e)}",
+        )
     except HTTPException:
         raise
     except Exception as e:

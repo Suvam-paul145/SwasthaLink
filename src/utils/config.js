@@ -17,6 +17,9 @@ export const API_ENDPOINTS = {
   AUTH_SIGNUP: '/api/auth/signup',
   AUTH_SEND_OTP: '/api/auth/send-otp',
   AUTH_VERIFY_OTP: '/api/auth/verify-otp',
+  AUTH_ME: '/api/auth/me',
+  AUTH_FORGOT_PASSWORD: '/api/auth/forgot-password',
+  AUTH_RESET_PASSWORD: '/api/auth/reset-password',
 
   // Prescription RAG pipeline endpoints
   PRESCRIPTION_EXTRACT: '/api/prescriptions/extract',

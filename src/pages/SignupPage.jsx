@@ -8,7 +8,8 @@ const STEPS = { FORM: 'form', OTP: 'otp', DONE: 'done' };
 
 export default function SignupPage() {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
+  const authContext = useAuth();
+  const { isAuthenticated, user } = authContext;
 
   const [step, setStep] = useState(STEPS.FORM);
   const [role, setRole] = useState('patient');
@@ -86,7 +87,25 @@ export default function SignupPage() {
       const result = await api.verifyOtp(phone.trim(), otp);
       if (result.verified) {
         setStep(STEPS.DONE);
-        setTimeout(() => navigate('/login'), 2500);
+        setInfo('Phone verified! Logging you in...');
+
+        // Auto-login after successful verification
+        try {
+          const { login } = authContext;
+          const authSession = await login({
+            role,
+            email: email.trim(),
+            password,
+          });
+          // Redirect to role-based dashboard
+          setTimeout(() => {
+            navigate(getDashboardRouteForRole(authSession.user.role), { replace: true });
+          }, 1500);
+        } catch (loginErr) {
+          // If auto-login fails, redirect to login page
+          setInfo('Account verified! Redirecting to login...');
+          setTimeout(() => navigate('/login'), 2000);
+        }
       } else {
         setError('Invalid OTP. Please try again.');
       }
@@ -95,7 +114,7 @@ export default function SignupPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [otp, phone, navigate]);
+  }, [otp, phone, navigate, role, email, password, authContext]);
 
   // ── Resend OTP ──
   const handleResendOtp = useCallback(async () => {

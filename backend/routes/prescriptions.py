@@ -10,7 +10,7 @@ from models import (
     PrescriptionRejectRequest, PrescriptionPatientViewResponse,
 )
 from services.gemini_service import extract_text_from_image
-from services.s3_service import upload_file
+from services.s3_service import upload_file, generate_presigned_url
 from services.rate_alert_service import rate_alert_service
 from services.image_preprocessor import preprocess_image
 from services.prescription_rag_service import (
@@ -59,10 +59,19 @@ async def get_prescriptions_by_doctor(doctor_id: str):
 
 @router.get("/api/prescriptions/for-patient/{patient_id}")
 async def get_prescriptions_for_patient(patient_id: str):
-    """Return all approved prescriptions for a patient."""
+    """Return all approved prescriptions for a patient with S3 image URLs."""
     try:
         records = await list_approved_for_patient(patient_id)
-        return {"count": len(records), "items": [r.model_dump() for r in records]}
+        items = []
+        for r in records:
+            item = r.model_dump()
+            # Generate pre-signed URL for prescription image
+            if r.s3_key:
+                item["image_url"] = generate_presigned_url(r.s3_key, expiration=3600)
+            else:
+                item["image_url"] = None
+            items.append(item)
+        return {"count": len(items), "items": items}
     except Exception as exc:
         logger.error(f"Error fetching patient prescriptions: {exc}")
         raise HTTPException(status_code=500, detail="Failed to fetch prescriptions")
@@ -133,7 +142,7 @@ async def extract_prescription(
         )
     except GeminiServiceError as exc:
         logger.error(f"Gemini error during prescription extraction: {exc}")
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=getattr(exc, "status_code", 500), detail=str(exc))
     except HTTPException:
         raise
     except Exception as exc:
@@ -241,7 +250,9 @@ async def get_patient_prescription_view(prescription_id: str):
             raise HTTPException(status_code=403, detail="Prescription is not approved")
 
         data = record.extracted_data
-        return PrescriptionPatientViewResponse(
+        # Generate pre-signed URL for this prescription image
+        image_url = generate_presigned_url(record.s3_key, expiration=3600) if record.s3_key else None
+        response = PrescriptionPatientViewResponse(
             prescription_id=record.prescription_id,
             doctor_name=data.doctor_name or "Your doctor",
             patient_name=data.patient_name or "Patient",
@@ -255,6 +266,9 @@ async def get_patient_prescription_view(prescription_id: str):
             patient_insights=data.patient_insights,
             report_type=data.report_type or "prescription",
         )
+        result = response.model_dump()
+        result["image_url"] = image_url
+        return result
     except HTTPException:
         raise
     except Exception as exc:
@@ -269,7 +283,13 @@ async def get_doctor_prescription_view(prescription_id: str):
         record = await get_record(prescription_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Prescription not found")
-        return record.model_dump()
+        result = record.model_dump()
+        # Include pre-signed image URL
+        if record.s3_key:
+            result["image_url"] = generate_presigned_url(record.s3_key, expiration=3600)
+        else:
+            result["image_url"] = None
+        return result
     except HTTPException:
         raise
     except Exception as exc:

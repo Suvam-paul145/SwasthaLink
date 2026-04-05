@@ -1,13 +1,17 @@
 """
-Chatbot Context Service
-Retrieves RAG-ready context from stored patient chunks.
-Enforces strict no-hallucination policy — responses based on stored data ONLY.
+Chatbot context and grounded answer helpers for the patient assistant.
 """
 
 import logging
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Optional
 
 from models.prescription import ChatbotContextPayload
+from services.groq_chat_service import (
+    DEFAULT_NO_CONTEXT_ANSWER,
+    answer_with_groq,
+    is_groq_configured,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,26 +31,53 @@ async def get_patient_context(patient_id: str) -> ChatbotContextPayload:
     )
 
 
+def _tokenize(text: str) -> set[str]:
+    """Tokenize lower-case alphanumeric words for lightweight retrieval."""
+    return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
+
+
+def _score_match(query: str, candidate: str) -> int:
+    """Score relevance using direct phrase matches plus token overlap."""
+    query_text = (query or "").strip().lower()
+    candidate_text = (candidate or "").strip().lower()
+    if not query_text or not candidate_text:
+        return 0
+
+    score = 0
+    if query_text in candidate_text:
+        score += 6
+    if candidate_text in query_text:
+        score += 3
+
+    score += len(_tokenize(query_text) & _tokenize(candidate_text))
+    return score
+
+
 async def retrieve_chunks_for_query(
-    patient_id: str, query: str
+    patient_id: str,
+    query: str,
+    all_chunks: Optional[List[Dict[str, Any]]] = None,
 ) -> List[Dict[str, Any]]:
-    """Simple keyword-based matching against stored patient chunks."""
+    """Find the most relevant patient chunks for a question."""
     from db.patient_chunks_db import get_chunks_by_patient
 
-    all_chunks = await get_chunks_by_patient(patient_id)
-    query_lower = query.lower()
-    query_words = set(query_lower.split())
+    if all_chunks is None:
+        all_chunks = await get_chunks_by_patient(patient_id)
 
-    scored = []
+    scored: List[tuple[int, Dict[str, Any]]] = []
     for chunk in all_chunks:
-        data_str = str(chunk.get("data", "")).lower()
-        # Score by keyword overlap
-        score = sum(1 for w in query_words if w in data_str)
+        chunk_text = " ".join(
+            [
+                chunk.get("chunk_type", ""),
+                str(chunk.get("data", "")),
+            ]
+        )
+        score = _score_match(query, chunk_text)
         if score > 0:
             scored.append((score, chunk))
 
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [c for _, c in scored[:5]]
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [chunk for _, chunk in scored[:5]]
 
 
 async def get_faq_suggestions(patient_id: str) -> List[Dict[str, str]]:
@@ -59,31 +90,101 @@ async def get_faq_suggestions(patient_id: str) -> List[Dict[str, str]]:
         chunk_data = chunk.get("data", {})
         if isinstance(chunk_data, dict):
             for faq in chunk_data.get("faqs", []):
-                faqs.append({
-                    "question": faq.get("question", ""),
-                    "answer": faq.get("answer", ""),
-                })
+                faqs.append(
+                    {
+                        "question": faq.get("question", ""),
+                        "answer": faq.get("answer", ""),
+                    }
+                )
     return faqs
 
 
-async def answer_from_context(patient_id: str, question: str) -> Dict[str, Any]:
-    """Answer a question using stored chunks only — no hallucination."""
-    # First check FAQ matches
-    faqs = await get_faq_suggestions(patient_id)
-    question_lower = question.lower()
-
+def _get_matching_faqs(
+    question: str,
+    faqs: List[Dict[str, str]],
+    limit: int = 3,
+) -> List[Dict[str, str]]:
+    """Return the strongest FAQ matches for a patient question."""
+    scored: List[tuple[int, Dict[str, str]]] = []
     for faq in faqs:
-        if question_lower in faq["question"].lower() or faq["question"].lower() in question_lower:
-            return {
-                "answer": faq["answer"],
-                "source": "faq_context",
-                "confidence": 0.9,
-            }
+        combined = " ".join([faq.get("question", ""), faq.get("answer", "")])
+        score = _score_match(question, combined)
+        if score > 0:
+            scored.append((score, faq))
 
-    # Fall back to keyword search across all chunks
-    relevant = await retrieve_chunks_for_query(patient_id, question)
+    scored.sort(key=lambda item: item[0], reverse=True)
+    return [faq for _, faq in scored[:limit]]
+
+
+def _select_recent_chunks(all_chunks: List[Dict[str, Any]], limit: int = 3) -> List[Dict[str, Any]]:
+    """Use the newest chunks when keyword retrieval finds nothing useful."""
+    return list(all_chunks[:limit])
+
+
+def _build_source_label(
+    relevant_chunks: List[Dict[str, Any]],
+    faq_matches: List[Dict[str, str]],
+) -> str:
+    """Build a short source summary for UI display."""
+    labels: List[str] = []
+    if faq_matches:
+        labels.append("faq_context")
+
+    for chunk in relevant_chunks:
+        chunk_type = chunk.get("chunk_type")
+        if chunk_type and chunk_type not in labels:
+            labels.append(chunk_type)
+
+    if not labels:
+        return "none"
+    if len(labels) <= 2:
+        return ", ".join(labels)
+    return f"{', '.join(labels[:2])} + more"
+
+
+async def answer_from_context(patient_id: str, question: str) -> Dict[str, Any]:
+    """Answer a question using approved patient chunks only."""
+    from db.patient_chunks_db import get_chunks_by_patient
+
+    all_chunks = await get_chunks_by_patient(patient_id)
+    if not all_chunks:
+        return {
+            "answer": DEFAULT_NO_CONTEXT_ANSWER,
+            "source": "none",
+            "confidence": 0.0,
+        }
+
+    faqs = await get_faq_suggestions(patient_id)
+    faq_matches = _get_matching_faqs(question, faqs)
+
+    relevant = await retrieve_chunks_for_query(patient_id, question, all_chunks=all_chunks)
+    if not relevant:
+        relevant = _select_recent_chunks(all_chunks)
+
+    if is_groq_configured() and (faq_matches or relevant):
+        try:
+            answer = await answer_with_groq(
+                patient_id=patient_id,
+                question=question,
+                faq_matches=faq_matches,
+                relevant_chunks=relevant,
+            )
+            return {
+                "answer": answer,
+                "source": f"groq ({_build_source_label(relevant, faq_matches)})",
+                "confidence": 0.92 if faq_matches else 0.84,
+            }
+        except Exception as exc:
+            logger.warning("Groq grounded chat failed; using local fallback: %s", exc)
+
+    if faq_matches:
+        return {
+            "answer": faq_matches[0].get("answer") or DEFAULT_NO_CONTEXT_ANSWER,
+            "source": "faq_context",
+            "confidence": 0.9,
+        }
+
     if relevant:
-        # Build answer from top chunk
         top = relevant[0]
         chunk_data = top.get("data", {})
         return {
@@ -93,7 +194,7 @@ async def answer_from_context(patient_id: str, question: str) -> Dict[str, Any]:
         }
 
     return {
-        "answer": "I don't have enough information in your medical records to answer that. Please consult your doctor.",
+        "answer": DEFAULT_NO_CONTEXT_ANSWER,
         "source": "none",
         "confidence": 0.0,
     }
@@ -111,7 +212,7 @@ def _summarize_chunk(data: Dict[str, Any], chunk_type: str) -> str:
         if steps:
             return f"You have {len(steps)} care steps in your daily routine."
     elif chunk_type == "explanation":
-        exps = data.get("explanations", [])
-        if exps:
-            return exps[0].get("reason", "See your prescription for details.")
+        explanations = data.get("explanations", [])
+        if explanations:
+            return explanations[0].get("reason", "See your prescription for details.")
     return "Please refer to your prescription details."

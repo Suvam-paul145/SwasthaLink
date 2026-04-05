@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 import uuid
 import inspect
+from db.mock_supabase import MockSupabaseClient
 
 try:
     from supabase import create_client
@@ -37,7 +38,6 @@ SUPABASE_KEY = read_env(
 )
 
 # Initialize Supabase client (local mock)
-from db.mock_supabase import MockSupabaseClient
 supabase_client = MockSupabaseClient()
 
 logger.info("Local SQLite mock client initialized successfully")
@@ -255,7 +255,7 @@ async def update_session_quiz_score(session_id: str, quiz_score: int, re_explain
             logger.warning("Supabase client not available")
             return {"success": False, "error": "Supabase not configured"}
 
-        result = supabase_client.table("sessions").update({
+        supabase_client.table("sessions").update({
             "quiz_score": quiz_score,
             "re_explained": re_explained
         }).eq("id", session_id).execute()
@@ -284,7 +284,7 @@ async def update_session_whatsapp_status(session_id: str, whatsapp_sent: bool) -
             logger.warning("Supabase client not available")
             return {"success": False, "error": "Supabase not configured"}
 
-        result = supabase_client.table("sessions").update({
+        supabase_client.table("sessions").update({
             "whatsapp_sent": whatsapp_sent
         }).eq("id", session_id).execute()
 
@@ -395,7 +395,7 @@ def check_supabase_health() -> Dict[str, Any]:
                 "available": False
             }
 
-        result = supabase_client.table("sessions").select("id").limit(1).execute()
+        supabase_client.table("sessions").select("id").limit(1).execute()
 
         return {
             "status": "ok",

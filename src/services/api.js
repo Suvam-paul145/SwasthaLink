@@ -138,6 +138,39 @@ const api = {
   },
 
   /**
+   * Verify the current JWT session with the backend.
+   * Used on page load to confirm the stored token is still valid.
+   * @returns {Promise<Object>} { success, user } if valid
+   */
+  verifySession: async () => {
+    return await apiRequest(API_ENDPOINTS.AUTH_ME, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Request an OTP for password reset
+   * @param {Object} data - Includes { email, phone }
+   */
+  requestPasswordResetOTP: async (data) => {
+    return await apiRequest(API_ENDPOINTS.AUTH_FORGOT_PASSWORD, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Reset password with the provided OTP
+   * @param {Object} data - Includes { phone, code, new_password }
+   */
+  resetPasswordWithOTP: async (data) => {
+    return await apiRequest(API_ENDPOINTS.AUTH_RESET_PASSWORD, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
    * Process discharge summary
    * @param {Object} data - Request data
    * @param {string} data.discharge_text - Clinical discharge summary text

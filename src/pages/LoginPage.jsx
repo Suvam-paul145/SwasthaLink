@@ -89,7 +89,15 @@ function LoginPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Password</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Password</label>
+              <Link 
+                to="/forgot-password" 
+                className="text-xs text-teal-300 hover:text-teal-200 transition-colors"
+              >
+                Forgot Password?
+              </Link>
+            </div>
             <input
               type="password"
               required

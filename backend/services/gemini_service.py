@@ -47,6 +47,7 @@ from ai.prompts import (
     SAFETY_SETTINGS,
     SYSTEM_INSTRUCTION
 )
+from core.config import read_env
 from core.exceptions import GeminiServiceError
 
 # Configure logging
@@ -55,19 +56,64 @@ logger = logging.getLogger(__name__)
 
 MODEL_NAME = "gemini-2.5-flash"
 
-# Initialize Gemini API
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 genai_client = None
+_active_api_key: Optional[str] = None
+
+
+def get_configured_gemini_api_key() -> Optional[str]:
+    """Read the configured Gemini API key, supporting the legacy plural env name."""
+    return read_env("GEMINI_API_KEY", "GEMINI_API_KEYS")
+
+
+def is_gemini_configured() -> bool:
+    """Return True when a usable Gemini API key is configured."""
+    return bool(get_configured_gemini_api_key())
+
+
+GEMINI_API_KEY = get_configured_gemini_api_key()
 
 if GENAI_SDK is None:
     logger.warning("No Gemini SDK installed. Install `google-genai` (recommended) or `google-generativeai`.")
-if not GEMINI_API_KEY:
-    logger.warning("GEMINI_API_KEY not found in environment variables")
-else:
+if not is_gemini_configured():
+    logger.warning("Gemini API key not found in environment variables")
+
+
+def _get_current_api_key() -> str:
+    global GEMINI_API_KEY
+
+    api_key = get_configured_gemini_api_key()
+    if not api_key:
+        raise GeminiServiceError("Gemini API key not configured")
+    GEMINI_API_KEY = api_key
+    return api_key
+
+
+def _ensure_gemini_client() -> str:
+    """Ensure client is initialized and refresh it if API key changed at runtime."""
+    global genai_client, _active_api_key
+
+    if GENAI_SDK is None:
+        raise GeminiServiceError(
+            "Gemini SDK not properly initialized. Install `google-genai` (recommended)."
+        )
+
+    api_key = _get_current_api_key()
+    key_changed = _active_api_key is not None and api_key != _active_api_key
+
     if GENAI_SDK == "google.genai":
-        genai_client = genai.Client(api_key=GEMINI_API_KEY)
+        if genai_client is None or key_changed:
+            genai_client = genai.Client(api_key=api_key)
+            if key_changed:
+                logger.warning("Gemini API key rotation detected. Gemini client reinitialized.")
+
     elif GENAI_SDK == "google.generativeai":
-        genai.configure(api_key=GEMINI_API_KEY)
+        if _active_api_key != api_key:
+            genai.configure(api_key=api_key)
+            if key_changed:
+                logger.warning("Gemini API key rotation detected. Gemini client reconfigured.")
+
+    _active_api_key = api_key
+    return api_key
 
 
 def _build_new_sdk_config(
@@ -99,16 +145,16 @@ def _generate_text(
     safety_settings: Optional[list[Dict[str, Any]]] = None,
     system_instruction: Optional[str] = None,
     model_name: str = MODEL_NAME,
+    rate_limit_context: str = "text_generation",
 ) -> str:
     """Generate text using whichever Gemini SDK is available."""
-    if not GEMINI_API_KEY:
-        raise GeminiServiceError("Gemini API key not configured")
+    api_key = _ensure_gemini_client()
 
     # Rate limit check — blocks before hitting API quota
     try:
-        gemini_rate_limiter.check_and_record(context="text_generation")
+        gemini_rate_limiter.check_and_record(context=rate_limit_context, api_key=api_key)
     except RateLimitExceeded as exc:
-        raise GeminiServiceError(str(exc))
+        raise GeminiServiceError(str(exc), status_code=429)
 
     if GENAI_SDK == "google.genai":
         if not genai_client:
@@ -148,16 +194,16 @@ def _generate_multimodal_text(
     mime_type: str,
     generation_config: Optional[Dict[str, Any]] = None,
     model_name: str = MODEL_NAME,
+    rate_limit_context: str = "multimodal_ocr",
 ) -> str:
     """Generate text for multimodal input (prompt + image/pdf)."""
-    if not GEMINI_API_KEY:
-        raise GeminiServiceError("Gemini API key not configured")
+    api_key = _ensure_gemini_client()
 
     # Rate limit check — blocks before hitting API quota
     try:
-        gemini_rate_limiter.check_and_record(context="multimodal_ocr")
+        gemini_rate_limiter.check_and_record(context=rate_limit_context, api_key=api_key)
     except RateLimitExceeded as exc:
-        raise GeminiServiceError(str(exc))
+        raise GeminiServiceError(str(exc), status_code=429)
 
     if GENAI_SDK == "google.genai":
         if not genai_client:
@@ -322,6 +368,7 @@ async def process_discharge_summary(
             generation_config=GENERATION_CONFIG,
             safety_settings=SAFETY_SETTINGS,
             system_instruction=SYSTEM_INSTRUCTION,
+            rate_limit_context=f"process_discharge_summary:{role}",
         )
 
         if not response_text:
@@ -356,6 +403,7 @@ async def extract_text_from_image(image_data: bytes, mime_type: str) -> str:
             image_data=image_data,
             mime_type=mime_type,
             generation_config={"temperature": 0.0},
+            rate_limit_context=f"extract_text_from_image:{mime_type}",
         )
 
         if not extracted_text:
@@ -363,6 +411,9 @@ async def extract_text_from_image(image_data: bytes, mime_type: str) -> str:
 
         logger.info(f"OCR completed: extracted {len(extracted_text)} characters")
         return extracted_text
+
+    except GeminiServiceError:
+        raise
 
     except Exception as e:
         logger.error(f"OCR extraction failed: {e}")
@@ -378,6 +429,7 @@ async def validate_bengali_quality(bengali_text: str) -> Dict[str, Any]:
         response_text = _generate_text(
             prompt=prompt,
             generation_config={"temperature": 0.2},
+            rate_limit_context="validate_bengali_quality",
         )
 
         if not response_text:
@@ -408,16 +460,19 @@ def compute_risk_score(quiz_score: int, medication_count: int, role: str, warnin
 def check_gemini_health() -> Dict[str, Any]:
     """Check if Gemini API is accessible and healthy."""
     try:
-        if not GEMINI_API_KEY:
+        try:
+            _ensure_gemini_client()
+        except GeminiServiceError as exc:
             return {
                 "status": "down",
-                "message": "API key not configured",
+                "message": str(exc),
                 "available": False
             }
 
         response_text = _generate_text(
             prompt="Say 'ok'",
             generation_config={"temperature": 0},
+            rate_limit_context="health_check",
         )
 
         if response_text:

@@ -49,7 +49,7 @@ class ProcessRequest(BaseModel):
     language: LanguageEnum = Field(default=LanguageEnum.BOTH, description="Output language(s)")
     re_explain: bool = Field(default=False, description="Trigger simpler re-explanation after low quiz score")
     previous_simplified: Optional[str] = Field(None, description="Previous simplified text for re-explanation context")
-    patient_id: str = Field(..., description="Patient ID")
+    patient_id: Optional[str] = Field(None, description="Patient ID for persistence and history lookup")
     doctor_id: Optional[str] = Field(None, description="Doctor ID")
 
     @field_validator('discharge_text')
@@ -59,6 +59,14 @@ class ProcessRequest(BaseModel):
         if len(v) < 50:
             raise ValueError('Discharge summary too short — minimum 50 characters required')
         return v
+
+    @field_validator('patient_id', 'doctor_id')
+    @classmethod
+    def normalize_optional_identifiers(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
 
 
 class ProcessResponse(BaseModel):

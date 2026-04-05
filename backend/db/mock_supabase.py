@@ -1,12 +1,49 @@
 """
 Mock Supabase client backed by local SQLite.
 Used for local development without a real Supabase instance.
+
+Now with:
+- bcrypt password hashing (secure signup)
+- Real JWT tokens via auth/jwt_utils (24-hour expiry)
 """
 
 import sqlite3
 import uuid
 import json
+import logging
 import db.local as db_local
+
+logger = logging.getLogger(__name__)
+
+# Try to import bcrypt; fall back to plaintext if not installed
+try:
+    import bcrypt
+    BCRYPT_AVAILABLE = True
+except ImportError:
+    BCRYPT_AVAILABLE = False
+    logger.warning("bcrypt not installed — passwords stored in plaintext (install bcrypt for security)")
+
+# Try to import JWT utils; fall back to mock token if not available
+from auth.jwt_utils import create_access_token
+JWT_AVAILABLE = True
+
+
+def _hash_password(password: str) -> str:
+    """Hash a password using bcrypt."""
+    if BCRYPT_AVAILABLE:
+        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    return password
+
+
+def _verify_password(password: str, hashed: str) -> bool:
+    """Verify a password against a bcrypt hash. Falls back to plaintext comparison."""
+    if BCRYPT_AVAILABLE:
+        try:
+            return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+        except (ValueError, TypeError):
+            # Hash might be plaintext from before bcrypt was installed
+            return password == hashed
+    return password == hashed
 
 
 class MockData:
@@ -15,13 +52,16 @@ class MockData:
 
 
 class MockUser:
-    def __init__(self, user_id):
+    def __init__(self, user_id, email="", role="", name=""):
         self.id = user_id
+        self.email = email
+        self.user_metadata = {"full_name": name, "role": role}
+        self.app_metadata = {}
 
 
 class MockSession:
-    def __init__(self):
-        self.access_token = "mock-jwt-token"
+    def __init__(self, access_token="mock-jwt-token"):
+        self.access_token = access_token
 
 
 class MockAuthResponse:
@@ -39,30 +79,63 @@ class MockAuth:
         password = payload.get("password")
         data = payload.get("options", {}).get("data", {})
         user_id = str(uuid.uuid4())
+        name = data.get("full_name", "")
+        role = data.get("role", "patient")
+
+        # Hash the password
+        hashed_password = _hash_password(password)
 
         c = self.db.cursor()
         try:
             c.execute(
                 "INSERT INTO profiles (id, user_id, email, password_hash, full_name, role, phone, phone_verified) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (user_id, user_id, email, password, data.get("full_name", ""),
-                 data.get("role", "patient"), data.get("phone", ""), 0),
+                (user_id, user_id, email, hashed_password, name,
+                 role, data.get("phone", ""), 0),
             )
             self.db.commit()
         except sqlite3.IntegrityError:
             self.db.rollback()
             raise Exception("User already registered")
-        return MockAuthResponse(MockUser(user_id))
+
+        user = MockUser(user_id, email=email, role=role, name=name)
+        return MockAuthResponse(user)
 
     def sign_in_with_password(self, payload):
         email = payload.get("email")
         password = payload.get("password")
         c = self.db.cursor()
-        c.execute("SELECT * FROM profiles WHERE email=? AND password_hash=?", (email, password))
+        c.execute("SELECT * FROM profiles WHERE email=?", (email,))
         row = c.fetchone()
         if not row:
             raise Exception("Invalid login credentials")
-        return MockAuthResponse(MockUser(row['user_id']), session=MockSession())
+
+        row_dict = dict(row)
+        stored_hash = row_dict.get("password_hash", "")
+
+        # Verify password
+        if not _verify_password(password, stored_hash):
+            raise Exception("Invalid login credentials")
+
+        user_id = row_dict["user_id"]
+        role = row_dict.get("role", "patient")
+        name = row_dict.get("full_name", "")
+
+        user = MockUser(user_id, email=email, role=role, name=name)
+
+        # Generate a real JWT token
+        if JWT_AVAILABLE:
+            token = create_access_token(
+                user_id=user_id,
+                email=email,
+                role=role,
+                name=name,
+            )
+        else:
+            token = "mock-jwt-token"
+
+        session = MockSession(access_token=token)
+        return MockAuthResponse(user, session=session)
 
 
 class MockQuery:

@@ -132,7 +132,14 @@ def _migrate_prescriptions_table():
 
 def seed_mock_users():
     """Seed three mock credential users for local development testing."""
-    import uuid
+    # Hash passwords with bcrypt if available
+    try:
+        import bcrypt
+        def _hash(pw):
+            return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    except ImportError:
+        def _hash(pw):
+            return pw
 
     mock_users = [
         {
@@ -143,7 +150,7 @@ def seed_mock_users():
             "role": "patient",
             "phone": "+919876543210",
             "phone_verified": 1,
-            "password_hash": "Patient@123",
+            "password_hash": _hash("Patient@123"),
         },
         {
             "id": "mock-doctor-001",
@@ -153,7 +160,7 @@ def seed_mock_users():
             "role": "doctor",
             "phone": "+919876543211",
             "phone_verified": 1,
-            "password_hash": "Doctor@123",
+            "password_hash": _hash("Doctor@123"),
         },
         {
             "id": "mock-admin-001",
@@ -163,7 +170,7 @@ def seed_mock_users():
             "role": "admin",
             "phone": "+919876543212",
             "phone_verified": 1,
-            "password_hash": "Admin@123",
+            "password_hash": _hash("Admin@123"),
         },
     ]
 
