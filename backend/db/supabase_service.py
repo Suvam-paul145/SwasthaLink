@@ -6,7 +6,7 @@ Prescription and profile CRUD have been moved to db.prescription_db and db.profi
 import os
 import logging
 from typing import Dict, Any, Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import uuid
 import inspect
 from db.mock_supabase import MockSupabaseClient
@@ -428,11 +428,47 @@ create table if not exists public.discharge_results (
   medications jsonb not null default '[]'::jsonb,
   follow_up jsonb,
   warning_signs jsonb not null default '[]'::jsonb,
-  quiz_questions jsonb not null default '[]'::jsonb
+  quiz_questions jsonb not null default '[]'::jsonb,
+  risk_score int,
+  risk_level text
 );
 
 create index if not exists idx_discharge_results_patient_created
   on public.discharge_results (patient_id, created_at desc);
+
+create table if not exists public.share_tokens (
+  token text primary key,
+  session_id uuid not null,
+  patient_id text not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_share_tokens_session
+  on public.share_tokens (session_id);
+
+create index if not exists idx_share_tokens_expires_at
+  on public.share_tokens (expires_at);
+
+create table if not exists public.followup_messages (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  session_id uuid not null,
+  patient_id text not null,
+  patient_name text,
+  phone_number text not null,
+  day_offset int not null,
+  scheduled_for timestamptz not null,
+  message_text text not null,
+  medications jsonb not null default '[]'::jsonb,
+  status text not null default 'pending', -- pending|sent|failed
+  sent_at timestamptz,
+  twilio_sid text,
+  error text
+);
+
+create index if not exists idx_followup_messages_status_scheduled
+  on public.followup_messages (status, scheduled_for);
 """
 
 
@@ -456,6 +492,8 @@ async def save_discharge_result(patient_id: str, doctor_id: Optional[str], gemin
                 gemini_result.get("quiz_questions")
                 or gemini_result.get("comprehension_questions", [])
             ),
+            "risk_score": gemini_result.get("risk_score"),
+            "risk_level": gemini_result.get("risk_level"),
         }
 
         result = await _execute_query(
@@ -469,6 +507,133 @@ async def save_discharge_result(patient_id: str, doctor_id: Optional[str], gemin
     except Exception as e:
         logger.error(f"Failed to save discharge result: {e}")
         return {"success": False, "error": str(e)}
+
+
+async def create_share_token(
+    session_id: str,
+    patient_id: str,
+    expires_in_days: int = 30,
+) -> Dict[str, Any]:
+    """Create an 8-char unique share token mapped to one session."""
+    try:
+        if not supabase_client:
+            return {"success": False, "error": "Supabase not configured"}
+
+        try:
+            import shortuuid  # type: ignore
+        except Exception as exc:
+            logger.error(f"shortuuid import failed: {exc}")
+            return {"success": False, "error": "shortuuid is not installed"}
+
+        expires_at = (datetime.now(timezone.utc) + timedelta(days=expires_in_days)).isoformat()
+
+        token = None
+        for _ in range(10):
+            candidate = shortuuid.ShortUUID().random(length=8)
+            exists_result = await _execute_query(
+                supabase_client.table("share_tokens").select("token").eq("token", candidate).limit(1)
+            )
+            if not (getattr(exists_result, "data", None) or []):
+                token = candidate
+                break
+
+        if not token:
+            return {"success": False, "error": "Unable to generate unique token"}
+
+        payload = {
+            "token": token,
+            "session_id": session_id,
+            "patient_id": patient_id,
+            "expires_at": expires_at,
+        }
+
+        insert_result = await _execute_query(
+            supabase_client.table("share_tokens").insert(payload)
+        )
+
+        return {
+            "success": True,
+            "token": token,
+            "data": (insert_result.data[0] if getattr(insert_result, "data", None) else payload),
+        }
+    except Exception as e:
+        logger.error(f"Failed to create share token: {e}")
+        return {"success": False, "error": str(e)}
+
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    """Parse ISO timestamp safely."""
+    if not value or not isinstance(value, str):
+        return None
+    normalized = value.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+
+
+async def get_share_payload_by_token(token: str) -> Optional[Dict[str, Any]]:
+    """Fetch non-PHI share payload for a valid (non-expired) token."""
+    try:
+        if not supabase_client:
+            return None
+
+        token_result = await _execute_query(
+            supabase_client.table("share_tokens").select("*").eq("token", token).limit(1)
+        )
+        token_rows = token_result.data if getattr(token_result, "data", None) else []
+        if not token_rows:
+            return None
+
+        token_row = token_rows[0]
+        expires_at = _parse_iso_datetime(token_row.get("expires_at"))
+        now_utc = datetime.now(timezone.utc)
+        if not expires_at:
+            return None
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at <= now_utc:
+            return None
+
+        session_id = token_row.get("session_id")
+        patient_id = token_row.get("patient_id")
+
+        history_result = await _execute_query(
+            supabase_client
+            .table("session_history")
+            .select("*")
+            .eq("session_id", session_id)
+            .order("created_at", desc=True)
+            .limit(1)
+        )
+        history_rows = history_result.data if getattr(history_result, "data", None) else []
+        history_row = history_rows[0] if history_rows else {}
+
+        risk_score = None
+        try:
+            dr_result = await _execute_query(
+                supabase_client
+                .table("discharge_results")
+                .select("*")
+                .eq("patient_id", patient_id)
+                .order("created_at", desc=True)
+                .limit(1)
+            )
+            dr_rows = dr_result.data if getattr(dr_result, "data", None) else []
+            if dr_rows:
+                risk_score = dr_rows[0].get("risk_score")
+        except Exception as dr_exc:
+            logger.warning(f"Could not fetch risk_score from discharge_results: {dr_exc}")
+
+        return {
+            "medications": history_row.get("medications", []),
+            "follow_up": history_row.get("follow_up"),
+            "warning_signs": history_row.get("warning_signs", []),
+            "risk_score": risk_score,
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch share payload: {e}")
+        return None
 
 
 async def get_patient_discharge_history(patient_id: str, limit: int = 50) -> Dict[str, Any]:
@@ -493,3 +658,154 @@ async def get_patient_discharge_history(patient_id: str, limit: int = 50) -> Dic
     except Exception as e:
         logger.error(f"Failed to fetch patient discharge history: {e}")
         return {"success": False, "error": str(e), "history": []}
+
+
+async def create_followup_message_jobs(jobs: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Insert follow-up WhatsApp jobs for future delivery."""
+    try:
+        if not supabase_client:
+            return {"success": False, "error": "Supabase not configured", "jobs": []}
+
+        payload: List[Dict[str, Any]] = []
+        for job in jobs:
+            payload.append(
+                {
+                    "id": str(uuid.uuid4()),
+                    "created_at": datetime.utcnow().isoformat(),
+                    "session_id": job.get("session_id"),
+                    "patient_id": job.get("patient_id"),
+                    "patient_name": job.get("patient_name"),
+                    "phone_number": job.get("phone_number"),
+                    "day_offset": job.get("day_offset"),
+                    "scheduled_for": job.get("scheduled_for"),
+                    "message_text": job.get("message_text"),
+                    "medications": job.get("medications", []),
+                    "status": "pending",
+                }
+            )
+
+        result = await _execute_query(
+            supabase_client.table("followup_messages").insert(payload)
+        )
+        return {
+            "success": True,
+            "jobs": result.data if getattr(result, "data", None) else payload,
+        }
+    except Exception as e:
+        logger.error(f"Failed to create follow-up jobs: {e}")
+        return {"success": False, "error": str(e), "jobs": []}
+
+
+async def get_pending_followup_jobs(limit: int = 200) -> List[Dict[str, Any]]:
+    """Return pending follow-up jobs ordered by schedule time."""
+    try:
+        if not supabase_client:
+            return []
+
+        result = await _execute_query(
+            supabase_client
+            .table("followup_messages")
+            .select("*")
+            .eq("status", "pending")
+            .order("scheduled_for", desc=False)
+            .limit(limit)
+        )
+        return result.data if getattr(result, "data", None) else []
+    except Exception as e:
+        logger.error(f"Failed to list pending follow-up jobs: {e}")
+        return []
+
+
+async def get_followup_job(job_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch one follow-up job by ID."""
+    try:
+        if not supabase_client:
+            return None
+        result = await _execute_query(
+            supabase_client.table("followup_messages").select("*").eq("id", job_id).limit(1)
+        )
+        rows = result.data if getattr(result, "data", None) else []
+        return rows[0] if rows else None
+    except Exception as e:
+        logger.error(f"Failed to fetch follow-up job {job_id}: {e}")
+        return None
+
+
+async def mark_followup_job_sent(job_id: str, twilio_sid: Optional[str]) -> Dict[str, Any]:
+    """Mark a follow-up job as sent."""
+    try:
+        if not supabase_client:
+            return {"success": False, "error": "Supabase not configured"}
+
+        result = await _execute_query(
+            supabase_client
+            .table("followup_messages")
+            .update(
+                {
+                    "status": "sent",
+                    "twilio_sid": twilio_sid,
+                    "sent_at": datetime.utcnow().isoformat(),
+                    "error": None,
+                }
+            )
+            .eq("id", job_id)
+        )
+        return {"success": True, "data": result.data if getattr(result, "data", None) else []}
+    except Exception as e:
+        logger.error(f"Failed to mark follow-up job sent: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def mark_followup_job_failed(job_id: str, error: str) -> Dict[str, Any]:
+    """Mark a follow-up job as failed."""
+    try:
+        if not supabase_client:
+            return {"success": False, "error": "Supabase not configured"}
+        result = await _execute_query(
+            supabase_client
+            .table("followup_messages")
+            .update({"status": "failed", "error": error[:500]})
+            .eq("id", job_id)
+        )
+        return {"success": True, "data": result.data if getattr(result, "data", None) else []}
+    except Exception as e:
+        logger.error(f"Failed to mark follow-up job failed: {e}")
+        return {"success": False, "error": str(e)}
+
+
+async def get_patient_contact(patient_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch patient phone/name from profiles table."""
+    try:
+        if not supabase_client:
+            return None
+
+        result = await _execute_query(
+            supabase_client
+            .table("profiles")
+            .select("user_id, full_name, name, phone")
+            .eq("user_id", patient_id)
+            .limit(1)
+        )
+        rows = result.data if getattr(result, "data", None) else []
+        if not rows:
+            result = await _execute_query(
+                supabase_client
+                .table("profiles")
+                .select("user_id, full_name, name, phone")
+                .eq("id", patient_id)
+                .limit(1)
+            )
+            rows = result.data if getattr(result, "data", None) else []
+
+        if not rows:
+            return None
+
+        row = rows[0]
+        return {
+            "patient_id": row.get("user_id") or patient_id,
+            "patient_name": row.get("full_name") or row.get("name") or "Patient",
+            "phone_number": row.get("phone"),
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch patient contact: {e}")
+        return None

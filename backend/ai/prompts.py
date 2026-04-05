@@ -272,3 +272,30 @@ def format_re_explain_prompt(
 def format_ocr_prompt() -> str:
     """Get OCR extraction prompt (no variables needed)"""
     return OCR_EXTRACTION_PROMPT
+
+
+DRUG_INTERACTIONS_PROMPT = """You are a drug interaction checker.
+
+Given this medication list:
+{medications_json}
+
+Return ONLY a valid JSON array.
+Do not include markdown, backticks, explanations, or extra text.
+
+Each array item must be an object with exactly these keys:
+- drug_a
+- drug_b
+- severity (must be one of: mild, moderate, severe)
+- description
+- action
+
+If there are no known clinically relevant interactions, return:
+[]
+"""
+
+
+def format_drug_interactions_prompt(medications: list[str]) -> str:
+    """Format prompt for drug interaction extraction."""
+    import json
+    medications_json = json.dumps(medications, ensure_ascii=False)
+    return DRUG_INTERACTIONS_PROMPT.format(medications_json=medications_json)

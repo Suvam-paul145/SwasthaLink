@@ -86,6 +86,7 @@ class ProcessResponse(BaseModel):
     session_id: Optional[str] = Field(None, description="Session tracking ID")
     risk_score: Optional[int] = Field(None, description="0-100 risk score")
     risk_level: Optional[str] = Field(None, description="'low', 'moderate', or 'high'")
+    share_token: Optional[str] = Field(None, description="Public share token for summary link")
 
 
 class QuizSubmitRequest(BaseModel):

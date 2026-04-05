@@ -101,29 +101,85 @@ def init_db():
             medications TEXT DEFAULT '[]',
             follow_up TEXT DEFAULT '{}',
             warning_signs TEXT DEFAULT '[]',
-            quiz_questions TEXT DEFAULT '[]'
+            quiz_questions TEXT DEFAULT '[]',
+            risk_score INTEGER,
+            risk_level TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS share_tokens (
+            token TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            patient_id TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS followup_messages (
+            id TEXT PRIMARY KEY,
+            created_at TEXT,
+            session_id TEXT NOT NULL,
+            patient_id TEXT NOT NULL,
+            patient_name TEXT,
+            phone_number TEXT NOT NULL,
+            day_offset INTEGER NOT NULL,
+            scheduled_for TEXT NOT NULL,
+            message_text TEXT NOT NULL,
+            medications TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'pending',
+            sent_at TEXT,
+            twilio_sid TEXT,
+            error TEXT
         );
     ''')
     conn.commit()
     conn.close()
-    # Run migration for existing databases
-    _migrate_prescriptions_table()
+    _run_migrations()
 
 
-def _migrate_prescriptions_table():
-    """Add new columns to existing prescriptions table (safe for fresh DB too)."""
+def _run_migrations():
+    """Add missing columns/tables for existing local databases."""
     conn = get_connection()
     c = conn.cursor()
+
+    c.executescript('''
+        CREATE TABLE IF NOT EXISTS share_tokens (
+            token TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            patient_id TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS followup_messages (
+            id TEXT PRIMARY KEY,
+            created_at TEXT,
+            session_id TEXT NOT NULL,
+            patient_id TEXT NOT NULL,
+            patient_name TEXT,
+            phone_number TEXT NOT NULL,
+            day_offset INTEGER NOT NULL,
+            scheduled_for TEXT NOT NULL,
+            message_text TEXT NOT NULL,
+            medications TEXT DEFAULT '[]',
+            status TEXT DEFAULT 'pending',
+            sent_at TEXT,
+            twilio_sid TEXT,
+            error TEXT
+        );
+    ''')
+
     new_columns = [
-        ("tests", "TEXT DEFAULT '[]'"),
-        ("report_type", "TEXT DEFAULT 'prescription'"),
-        ("raw_ocr_text", "TEXT"),
-        ("patient_insights", "TEXT"),
-        ("linked_prescription_id", "TEXT"),
+        ("prescriptions", "tests", "TEXT DEFAULT '[]'"),
+        ("prescriptions", "report_type", "TEXT DEFAULT 'prescription'"),
+        ("prescriptions", "raw_ocr_text", "TEXT"),
+        ("prescriptions", "patient_insights", "TEXT"),
+        ("prescriptions", "linked_prescription_id", "TEXT"),
+        ("discharge_results", "risk_score", "INTEGER"),
+        ("discharge_results", "risk_level", "TEXT"),
     ]
-    for col_name, col_type in new_columns:
+    for table_name, col_name, col_type in new_columns:
         try:
-            c.execute(f"ALTER TABLE prescriptions ADD COLUMN {col_name} {col_type}")
+            c.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}")
         except Exception:
             pass  # Column already exists
     conn.commit()
