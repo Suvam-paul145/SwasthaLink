@@ -4,7 +4,6 @@ Handles interactions with Cerebras, Groq and Qwen Coder Cloud API (via OpenAI SD
 Includes JSON parsing, error handling, and prompt management
 """
 
-import os
 import json
 import re
 import logging
@@ -12,7 +11,6 @@ import base64
 from typing import Dict, Any, Optional
 
 from openai import AsyncOpenAI
-import httpx
 
 from services.rate_limiter_service import llm_rate_limiter, RateLimitExceeded
 

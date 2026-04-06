@@ -7,14 +7,6 @@ import string
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
-
-
-def _generate_patient_id() -> str:
-    """Generate a system-level patient ID in format PID-XXXXXX."""
-    chars = string.ascii_uppercase + string.digits
-    code = ''.join(random.choices(chars, k=6))
-    return f"PID-{code}"
-
 from models import (
     PrescriptionExtractResponse, PrescriptionApproveRequest,
     PrescriptionRejectRequest, PrescriptionPatientViewResponse,
@@ -38,6 +30,13 @@ from core.exceptions import LLMServiceError, LlamaCloudServiceError, S3ServiceEr
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _generate_patient_id() -> str:
+    """Generate a system-level patient ID in format PID-XXXXXX."""
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(random.choices(chars, k=6))
+    return f"PID-{code}"
 
 
 def _build_llamacloud_filename(filename: Optional[str], mime_type: Optional[str]) -> str:

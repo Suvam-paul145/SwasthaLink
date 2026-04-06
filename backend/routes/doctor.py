@@ -5,7 +5,6 @@ Doctor-specific activity and summary routes.
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query
-from typing import List, Dict, Any
 
 from db.supabase_service import supabase_client
 

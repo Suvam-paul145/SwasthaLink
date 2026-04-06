@@ -71,7 +71,7 @@ def _load_runtime_dependencies():
         is_supabase_table_available,
     )
     from routes import all_routers
-    from services.llm_service import _generate_text, check_llm_health
+    from services.llm_service import _generate_text, check_llm_health, is_llm_configured
     from services.s3_service import check_s3_health
     from services.twilio_service import (
         check_twilio_health,
@@ -85,6 +85,7 @@ def _load_runtime_dependencies():
         "frontend_url": FRONTEND_URL,
         "routers": all_routers,
         "check_gemini_health": check_llm_health,
+        "is_llm_configured": is_llm_configured,
         "check_twilio_health": check_twilio_health,
         "check_supabase_health": check_supabase_health,
         "check_s3_health": check_s3_health,
@@ -178,8 +179,11 @@ def create_app() -> FastAPI:
         logger.info(f"Environment: {os.getenv('ENVIRONMENT', 'development')}")
         logger.info(f"Frontend URL: {runtime['frontend_url']}")
         logger.info("=" * 50)
+
+        # Fast health checks — no LLM API call at startup (was adding 2-10s)
+        llm_status = "ok" if runtime["is_llm_configured"]() else "not configured"
         supabase_health = runtime["check_supabase_health"]()
-        logger.info(f"LLM API:    {await _quiet_status(runtime['check_gemini_health'])}")
+        logger.info(f"LLM API:    {llm_status}")
         logger.info(f"Twilio API: {runtime['check_twilio_health']().get('status')}")
         logger.info(f"Supabase:   {supabase_health.get('status')}")
         logger.info(f"AWS S3:     {runtime['check_s3_health']().get('status')}")
@@ -216,6 +220,16 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def normalize_double_slashes(request, call_next):
+        """Fix double-slash paths (e.g. //api/... -> /api/...) that break CORS preflight."""
+        path = request.scope.get("path", "")
+        if "//" in path:
+            cleaned = re.sub(r'/+', '/', path)
+            request.scope["path"] = cleaned
+            request.scope["raw_path"] = cleaned.encode("ascii")
+        return await call_next(request)
 
     for router in runtime["routers"]:
         app.include_router(router)

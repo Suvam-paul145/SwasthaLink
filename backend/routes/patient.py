@@ -3,13 +3,11 @@ Patient-specific profile and PID mapping routes.
 """
 
 import logging
-from typing import Dict, Any, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from auth.jwt_utils import get_current_user
 from db.profile_db import link_patient_pid, get_user_pid
-from db.supabase_service import supabase_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/patient", tags=["patient"])

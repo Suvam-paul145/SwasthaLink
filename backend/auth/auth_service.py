@@ -7,7 +7,6 @@ All auth is handled via the `profiles` table + bcrypt + our own JWT.
 
 import logging
 import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import bcrypt
