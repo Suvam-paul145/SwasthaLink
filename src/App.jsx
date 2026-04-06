@@ -11,10 +11,12 @@ import DoctorPanelPage from "./pages/DoctorPanelPage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import LandingPage from "./pages/LandingPage";
 
 function App() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -25,7 +27,6 @@ function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Navigate to="/overview" replace />} />
         <Route path="/overview" element={<ClarityHubPage />} />
         <Route path="/dashboard" element={<Navigate to="/overview" replace />} />
         <Route path="/clarity-hub" element={<DetailedClarityHubPage />} />
@@ -61,7 +62,7 @@ function App() {
         <Route path="/showcase" element={<ComponentShowcasePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

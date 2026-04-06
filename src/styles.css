@@ -41,6 +41,13 @@
   border: 1px solid rgb(255 255 255 / 0.05);
 }
 
+.auth-card-glow {
+  box-shadow:
+    0 24px 80px rgba(2, 8, 23, 0.45),
+    0 0 0 1px rgba(45, 212, 191, 0.14),
+    0 0 72px rgba(45, 212, 191, 0.24);
+}
+
 .ethereal-bg {
   background: radial-gradient(circle at top right, #14b8a615, transparent),
               radial-gradient(circle at bottom left, #071325, #004d4d20),

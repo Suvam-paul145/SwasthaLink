@@ -109,7 +109,11 @@ const apiRequest = async (endpoint, options = {}) => {
     }
 
     if (error.message === 'Failed to fetch') {
-      throw new APIError(ERROR_MESSAGES.NETWORK_ERROR, 0);
+      throw new APIError(
+        `Cannot reach backend at ${API_BASE_URL}. Check that the backend server is running and retry.`,
+        0,
+        { url, baseUrl: API_BASE_URL }
+      );
     }
 
     throw new APIError(ERROR_MESSAGES.UNKNOWN_ERROR, 500, { originalError: error.message });
@@ -388,10 +392,10 @@ const api = {
    * @param {string} code - OTP code
    * @returns {Promise<Object>} Verification result
    */
-  verifyOtp: async (phone, code) => {
+  verifyOtp: async (phone, code, options = {}) => {
     return await apiRequest(API_ENDPOINTS.AUTH_VERIFY_OTP, {
       method: 'POST',
-      body: JSON.stringify({ phone, code }),
+      body: JSON.stringify({ phone, code, ...options }),
     });
   },
 
@@ -554,6 +558,39 @@ const api = {
     return await apiRequest(API_ENDPOINTS.PATIENT_CHATBOT_QUERY(patientId), {
       method: 'POST',
       body: JSON.stringify({ question }),
+    });
+  },
+
+  /**
+   * Get daily summary of doctor's activity.
+   * @param {string} doctorId - Doctor ID
+   * @returns {Promise<Object>} Summary data
+   */
+  getDailySummary: async (doctorId) => {
+    return await apiRequest(`/api/doctor/daily-summary?doctor_id=${doctorId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Link a system-generated PID to the current patient profile.
+   * @param {string} pid - PID-XXXXXX code
+   * @returns {Promise<Object>} Result message
+   */
+  linkPatientPid: async (pid) => {
+    return await apiRequest('/api/patient/link-pid', {
+      method: 'POST',
+      body: JSON.stringify({ pid }),
+    });
+  },
+
+  /**
+   * Get the logged-in patient's profile (including linked PID).
+   * @returns {Promise<Object>} Patient profile
+   */
+  getPatientProfile: async () => {
+    return await apiRequest('/api/patient/profile', {
+      method: 'GET',
     });
   },
 };
