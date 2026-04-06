@@ -23,10 +23,18 @@ def read_env(*names: str) -> Optional[str]:
 
 
 # CORS / frontend
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://swasthalink.vercel.app")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://swastha-link-psi.vercel.app")
 ALLOWED_ORIGINS = [
     "http://localhost:5173",   # Vite dev server
     "http://localhost:3000",   # Alternative dev server
     "http://127.0.0.1:5173",
     FRONTEND_URL,
 ]
+
+# Include any extra Vercel preview/branch URLs from EXTRA_CORS_ORIGINS (comma-separated)
+_extra = os.getenv("EXTRA_CORS_ORIGINS", "")
+if _extra:
+    ALLOWED_ORIGINS.extend([u.strip() for u in _extra.split(",") if u.strip()])
+
+# Deduplicate while preserving order
+ALLOWED_ORIGINS = list(dict.fromkeys(ALLOWED_ORIGINS))

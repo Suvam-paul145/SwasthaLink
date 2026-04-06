@@ -4,7 +4,8 @@
  */
 
 // Get API base URL from environment variables or use default
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Strip trailing slash to prevent double-slash in URL joins (e.g. "host//api/...")
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
 
 // API Endpoints
 export const API_ENDPOINTS = {
