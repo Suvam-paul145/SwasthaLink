@@ -3,6 +3,17 @@ AI prompt templates — all Gemini prompts centralised for easy iteration and te
 Temperature: 0.3 for consistent medical responses.
 """
 
+# Language display names (code → full name)
+LANGUAGE_NAMES = {
+    "en": "English",
+    "bn": "Bengali",
+    "hi": "Hindi",
+    "ta": "Tamil",
+    "te": "Telugu",
+    "mr": "Marathi",
+    "both": "Bengali",  # default local language for "both" mode
+}
+
 # Role-specific instruction templates
 ROLE_INSTRUCTIONS = {
     "patient": """Explain directly to the patient themselves. Use 'you' and 'your'.
@@ -28,7 +39,7 @@ CRITICAL RULES:
 1. NEVER fabricate information not in the discharge summary
 2. Use ONLY plain everyday language — zero medical jargon
 3. Return ONLY a valid JSON object — no markdown, no backticks, no preamble
-4. Bengali must be everyday spoken Bengali (NOT formal/literary Bengali)
+4. {local_language} must be everyday spoken {local_language} (NOT formal/literary)
 5. Medication names must be in plain purpose form (e.g., "heart tablet" not "Metoprolol")
 
 ROLE: {role_instruction}
@@ -40,7 +51,7 @@ Respond with this EXACT JSON structure:
 
 {{
   "simplified_english": "Start with: **3 things you must do today:**\\n1. ...\\n2. ...\\n3. ...\\n\\nThen 2-3 short paragraphs explaining the condition and recovery in plain English. Maximum 300 words total.",
-  "simplified_bengali": "Same content in everyday spoken Bengali. Use words your grandmother would use in a village conversation. Avoid Sanskrit-derived formal words. Maximum 300 words.",
+  "simplified_local": "Same content in everyday spoken {local_language}. Use words your grandmother would use in a village conversation. Avoid formal/literary words. Maximum 300 words.",
   "medications": [
     {{
       "name": "Plain purpose (e.g., 'blood thinner', 'heart tablet', 'water pill')",
@@ -245,12 +256,14 @@ def get_role_instruction(role: str) -> str:
     return ROLE_INSTRUCTIONS.get(role, ROLE_INSTRUCTIONS["patient"])
 
 
-def format_master_prompt(discharge_text: str, role: str) -> str:
+def format_master_prompt(discharge_text: str, role: str, language: str = "bn") -> str:
     """Format the master simplification prompt with variables"""
     role_instruction = get_role_instruction(role)
+    local_language = LANGUAGE_NAMES.get(language, LANGUAGE_NAMES.get("bn", "Bengali"))
     return MASTER_SIMPLIFICATION_PROMPT.format(
         role_instruction=role_instruction,
-        discharge_text=discharge_text
+        discharge_text=discharge_text,
+        local_language=local_language,
     )
 
 

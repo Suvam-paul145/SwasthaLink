@@ -69,8 +69,21 @@ export const ROLES = {
 export const LANGUAGES = {
   ENGLISH: 'en',
   BENGALI: 'bn',
+  HINDI: 'hi',
+  TAMIL: 'ta',
+  TELUGU: 'te',
+  MARATHI: 'mr',
   BOTH: 'both',
 };
+
+// Language display labels (for dropdown UI)
+export const LANGUAGE_LABELS = [
+  { code: 'bn', label: 'বাংলা (Bengali)' },
+  { code: 'hi', label: 'हिन्दी (Hindi)' },
+  { code: 'ta', label: 'தமிழ் (Tamil)' },
+  { code: 'te', label: 'తెలుగు (Telugu)' },
+  { code: 'mr', label: 'मराठी (Marathi)' },
+];
 
 // File upload constraints
 export const FILE_UPLOAD = {

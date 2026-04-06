@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import ChatbotPanel from '../components/ChatbotPanel';
 import RiskGauge from '../components/RiskGauge';
+import ShareQRModal from '../components/ShareQRModal';
+import EmergencyQRCard from '../components/EmergencyQRCard';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -29,6 +31,8 @@ function FamilyDashboardPage() {
   const [linkInput, setLinkInput] = useState('');
   const [linking, setLinking] = useState(false);
   const [linkStatus, setLinkStatus] = useState({ type: '', message: '' });
+  const [showShareQR, setShowShareQR] = useState(false);
+  const [showEmergencyCard, setShowEmergencyCard] = useState(false);
 
   // Fetch prescriptions and history
   useEffect(() => {
@@ -133,10 +137,26 @@ function FamilyDashboardPage() {
             <span style={{ background: 'rgba(13,148,136,.2)', color: '#5eead4', padding: '4px 12px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', border: '1px solid rgba(13,148,136,.2)' }}>AI Clinical Insights</span>
           </div>
           <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>Family Dashboard</h1>
-          <p style={{ color: '#94a3b8', fontSize: '16px', marginTop: '6px' }}>
-            AI-generated clinical insights for <span style={{ color: '#5eead4', fontWeight: 600 }}>{patientName}</span>
-            {linkedPid && <span style={{ marginLeft: '12px', fontSize: '12px', background: 'rgba(94,234,212,.1)', color: '#5eead4', padding: '2px 8px', borderRadius: '6px' }}>Linked: {linkedPid}</span>}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
+            <p style={{ color: '#94a3b8', fontSize: '16px', margin: 0 }}>
+              AI-generated clinical insights for <span style={{ color: '#5eead4', fontWeight: 600 }}>{patientName}</span>
+              {linkedPid && <span style={{ marginLeft: '12px', fontSize: '12px', background: 'rgba(94,234,212,.1)', color: '#5eead4', padding: '2px 8px', borderRadius: '6px' }}>Linked: {linkedPid}</span>}
+            </p>
+            <button
+              onClick={() => setShowShareQR(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(13,148,136,.15)', border: '1px solid rgba(13,148,136,.3)', borderRadius: '10px', padding: '6px 14px', color: '#5eead4', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
+              Share with Family
+            </button>
+            <button
+              onClick={() => setShowEmergencyCard(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.3)', borderRadius: '10px', padding: '6px 14px', color: '#fca5a5', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>emergency</span>
+              Emergency Card
+            </button>
+          </div>
         </div>
 
         {/* Link Records Section */}
@@ -556,6 +576,24 @@ function PrescriptionImageViewer({ imageUrl, prescriptionId }) {
             />
           )}
         </div>
+      )}
+
+      {showShareQR && (
+        <ShareQRModal
+          patientId={linkedPid || patientId}
+          patientName={patientName}
+          onClose={() => setShowShareQR(false)}
+        />
+      )}
+      {showEmergencyCard && (
+        <EmergencyQRCard
+          patientName={patientName}
+          bloodGroup={prescriptions[0]?.extracted_data?.blood_group}
+          allergies={prescriptions[0]?.extracted_data?.allergies || []}
+          emergencyContact={user?.phone}
+          patientId={linkedPid || patientId}
+          onClose={() => setShowEmergencyCard(false)}
+        />
       )}
     </div>
   );

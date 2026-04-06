@@ -1,10 +1,23 @@
-import MedicalHeart3D from '../components/MedicalHeart3D';
-import DNA3DHelix from '../components/DNA3DHelix';
-import FloatingMedicalCube from '../components/FloatingMedicalCube';
+import { lazy, Suspense } from 'react';
+
+const MedicalHeart3D = lazy(() => import('../components/MedicalHeart3D'));
+const DNA3DHelix = lazy(() => import('../components/DNA3DHelix'));
+const FloatingMedicalCube = lazy(() => import('../components/FloatingMedicalCube'));
 import VitalSignsChart from '../components/VitalSignsChart';
 import ComprehensionScoreChart from '../components/ComprehensionScoreChart';
 import ProcessingStatusDoughnut from '../components/ProcessingStatusDoughnut';
 import ReadmissionRiskChart from '../components/ReadmissionRiskChart';
+
+function Lazy3DFallback() {
+  return (
+    <div className="h-80 flex items-center justify-center bg-white/5 rounded-xl">
+      <div className="text-center space-y-2">
+        <span className="material-symbols-outlined text-primary text-4xl animate-pulse">view_in_ar</span>
+        <p className="text-xs text-slate-400">Loading 3D...</p>
+      </div>
+    </div>
+  );
+}
 
 function ComponentShowcasePage() {
   return (
@@ -34,7 +47,9 @@ function ComponentShowcasePage() {
                 <h3 className="font-bold text-white">Floating Medical Cube</h3>
                 <p className="text-xs text-slate-400 mt-1">3D metric display</p>
               </div>
-              <FloatingMedicalCube value="99.2%" label="AI Accuracy" className="h-80" />
+              <Suspense fallback={<Lazy3DFallback />}>
+                <FloatingMedicalCube value="99.2%" label="AI Accuracy" className="h-80" />
+              </Suspense>
             </div>
 
             {/* Medical Heart */}
@@ -43,7 +58,9 @@ function ComponentShowcasePage() {
                 <h3 className="font-bold text-white">Medical Heart 3D</h3>
                 <p className="text-xs text-slate-400 mt-1">Animated heartbeat</p>
               </div>
-              <MedicalHeart3D bpm={72} className="h-80" />
+              <Suspense fallback={<Lazy3DFallback />}>
+                <MedicalHeart3D bpm={72} className="h-80" />
+              </Suspense>
             </div>
 
             {/* DNA Helix */}
@@ -52,7 +69,9 @@ function ComponentShowcasePage() {
                 <h3 className="font-bold text-white">DNA Helix</h3>
                 <p className="text-xs text-slate-400 mt-1">Genetic visualization</p>
               </div>
-              <DNA3DHelix className="h-80" />
+              <Suspense fallback={<Lazy3DFallback />}>
+                <DNA3DHelix className="h-80" />
+              </Suspense>
             </div>
           </div>
         </section>

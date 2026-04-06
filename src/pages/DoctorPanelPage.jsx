@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import api, { validators } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_OPTIONS } from "../utils/auth";
+import CameraCapture from "../components/CameraCapture";
+import ProcessingSteps from "../components/ProcessingSteps";
+import ToastContainer, { useToasts } from "../components/ToastNotification";
 
 /**
  * Generate a unique patient ID in format PID-XXXXXX
@@ -53,6 +56,8 @@ function DoctorPanelPage() {
   const [exporting, setExporting] = useState(false);
 
   const [selectedReviewId, setSelectedReviewId] = useState(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const { toasts, addToast, removeToast } = useToasts();
 
   // Doctor identity from auth
   const doctorId = user?.user_id || user?.id || 'unknown-doctor';
@@ -104,6 +109,22 @@ function DoctorPanelPage() {
     })();
   }, [doctorId, uploadStatus]);
 
+  // Poll for new prescriptions every 30s
+  useEffect(() => {
+    let prevCount = pendingReviews.length;
+    const interval = setInterval(async () => {
+      try {
+        const result = await api.getPendingPrescriptions();
+        const newCount = result.items?.length || 0;
+        if (newCount > prevCount && prevCount > 0) {
+          addToast(`${newCount - prevCount} new prescription(s) arrived!`, 'info');
+        }
+        prevCount = newCount;
+      } catch { /* silent */ }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   // No need to sync selected patient — IDs are system-generated
 
   // Compute dynamic stats
@@ -119,6 +140,12 @@ function DoctorPanelPage() {
     setUploadStatus("Idle");
     setUploadError("");
     setUploadMessage("");
+  };
+
+  const handleCameraCapture = (blob) => {
+    const file = new File([blob], `scan_${Date.now()}.jpg`, { type: 'image/jpeg' });
+    applySelectedFile(file);
+    setShowCamera(false);
   };
 
   const handleSelectFile = (event) => {
@@ -211,6 +238,7 @@ function DoctorPanelPage() {
 
   return (
     <div className="p-6 lg:p-10 relative z-10">
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
       <header className="mb-8 lg:mb-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
           <span className="text-primary font-bold tracking-[0.24em] uppercase text-xs">{roleLabel} Panel</span>
@@ -533,13 +561,23 @@ function DoctorPanelPage() {
                     onChange={handleSelectFile}
                     className="hidden"
                   />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="mt-4 px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white font-semibold hover:bg-white/15 transition-all"
-                  >
-                    Choose File
-                  </button>
+                  <div className="mt-4 flex items-center justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white font-semibold hover:bg-white/15 transition-all"
+                    >
+                      Choose File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowCamera(true)}
+                      className="px-4 py-2 rounded-xl bg-teal-400/15 border border-teal-300/30 text-xs text-teal-200 font-semibold hover:bg-teal-400/25 transition-all flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">photo_camera</span>
+                      Scan Document
+                    </button>
+                  </div>
                   {selectedFile && (
                     <p className="text-xs text-teal-200 mt-3 break-all">Selected: {selectedFile.name}</p>
                   )}
@@ -562,6 +600,7 @@ function DoctorPanelPage() {
                     {uploadStatus}
                   </span>
                 </div>
+                <ProcessingSteps isActive={uploadStatus === "Uploading" || uploadStatus === "Processing Discharge..."} />
                 {uploadMessage && (
                   <div className="rounded-xl bg-emerald-500/10 border border-emerald-300/30 px-4 py-3 text-xs text-emerald-100">
                     {uploadMessage}
@@ -630,6 +669,13 @@ function DoctorPanelPage() {
           </div>
         </section>
       </div>
+
+      {showCamera && (
+        <CameraCapture
+          onCapture={handleCameraCapture}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
     </div>
   );
 }

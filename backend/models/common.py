@@ -18,6 +18,10 @@ class LanguageEnum(str, Enum):
     """Supported output languages"""
     ENGLISH = "en"
     BENGALI = "bn"
+    HINDI = "hi"
+    TAMIL = "ta"
+    TELUGU = "te"
+    MARATHI = "mr"
     BOTH = "both"
 
 

@@ -72,7 +72,7 @@ class ProcessRequest(BaseModel):
 class ProcessResponse(BaseModel):
     """Response model for /api/process endpoint"""
     simplified_english: str = Field(..., description="Plain English version")
-    simplified_bengali: str = Field(..., description="Everyday Bengali version")
+    simplified_bengali: str = Field(..., description="Everyday local language version (Bengali, Hindi, Tamil, etc.)")
     medications: List[Medication] = Field(default_factory=list, description="Medication list")
     follow_up: Optional[FollowUp] = Field(None, description="Follow-up instructions")
     warning_signs: List[str] = Field(default_factory=list, description="Emergency symptoms to watch for")

@@ -351,7 +351,7 @@ def _validate_and_build_response(data: Dict[str, Any], session_id: Optional[str]
 
         response = ProcessResponse(
             simplified_english=data.get("simplified_english", "Unable to simplify. Please contact your doctor."),
-            simplified_bengali=data.get("simplified_bengali", "দুঃখিত, আপনার ডাক্তারের সাথে যোগাযোগ করুন।"),
+            simplified_bengali=data.get("simplified_local", data.get("simplified_bengali", "দুঃখিত, আপনার ডাক্তারের সাথে যোগাযোগ করুন।")),
             medications=medications,
             follow_up=follow_up,
             warning_signs=data.get("warning_signs", [
@@ -388,8 +388,8 @@ async def process_discharge_summary(
             )
             logger.info("Using re-explanation prompt for simpler version")
         else:
-            prompt = format_master_prompt(discharge_text=text, role=role)
-            logger.info(f"Using master prompt for role: {role}")
+            prompt = format_master_prompt(discharge_text=text, role=role, language=language)
+            logger.info(f"Using master prompt for role: {role}, language: {language}")
 
         logger.info("Calling LLM API (Cerebras primary, Groq fallback) ...")
 

@@ -17,6 +17,7 @@
     "chart.js": "^4.5.1",
     "framer-motion": "^12.38.0",
     "gsap": "^3.14.2",
+    "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
@@ -33,6 +34,7 @@
     "globals": "^15.15.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
-    "vite": "^5.4.19"
+    "vite": "^5.4.19",
+    "vite-plugin-pwa": "^1.2.0"
   }
 }

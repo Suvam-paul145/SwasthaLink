@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { speak, stop, isSpeaking as isTTSSpeaking, isTTSSupported } from "../utils/tts";
+import { startListening, isSTTSupported } from "../utils/stt";
+import { LANGUAGE_LABELS } from "../utils/config";
 
 function DetailedClarityHubPage() {
   const { user } = useAuth();
@@ -86,24 +89,6 @@ function DetailedClarityHubPage() {
   };
 
 
-  const toggleListening = () => {
-    const nextListening = !isListening;
-    setIsListening(nextListening);
-
-    if (nextListening) {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: `${Date.now()}-user-voice`,
-          sender: "user",
-          text: "Voice input active...",
-        },
-      ]);
-      // Simulate voice response
-      setTimeout(() => respondToPrompt("custom"), 1000);
-    }
-  };
-
   const handleSend = () => {
     const trimmed = chatInput.trim();
     if (!trimmed) return;
@@ -114,6 +99,47 @@ function DetailedClarityHubPage() {
     }]);
     setChatInput("");
     respondToPrompt("custom");
+  };
+
+  const [isSpeakingState, setIsSpeakingState] = useState(false);
+  const [recognitionRef, setRecognitionRef] = useState(null);
+  const [selectedLang, setSelectedLang] = useState('bn');
+
+  const handleSpeak = () => {
+    if (isSpeakingState) {
+      stop();
+      setIsSpeakingState(false);
+    } else {
+      const text = "সকালে ইনসুলিন ১০ ইউনিট নিন। রক্তচাপের ওষুধ রাতের খাবারের পর নিন। রক্তে শর্করা পরীক্ষা করুন।";
+      speak(text, selectedLang, () => setIsSpeakingState(false));
+      setIsSpeakingState(true);
+    }
+  };
+
+  const toggleListeningReal = () => {
+    if (isListening && recognitionRef) {
+      recognitionRef.stop();
+      setRecognitionRef(null);
+      setIsListening(false);
+      return;
+    }
+    setIsListening(true);
+    const rec = startListening(
+      (transcript) => {
+        setChatMessages(prev => [...prev, {
+          id: `${Date.now()}-user`,
+          sender: "user",
+          text: transcript
+        }]);
+        respondToPrompt("custom");
+      },
+      selectedLang,
+      () => {
+        setIsListening(false);
+        setRecognitionRef(null);
+      }
+    );
+    setRecognitionRef(rec);
   };
 
 
@@ -129,6 +155,16 @@ function DetailedClarityHubPage() {
           </div>
         </div>
         <div className="flex gap-4 items-center">
+          <select
+            value={selectedLang}
+            onChange={(e) => setSelectedLang(e.target.value)}
+            className="bg-white/5 border border-white/10 text-teal-200 text-sm rounded-xl px-3 py-2 backdrop-blur-md focus:border-teal-400/60 focus:outline-none cursor-pointer"
+            aria-label="Select language"
+          >
+            {LANGUAGE_LABELS.map((l) => (
+              <option key={l.code} value={l.code} className="bg-slate-900 text-white">{l.label}</option>
+            ))}
+          </select>
           <div className="glass-card bg-surface-container-low/30 px-6 py-4 rounded-2xl flex items-center gap-5 border border-white/5">
             <div className="text-right">
               <p className="text-[10px] text-outline font-bold uppercase tracking-widest mb-1">Current Temperature</p>
@@ -154,9 +190,9 @@ function DetailedClarityHubPage() {
                   <h3 className="text-3xl font-headline font-bold text-white">Today's Treatment Plan</h3>
                   <p className="text-lg text-outline">আপনার আজকের চিকিৎসা পরিকল্পনা</p>
                 </div>
-                <button className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary hover:bg-primary hover:text-on-primary transition-all duration-300 shadow-xl shadow-primary/5 group/speaker relative">
-                  <span className="absolute inset-0 rounded-2xl bg-primary animate-ping opacity-10 group-hover:hidden"></span>
-                  <span className="material-symbols-outlined text-3xl">volume_up</span>
+                <button onClick={handleSpeak} className={`w-16 h-16 rounded-2xl ${isSpeakingState ? 'bg-red-500/20 text-red-400' : 'bg-primary/10 text-primary'} flex items-center justify-center hover:bg-primary hover:text-on-primary transition-all duration-300 shadow-xl shadow-primary/5 group/speaker relative`}>
+                  {!isSpeakingState && <span className="absolute inset-0 rounded-2xl bg-primary animate-ping opacity-10 group-hover:hidden"></span>}
+                  <span className="material-symbols-outlined text-3xl">{isSpeakingState ? 'stop' : 'volume_up'}</span>
                 </button>
               </div>
 
@@ -379,7 +415,7 @@ function DetailedClarityHubPage() {
                   </div>
                 </div>
                 <button
-                  onClick={toggleListening}
+                  onClick={toggleListeningReal}
                   className={`w-11 h-11 rounded-xl flex items-center justify-center transition-all ${isListening ? "bg-gradient-to-r from-rose-400 to-orange-300 text-white shadow-rose-500/40" : "bg-teal-400/20 text-teal-200 hover:bg-teal-400/40"}`}
                   aria-label="Voice"
                 >
