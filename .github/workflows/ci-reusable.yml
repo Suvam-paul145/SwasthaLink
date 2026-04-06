@@ -1,116 +1,200 @@
+# =============================================================================
+# CI Reusable — Quality Gates for Frontend + Backend
+# =============================================================================
+# Called by ci.yml. Each job runs independently for fast parallel feedback.
+#
+# Jobs:
+#   1. backend-lint      — ruff check + compileall
+#   2. backend-test      — pytest with coverage
+#   3. frontend-lint     — eslint
+#   4. frontend-build    — vite build (catches import/JSX errors)
+#   5. security-audit    — npm audit + pip-audit (advisory only)
+#   6. docker-build      — verify both Dockerfiles still build
+# =============================================================================
+
 name: CI Reusable
 
 on:
   workflow_call:
-    inputs:
-      run-e2e:
-        required: false
-        type: boolean
-        default: false
-      push-artifacts:
-        required: false
-        type: boolean
-        default: true
 
 permissions:
   contents: read
 
 jobs:
-  frontend-quality:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-        with:
-          node-version: "20"
-          working-directory: .
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Format check
-        run: npm run format:check
-
-      - name: Unit tests
-        run: npm run test:unit
-
-      - name: Build
-        run: npm run build
-
-      - name: Upload frontend build artifact
-        if: ${{ inputs.push-artifacts }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: dist
-
-  backend-quality:
+  # ---------------------------------------------------------------------------
+  # Backend — Lint
+  # ---------------------------------------------------------------------------
+  backend-lint:
+    name: "Backend Lint"
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: ./.github/actions/setup-python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          working-directory: backend
-          install-dev: "true"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
-      - name: Lint
-        run: python -m ruff check .
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Ruff lint
+        run: ruff check . --output-format=github
 
       - name: Compile check
-        run: python -m compileall .
+        run: python -m compileall -q .
 
-      - name: Tests
-        run: pytest
+  # ---------------------------------------------------------------------------
+  # Backend — Test
+  # ---------------------------------------------------------------------------
+  backend-test:
+    name: "Backend Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Package backend artifact
-        run: tar -czf backend-artifact.tar.gz .
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
-      - name: Upload backend artifact
-        if: ${{ inputs.push-artifacts }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install pytest-cov pytest-timeout
+
+      - name: Run tests with coverage
+        run: pytest --tb=short --cov=. --cov-report=term-missing --cov-report=xml:coverage.xml -v --timeout=30
+
+      - name: Upload coverage report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-artifact
-          path: backend/backend-artifact.tar.gz
+          name: backend-coverage
+          path: backend/coverage.xml
+          retention-days: 14
 
-  e2e-tests:
-    if: ${{ inputs.run-e2e }}
+  # ---------------------------------------------------------------------------
+  # Frontend — Lint
+  # ---------------------------------------------------------------------------
+  frontend-lint:
+    name: "Frontend Lint"
     runs-on: ubuntu-latest
-    needs: [frontend-quality, backend-quality]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: ./.github/actions/setup-node
+        uses: actions/setup-node@v4
         with:
           node-version: "20"
-          working-directory: .
+          cache: npm
 
-      - name: Run E2E tests
-        run: npm run test:e2e
+      - name: Install dependencies
+        run: npm ci
 
-  docker-build:
+      - name: ESLint
+        run: npm run lint
+
+  # ---------------------------------------------------------------------------
+  # Frontend — Build
+  # ---------------------------------------------------------------------------
+  frontend-build:
+    name: "Frontend Build"
     runs-on: ubuntu-latest
-    needs: [frontend-quality, backend-quality]
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist
+          retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # Security Audit (advisory — does not block merge)
+  # ---------------------------------------------------------------------------
+  security-audit:
+    name: "Security Audit"
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js dependency audit
+        run: npm audit --audit-level=high || true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Python dependency audit
+        run: |
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt || true
+
+  # ---------------------------------------------------------------------------
+  # Docker Build (verify images build — no push)
+  # ---------------------------------------------------------------------------
+  docker-build:
+    name: "Docker Build"
+    runs-on: ubuntu-latest
+    needs: [backend-lint, frontend-lint]
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Build frontend image
-        run: docker build -f Dockerfile.frontend -t swasthalink-frontend:ci .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: false
+          tags: swasthalink-frontend:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build backend image
-        run: docker build -f backend/Dockerfile -t swasthalink-backend:ci ./backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: backend/Dockerfile
+          push: false
+          tags: swasthalink-backend:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

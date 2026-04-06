@@ -1,18 +1,26 @@
+# =============================================================================
+# CI — Continuous Integration
+# =============================================================================
+# Runs on every push to `testing` and every PR targeting `testing`.
+# Calls the reusable workflow for all quality gates.
+# =============================================================================
+
 name: CI
 
 on:
-  pull_request:
   push:
-    branches:
-      - main
-      - develop
+    branches: [testing]
+  pull_request:
+    branches: [testing]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     uses: ./.github/workflows/ci-reusable.yml
-    with:
-      run-e2e: false
-      push-artifacts: true
+    secrets: inherit

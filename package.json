@@ -5,10 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "lint": "echo \"No frontend lint configuration yet\"",
-    "format:check": "echo \"No frontend formatter check configured yet\"",
-    "test:unit": "echo \"No frontend unit tests configured yet\"",
-    "test:e2e": "echo \"No frontend E2E tests configured yet\"",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -26,9 +24,13 @@
     "three": "^0.183.2"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@tailwindcss/postcss": "^4.2.2",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.27",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
     "vite": "^5.4.19"
