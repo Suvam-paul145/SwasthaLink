@@ -356,6 +356,7 @@ function ClarityHubPage() {
                     rows={1}
                     value={chatInput}
                     onChange={(event) => setChatInput(event.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                     placeholder="Ask anything about your care plan..."
                     className="w-full bg-transparent resize-none outline-none text-sm text-white placeholder:text-slate-400"
                   />

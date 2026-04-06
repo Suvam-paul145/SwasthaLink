@@ -1,8 +1,13 @@
 """
-OTP service for WhatsApp and SMS delivery through Twilio Verify.
+OTP service for WhatsApp and SMS delivery.
+
+WhatsApp OTPs are sent via the Twilio Messaging API (works with the sandbox)
+because Twilio Verify's WhatsApp channel requires an approved Business sender
+which trial accounts lack.  SMS OTPs still go through Twilio Verify.
 """
 
 import logging
+import secrets
 from typing import Any, Dict
 
 from core.config import read_env
@@ -29,6 +34,7 @@ TWILIO_AUTH_TOKEN = read_env("TWILIO_AUTH_TOKEN")
 TWILIO_API_KEY_SID = read_env("TWILIO_API_KEY_SID", "TWILIO_API_KEY")
 TWILIO_API_KEY_SECRET = read_env("TWILIO_API_KEY_SECRET", "TWILIO_API_SECRET")
 TWILIO_VERIFY_SERVICE_SID = read_env("TWILIO_VERIFY_SERVICE_SID")
+TWILIO_WHATSAPP_NUMBER = read_env("TWILIO_WHATSAPP_NUMBER") or "whatsapp:+14155238886"
 
 _twilio_client = None
 if TWILIO_SDK_AVAILABLE:
@@ -46,7 +52,14 @@ if TWILIO_SDK_AVAILABLE:
 
 _DEMO_OTP_STORE: Dict[str, str] = {}
 _DEMO_OTP_CODE = "123456"
+# Store for self-generated OTPs sent via WhatsApp Messaging API
+_WA_OTP_STORE: Dict[str, str] = {}
 SUPPORTED_CHANNELS = {"whatsapp", "sms"}
+
+
+def _generate_otp(length: int = 6) -> str:
+    """Generate a cryptographically random numeric OTP."""
+    return "".join(str(secrets.randbelow(10)) for _ in range(length))
 
 
 def _normalize_channel(channel: str) -> str:
@@ -60,6 +73,16 @@ def _is_verify_configured() -> bool:
     return bool(_twilio_client and TWILIO_VERIFY_SERVICE_SID)
 
 
+def _is_messaging_configured() -> bool:
+    return bool(_twilio_client)
+
+
+def _format_whatsapp(phone: str) -> str:
+    if phone.startswith("whatsapp:"):
+        return phone
+    return f"whatsapp:{phone}"
+
+
 def _should_fallback_to_demo(exc: Exception) -> bool:
     message = str(exc).lower()
     return (
@@ -71,12 +94,75 @@ def _should_fallback_to_demo(exc: Exception) -> bool:
 
 
 async def send_otp(phone_number: str, channel: str = "whatsapp") -> Dict[str, Any]:
-    """Send an OTP to the given phone number."""
+    """Send an OTP to the given phone number.
+
+    WhatsApp: sends OTP via Twilio Messaging API (sandbox-compatible).
+    SMS: sends OTP via Twilio Verify API.
+    """
     if not phone_number or not phone_number.startswith("+"):
         raise OTPServiceError("Phone number must be in E.164 format (for example +919876543210)", 400)
 
     normalized_channel = _normalize_channel(channel)
 
+    # ── WhatsApp: use Messaging API (works with sandbox on trial accounts) ──
+    if normalized_channel == "whatsapp":
+        if _is_messaging_configured():
+            otp_code = _generate_otp()
+            body = f"Your SwasthaLink verification code is: *{otp_code}*\n\nThis code expires in 10 minutes. Do not share it with anyone."
+            try:
+                from_number = _format_whatsapp(TWILIO_WHATSAPP_NUMBER)
+                to_number = _format_whatsapp(phone_number)
+                msg = _twilio_client.messages.create(
+                    from_=from_number,
+                    to=to_number,
+                    body=body,
+                )
+                _WA_OTP_STORE[phone_number] = otp_code
+                logger.info(f"WhatsApp OTP sent to {phone_number}; SID: {msg.sid}")
+                return {
+                    "success": True,
+                    "message": f"OTP sent to {phone_number} via WhatsApp",
+                    "demo_mode": False,
+                    "channel": "whatsapp",
+                    "phone_number": phone_number,
+                    "configured": True,
+                }
+            except TwilioRestException as exc:
+                logger.error(f"Twilio WhatsApp message error: {exc}")
+                if _should_fallback_to_demo(exc):
+                    logger.warning(f"Falling back to demo OTP for {phone_number} (WhatsApp trial restriction)")
+                    _DEMO_OTP_STORE[phone_number] = _DEMO_OTP_CODE
+                    return {
+                        "success": True,
+                        "message": (
+                            f"Demo OTP ({_DEMO_OTP_CODE}) assigned for {phone_number} via WhatsApp. "
+                            "Twilio trial accounts can only send to sandbox-joined numbers."
+                        ),
+                        "demo_mode": True,
+                        "fallback_reason": "twilio_trial_unverified_number",
+                        "channel": "whatsapp",
+                        "phone_number": phone_number,
+                        "configured": True,
+                    }
+                detail = getattr(exc, "msg", str(exc))
+                raise OTPServiceError(f"Failed to send OTP via WhatsApp: {detail}", 502)
+            except Exception as exc:
+                logger.error(f"Unexpected WhatsApp OTP error: {exc}")
+                raise OTPServiceError(f"Failed to send OTP via WhatsApp: {str(exc)}", 500)
+
+        # Messaging API not configured — fall back to demo mode
+        logger.warning(f"Twilio not configured; using demo OTP for {phone_number}")
+        _DEMO_OTP_STORE[phone_number] = _DEMO_OTP_CODE
+        return {
+            "success": True,
+            "message": f"Demo OTP ({_DEMO_OTP_CODE}) assigned for {phone_number} via whatsapp",
+            "demo_mode": True,
+            "channel": "whatsapp",
+            "phone_number": phone_number,
+            "configured": False,
+        }
+
+    # ── SMS: use Twilio Verify API ──
     if _is_verify_configured():
         try:
             verification = (
@@ -138,6 +224,20 @@ async def verify_otp(phone_number: str, code: str) -> Dict[str, Any]:
     if not code or len(code) < 4:
         raise OTPServiceError("OTP code is required (minimum 4 digits)", 400)
 
+    # Check WhatsApp Messaging API OTP store first
+    wa_expected = _WA_OTP_STORE.get(phone_number)
+    if wa_expected is not None:
+        verified = code == wa_expected
+        if verified:
+            del _WA_OTP_STORE[phone_number]
+        return {
+            "success": True,
+            "verified": verified,
+            "status": "approved" if verified else "pending",
+            "demo_mode": False,
+        }
+
+    # Check demo OTP store
     expected = _DEMO_OTP_STORE.get(phone_number)
     if expected is not None:
         verified = code == expected

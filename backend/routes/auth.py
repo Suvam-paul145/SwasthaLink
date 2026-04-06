@@ -8,7 +8,8 @@ from models import (
     OTPSendRequest, OTPVerifyRequest,
 )
 from models.auth import SignupRequest, SignupResponse, PasswordResetOTPRequest, PasswordResetConfirmRequest
-from auth.auth_service import login_user, signup_user, supabase_client
+from auth.auth_service import login_user, signup_user
+from db.supabase_service import supabase_client
 from auth.jwt_utils import get_current_user
 from core.exceptions import AuthServiceError, OTPServiceError
 from services.otp_service import send_otp, verify_otp

@@ -1,24 +1,25 @@
 -- ---------------------------------------------------------
--- SwasthaLink Database Schema for Real Supabase Integration
+-- SwasthaLink Database Schema
+-- Uses Supabase as a plain PostgreSQL database.
+-- No Supabase Auth, no RLS, no triggers on auth.users.
+-- Authentication is handled entirely by the backend (bcrypt + JWT).
 -- ---------------------------------------------------------
 
--- 1. Profiles Table (Linked to auth.users)
+-- 1. Profiles Table (standalone — no link to auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    id TEXT PRIMARY KEY,
     user_id TEXT UNIQUE,
-    email TEXT UNIQUE,
+    email TEXT UNIQUE NOT NULL,
     full_name TEXT,
     name TEXT,
-    role TEXT CHECK (role IN ('patient', 'doctor', 'admin')),
+    role TEXT NOT NULL CHECK (role IN ('patient', 'doctor', 'admin')),
     phone TEXT,
     phone_verified BOOLEAN DEFAULT FALSE,
-    password_hash TEXT,
+    password_hash TEXT NOT NULL DEFAULT '',
     pid TEXT, -- System Generated Patient ID
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- 2. Prescriptions Table
 CREATE TABLE IF NOT EXISTS public.prescriptions (
@@ -46,8 +47,6 @@ CREATE TABLE IF NOT EXISTS public.prescriptions (
     report_type TEXT DEFAULT 'prescription',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
-ALTER TABLE public.prescriptions ENABLE ROW LEVEL SECURITY;
 
 -- 3. Sessions (Logging Metadata)
 CREATE TABLE IF NOT EXISTS public.sessions (
@@ -149,61 +148,6 @@ CREATE TABLE IF NOT EXISTS public.followup_messages (
 CREATE INDEX IF NOT EXISTS idx_followup_messages_status_scheduled
     ON public.followup_messages (status, scheduled_for);
 
--- ---------------------------------------------------------
--- Helper: Auto-create profile on signup (Trigger)
--- ---------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-DECLARE
-  resolved_role TEXT;
-  resolved_name TEXT;
-BEGIN
-  resolved_role := lower(coalesce(new.raw_user_meta_data->>'role', 'patient'));
-  IF resolved_role NOT IN ('patient', 'doctor', 'admin') THEN
-    resolved_role := 'patient';
-  END IF;
-
-  resolved_name := coalesce(
-    new.raw_user_meta_data->>'full_name',
-    new.raw_user_meta_data->>'name',
-    split_part(coalesce(new.email, ''), '@', 1)
-  );
-
-  INSERT INTO public.profiles (
-    id,
-    user_id,
-    email,
-    full_name,
-    name,
-    role,
-    phone,
-    phone_verified,
-    updated_at
-  )
-  VALUES (
-    new.id,
-    new.id::text,
-    lower(new.email),
-    resolved_name,
-    resolved_name,
-    resolved_role,
-    new.raw_user_meta_data->>'phone',
-    false,
-    now()
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    user_id = EXCLUDED.user_id,
-    email = EXCLUDED.email,
-    full_name = EXCLUDED.full_name,
-    name = EXCLUDED.name,
-    role = EXCLUDED.role,
-    phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
-    updated_at = now();
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE OR REPLACE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+-- End of schema.
+-- Authentication is handled by the backend via profiles.password_hash (bcrypt).
+-- No Supabase Auth triggers or RLS policies are used.

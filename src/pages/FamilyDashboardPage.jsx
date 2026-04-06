@@ -23,6 +23,7 @@ function FamilyDashboardPage() {
   const [rxLoading, setRxLoading] = useState(true);
   const [chunks, setChunks] = useState({});
   const [chunksLoading, setChunksLoading] = useState(false);
+  const [dischargeHistory, setDischargeHistory] = useState([]);
   const [dischargeLoading, setDischargeLoading] = useState(false);
   const [linkedPid, setLinkedPid] = useState(null);
   const [linkInput, setLinkInput] = useState('');

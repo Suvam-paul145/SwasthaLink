@@ -10,6 +10,7 @@ from models.prescription import ChatbotContextPayload
 from services.groq_chat_service import (
     DEFAULT_NO_CONTEXT_ANSWER,
     answer_with_groq,
+    answer_general_question,
     is_groq_configured,
 )
 
@@ -143,11 +144,22 @@ def _build_source_label(
 
 
 async def answer_from_context(patient_id: str, question: str) -> Dict[str, Any]:
-    """Answer a question using approved patient chunks only."""
+    """Answer a question using approved patient chunks, with general knowledge fallback."""
     from db.patient_chunks_db import get_chunks_by_patient
 
     all_chunks = await get_chunks_by_patient(patient_id)
     if not all_chunks:
+        # No prescription data — fall back to general knowledge via Groq
+        if is_groq_configured():
+            try:
+                answer = await answer_general_question(question)
+                return {
+                    "answer": answer,
+                    "source": "general_knowledge",
+                    "confidence": 0.6,
+                }
+            except Exception as exc:
+                logger.warning("Groq general knowledge fallback failed: %s", exc)
         return {
             "answer": DEFAULT_NO_CONTEXT_ANSWER,
             "source": "none",
@@ -192,6 +204,18 @@ async def answer_from_context(patient_id: str, question: str) -> Dict[str, Any]:
             "source": top.get("chunk_type", "unknown"),
             "confidence": 0.7,
         }
+
+    # No matching context found — try general knowledge
+    if is_groq_configured():
+        try:
+            answer = await answer_general_question(question)
+            return {
+                "answer": answer,
+                "source": "general_knowledge",
+                "confidence": 0.5,
+            }
+        except Exception as exc:
+            logger.warning("Groq general fallback failed: %s", exc)
 
     return {
         "answer": DEFAULT_NO_CONTEXT_ANSWER,

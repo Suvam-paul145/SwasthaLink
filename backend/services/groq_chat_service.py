@@ -113,10 +113,13 @@ async def answer_with_groq(
 
     system_prompt = (
         "You are SwasthaLink's patient assistant. "
-        "Answer using ONLY the approved patient record context you are given. "
-        "Do not use outside medical knowledge, do not guess, and do not invent missing details. "
-        "If the context does not contain the answer, reply exactly with: "
-        f"'{DEFAULT_NO_CONTEXT_ANSWER}' "
+        "Your PRIMARY source of truth is the approved patient record context provided below. "
+        "Always prefer information from the patient records when answering. "
+        "If the patient's question is about their specific prescriptions, medications, or treatment plan, "
+        "answer strictly from the provided context. "
+        "However, if the question is a general health or wellness question that the records do not cover, "
+        "you may provide a helpful general answer based on widely accepted medical knowledge, "
+        "but clearly note that it is general advice and recommend consulting their doctor for personalized guidance. "
         "Keep the answer short, plain-language, and reassuring."
     )
 
@@ -169,5 +172,66 @@ async def answer_with_groq(
 
     if not message:
         raise ValueError("Groq returned an empty chatbot response")
+
+    return message
+
+
+async def answer_general_question(question: str) -> str:
+    """Answer a general health question using Groq when no patient records exist."""
+    api_key = get_configured_groq_api_key()
+    if not api_key:
+        raise ValueError("Groq API key not configured")
+
+    system_prompt = (
+        "You are SwasthaLink's patient assistant, a friendly and knowledgeable health helper. "
+        "The patient does not have any approved prescription records in the system yet. "
+        "Answer their question using general medical and health knowledge. "
+        "Be helpful, accurate, and reassuring. "
+        "For any serious medical concern, always recommend consulting a doctor. "
+        "Keep answers concise and in plain language."
+    )
+
+    payload = {
+        "model": get_configured_groq_model(),
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question.strip()},
+        ],
+        "temperature": 0.3,
+        "top_p": 1,
+        "max_completion_tokens": 300,
+        "stream": False,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    timeout = httpx.Timeout(30.0, connect=10.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        response = await client.post(
+            GROQ_CHAT_COMPLETIONS_URL,
+            headers=headers,
+            json=payload,
+        )
+
+    try:
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        details = exc.response.text[:500] if exc.response is not None else str(exc)
+        logger.error("Groq general chat request failed: %s", details)
+        raise ValueError(f"Groq general chat request failed: {details}") from exc
+
+    body = response.json()
+    message = (
+        body.get("choices", [{}])[0]
+        .get("message", {})
+        .get("content", "")
+        .strip()
+    )
+
+    if not message:
+        raise ValueError("Groq returned an empty response")
 
     return message

@@ -131,6 +131,26 @@ def init_db():
             twilio_sid TEXT,
             error TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id TEXT PRIMARY KEY,
+            prescription_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            actor_role TEXT NOT NULL,
+            actor_id TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            details TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS patient_context_chunks (
+            chunk_id TEXT PRIMARY KEY,
+            prescription_id TEXT,
+            patient_id TEXT NOT NULL,
+            chunk_type TEXT NOT NULL,
+            data TEXT,
+            version INTEGER DEFAULT 1,
+            created_at TEXT
+        );
     ''')
     conn.commit()
     conn.close()
@@ -166,6 +186,26 @@ def _run_migrations():
             sent_at TEXT,
             twilio_sid TEXT,
             error TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id TEXT PRIMARY KEY,
+            prescription_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            actor_role TEXT NOT NULL,
+            actor_id TEXT NOT NULL,
+            timestamp TEXT NOT NULL,
+            details TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS patient_context_chunks (
+            chunk_id TEXT PRIMARY KEY,
+            prescription_id TEXT,
+            patient_id TEXT NOT NULL,
+            chunk_type TEXT NOT NULL,
+            data TEXT,
+            version INTEGER DEFAULT 1,
+            created_at TEXT
         );
     ''')
 

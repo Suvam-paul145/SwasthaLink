@@ -10,7 +10,8 @@ def test_root_endpoint(client):
 
 
 def test_health_all_ok(client, monkeypatch):
-    monkeypatch.setattr("routes.health.check_gemini_health", lambda: {"status": "ok", "available": True})
+    async def _llm_ok(): return {"status": "ok", "available": True}
+    monkeypatch.setattr("routes.health.check_llm_health", _llm_ok)
     monkeypatch.setattr("routes.health.check_twilio_health", lambda: {"status": "ok", "available": True})
     monkeypatch.setattr("routes.health.check_supabase_health", lambda: {"status": "ok", "available": True})
     monkeypatch.setattr("routes.health.check_s3_health", lambda: {"status": "ok", "available": True})
@@ -19,14 +20,15 @@ def test_health_all_ok(client, monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["checks"]["gemini"]["status"] == "ok"
+    assert body["checks"]["llm"]["status"] == "ok"
     assert body["checks"]["twilio"]["status"] == "ok"
     assert body["checks"]["supabase"]["status"] == "ok"
     assert body["checks"]["s3"]["status"] == "ok"
 
 
 def test_health_degraded_when_non_critical_down(client, monkeypatch):
-    monkeypatch.setattr("routes.health.check_gemini_health", lambda: {"status": "ok", "available": True})
+    async def _llm_ok(): return {"status": "ok", "available": True}
+    monkeypatch.setattr("routes.health.check_llm_health", _llm_ok)
     monkeypatch.setattr("routes.health.check_twilio_health", lambda: {"status": "down", "available": False})
     monkeypatch.setattr("routes.health.check_supabase_health", lambda: {"status": "ok", "available": True})
     monkeypatch.setattr("routes.health.check_s3_health", lambda: {"status": "ok", "available": True})
@@ -36,8 +38,9 @@ def test_health_degraded_when_non_critical_down(client, monkeypatch):
     assert response.json()["status"] == "degraded"
 
 
-def test_health_down_when_gemini_down(client, monkeypatch):
-    monkeypatch.setattr("routes.health.check_gemini_health", lambda: {"status": "down", "available": False})
+def test_health_down_when_llm_down(client, monkeypatch):
+    async def _llm_down(): return {"status": "down", "available": False}
+    monkeypatch.setattr("routes.health.check_llm_health", _llm_down)
     monkeypatch.setattr("routes.health.check_twilio_health", lambda: {"status": "ok", "available": True})
     monkeypatch.setattr("routes.health.check_supabase_health", lambda: {"status": "ok", "available": True})
     monkeypatch.setattr("routes.health.check_s3_health", lambda: {"status": "ok", "available": True})

@@ -75,11 +75,32 @@ def test_answer_from_context_falls_back_to_faq_without_groq(monkeypatch):
     }
 
 
-def test_answer_from_context_returns_default_when_no_chunks(monkeypatch):
+def test_answer_from_context_returns_general_knowledge_when_no_chunks(monkeypatch):
+    async def fake_get_chunks_by_patient(patient_id):
+        return []
+
+    async def fake_answer_general(question):
+        return "Here is a general health answer."
+
+    monkeypatch.setattr("db.patient_chunks_db.get_chunks_by_patient", fake_get_chunks_by_patient)
+    monkeypatch.setattr("services.chatbot_context_service.is_groq_configured", lambda: True)
+    monkeypatch.setattr("services.chatbot_context_service.answer_general_question", fake_answer_general)
+
+    result = asyncio.run(answer_from_context("patient-1", "Any updates?"))
+
+    assert result == {
+        "answer": "Here is a general health answer.",
+        "source": "general_knowledge",
+        "confidence": 0.6,
+    }
+
+
+def test_answer_from_context_returns_default_when_no_chunks_and_no_groq(monkeypatch):
     async def fake_get_chunks_by_patient(patient_id):
         return []
 
     monkeypatch.setattr("db.patient_chunks_db.get_chunks_by_patient", fake_get_chunks_by_patient)
+    monkeypatch.setattr("services.chatbot_context_service.is_groq_configured", lambda: False)
 
     result = asyncio.run(answer_from_context("patient-1", "Any updates?"))
 

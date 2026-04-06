@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS public.share_tokens (
 -- 6. Follow-up Messages (Twilio Queue)
 CREATE TABLE IF NOT EXISTS public.followup_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    created_at TIMESTAMT_TZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
     session_id TEXT NOT NULL,
     patient_id TEXT NOT NULL,
     patient_name TEXT,
