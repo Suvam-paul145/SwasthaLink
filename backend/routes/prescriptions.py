@@ -2,14 +2,29 @@
 
 import json
 import logging
+import random
+import string
+from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+
+
+def _generate_patient_id() -> str:
+    """Generate a system-level patient ID in format PID-XXXXXX."""
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(random.choices(chars, k=6))
+    return f"PID-{code}"
 
 from models import (
     PrescriptionExtractResponse, PrescriptionApproveRequest,
     PrescriptionRejectRequest, PrescriptionPatientViewResponse,
 )
-from services.gemini_service import extract_text_from_image
+import os
+from services.llm_service import extract_text_from_image
+from services.llamacloud_service import (
+    extract_prescription_data_with_llamacloud,
+    is_llamacloud_configured,
+)
 from services.s3_service import upload_file, generate_presigned_url
 from services.rate_alert_service import rate_alert_service
 from services.image_preprocessor import preprocess_image
@@ -19,10 +34,18 @@ from services.prescription_rag_service import (
     get_record, get_approved_record,
     list_records_by_doctor, list_approved_for_patient,
 )
-from core.exceptions import GeminiServiceError, S3ServiceError
+from core.exceptions import LLMServiceError, LlamaCloudServiceError, S3ServiceError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _build_llamacloud_filename(filename: Optional[str], mime_type: Optional[str]) -> str:
+    """Return a filename with a predictable suffix for LlamaCloud uploads."""
+    base_name = filename or "prescription-upload"
+    if mime_type and "pdf" in mime_type.lower():
+        return base_name if base_name.lower().endswith(".pdf") else f"{base_name}.pdf"
+    return f"{Path(base_name).stem or 'prescription-upload'}.jpg"
 
 
 @router.get("/api/patients")
@@ -114,20 +137,63 @@ async def extract_prescription(
         except S3ServiceError as exc:
             logger.warning(f"S3 upload failed (non-critical): {exc}")
 
-        # --- OCR extraction with preprocessed image ---
-        ocr_text = await extract_text_from_image(image_data=preprocessed_content, mime_type="image/jpeg")
-        rate_alert_service.track_usage("gemini", context="ocr:/api/prescriptions/extract")
+        extracted_data = None
+        preferred_provider = "llamacloud" if is_llamacloud_configured() else "llm"
 
-        # --- RAG structured extraction ---
-        extracted_data = await extract_prescription_data(ocr_text)
-        rate_alert_service.track_usage("gemini", context="rag:/api/prescriptions/extract")
+        if preferred_provider == "llamacloud":
+            llama_content = (
+                file_content
+                if file.content_type and "pdf" in file.content_type.lower()
+                else preprocessed_content
+            )
+            llama_mime_type = (
+                file.content_type
+                if file.content_type and "pdf" in file.content_type.lower()
+                else "image/jpeg"
+            )
+            llama_filename = _build_llamacloud_filename(file.filename, llama_mime_type)
+
+            try:
+                extracted_data = await extract_prescription_data_with_llamacloud(
+                    file_content=llama_content,
+                    filename=llama_filename,
+                    mime_type=llama_mime_type,
+                    report_type=report_type or "prescription",
+                )
+                logger.info("Prescription extraction completed with LlamaCloud")
+            except LlamaCloudServiceError as exc:
+                if bool(os.getenv("GROQ_API_KEY")) or bool(os.getenv("QWEN_API_KEY")):
+                    logger.warning("LlamaCloud extraction failed; falling back to LLM: %s", exc)
+                else:
+                    raise
+
+        if extracted_data is None:
+            llm_mime_type = (
+                file.content_type
+                if file.content_type and "pdf" in file.content_type.lower()
+                else "image/jpeg"
+            )
+            # --- OCR extraction with preprocessed image ---
+            ocr_text = await extract_text_from_image(
+                image_data=preprocessed_content,
+                mime_type=llm_mime_type,
+            )
+            rate_alert_service.track_usage("llm", context="ocr:/api/prescriptions/extract")
+
+            # --- RAG structured extraction ---
+            extracted_data = await extract_prescription_data(ocr_text)
+            rate_alert_service.track_usage("llm", context="rag:/api/prescriptions/extract")
+            logger.info("Prescription extraction completed with LLM setup")
 
         # Override report_type from form field
         extracted_data.report_type = report_type or "prescription"
 
-        # If patient_id provided via form, set it on extracted data
+        # Auto-generate patient_id if not provided by frontend
         if patient_id and patient_id.strip():
             extracted_data.patient_id = patient_id.strip()
+        else:
+            extracted_data.patient_id = _generate_patient_id()
+            logger.info(f"Auto-generated patient ID: {extracted_data.patient_id}")
 
         record = await create_prescription_record(
             extracted_data=extracted_data,
@@ -140,8 +206,11 @@ async def extract_prescription(
         return PrescriptionExtractResponse(
             prescription_id=record.prescription_id, status=record.status.value, extracted_data=record.extracted_data,
         )
-    except GeminiServiceError as exc:
-        logger.error(f"Gemini error during prescription extraction: {exc}")
+    except LLMServiceError as exc:
+        logger.error(f"LLM service error during prescription extraction: {exc}")
+        raise HTTPException(status_code=getattr(exc, "status_code", 500), detail=str(exc))
+    except LlamaCloudServiceError as exc:
+        logger.error(f"LlamaCloud error during prescription extraction: {exc}")
         raise HTTPException(status_code=getattr(exc, "status_code", 500), detail=str(exc))
     except HTTPException:
         raise
@@ -407,6 +476,6 @@ async def get_prescription_audit_log(prescription_id: str):
 
 @router.get("/api/rate-limit-status")
 async def get_rate_limit_status():
-    """Return current Gemini API rate limit usage."""
-    from services.rate_limiter_service import gemini_rate_limiter
-    return gemini_rate_limiter.get_usage()
+    """Return current LLM API rate limit usage."""
+    from services.rate_limiter_service import llm_rate_limiter
+    return llm_rate_limiter.get_usage()

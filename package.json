@@ -16,6 +16,7 @@
     "@react-spring/three": "^9.7.5",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@sentry/react": "^10.47.0",
     "chart.js": "^4.5.1",
     "framer-motion": "^12.38.0",
     "gsap": "^3.14.2",

@@ -64,9 +64,14 @@ def _load_runtime_dependencies():
 
     from ai.prompts import format_drug_interactions_prompt
     from core.config import ALLOWED_ORIGINS, FRONTEND_URL
-    from db.supabase_service import check_supabase_health, get_share_payload_by_token
+    from db.supabase_service import (
+        check_supabase_health,
+        get_share_payload_by_token,
+        get_schema_file_path,
+        is_supabase_table_available,
+    )
     from routes import all_routers
-    from services.gemini_service import _generate_text, check_gemini_health
+    from services.llm_service import _generate_text, check_llm_health
     from services.s3_service import check_s3_health
     from services.twilio_service import (
         check_twilio_health,
@@ -79,12 +84,14 @@ def _load_runtime_dependencies():
         "allowed_origins": ALLOWED_ORIGINS,
         "frontend_url": FRONTEND_URL,
         "routers": all_routers,
-        "check_gemini_health": check_gemini_health,
+        "check_gemini_health": check_llm_health,
         "check_twilio_health": check_twilio_health,
         "check_supabase_health": check_supabase_health,
         "check_s3_health": check_s3_health,
         "generate_text": _generate_text,
         "get_share_payload_by_token": get_share_payload_by_token,
+        "get_schema_file_path": get_schema_file_path,
+        "is_supabase_table_available": is_supabase_table_available,
         "format_drug_interactions_prompt": format_drug_interactions_prompt,
         "start_followup_scheduler": start_followup_scheduler,
         "restore_followup_jobs": restore_followup_jobs,
@@ -92,14 +99,15 @@ def _load_runtime_dependencies():
     }
 
 
-def _quiet_status(checker):
+async def _quiet_status(checker):
     """Run a health checker while suppressing noisy third-party info logs."""
     root_logger = logging.getLogger()
     previous_level = root_logger.level
     try:
         if previous_level <= logging.INFO:
             root_logger.setLevel(logging.WARNING)
-        return checker().get("status")
+        result = await checker() if hasattr(checker, '__call__') else checker
+        return result.get("status") if isinstance(result, dict) else "unknown"
     finally:
         root_logger.setLevel(previous_level)
 
@@ -170,13 +178,23 @@ def create_app() -> FastAPI:
         logger.info(f"Environment: {os.getenv('ENVIRONMENT', 'development')}")
         logger.info(f"Frontend URL: {runtime['frontend_url']}")
         logger.info("=" * 50)
-        logger.info(f"Gemini API: {_quiet_status(runtime['check_gemini_health'])}")
+        supabase_health = runtime["check_supabase_health"]()
+        logger.info(f"LLM API:    {await _quiet_status(runtime['check_gemini_health'])}")
         logger.info(f"Twilio API: {runtime['check_twilio_health']().get('status')}")
-        logger.info(f"Supabase:   {runtime['check_supabase_health']().get('status')}")
+        logger.info(f"Supabase:   {supabase_health.get('status')}")
         logger.info(f"AWS S3:     {runtime['check_s3_health']().get('status')}")
-        runtime["start_followup_scheduler"]()
-        await runtime["restore_followup_jobs"]()
-        logger.info("Follow-up scheduler started and pending jobs restored")
+        if supabase_health.get("setup_required"):
+            logger.warning(supabase_health.get("message"))
+
+        if runtime["is_supabase_table_available"]("followup_messages"):
+            runtime["start_followup_scheduler"]()
+            await runtime["restore_followup_jobs"]()
+            logger.info("Follow-up scheduler started and pending jobs restored")
+        else:
+            logger.warning(
+                "Skipping follow-up scheduler startup until Supabase schema is applied: %s",
+                runtime["get_schema_file_path"](),
+            )
         logger.info("=" * 50)
         yield
         runtime["stop_followup_scheduler"]()
@@ -211,9 +229,10 @@ def create_app() -> FastAPI:
 
         try:
             prompt = runtime["format_drug_interactions_prompt"](medications)
-            raw_response = runtime["generate_text"](
+            raw_response = await runtime["generate_text"](
                 prompt=prompt,
-                generation_config={"temperature": 0.1},
+                temperature=0.1,
+                rate_limit_context="drug_interactions"
             )
             interactions = _parse_interactions_array(raw_response)
             return {"interactions": interactions}

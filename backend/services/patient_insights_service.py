@@ -125,11 +125,11 @@ async def generate_patient_insights(extracted_data) -> Optional[dict]:
 
     Called after admin approval.  Returns a dict suitable for PatientInsights model.
     """
-    from services.gemini_service import _generate_text, is_gemini_configured
-    from core.exceptions import GeminiServiceError
+    from services.llm_service import _generate_text, is_llm_configured
+    from core.exceptions import APIError
 
-    if not is_gemini_configured():
-        logger.warning("Gemini API key not configured — skipping insights generation")
+    if not is_llm_configured():
+        logger.warning("LLM API key not configured — skipping insights generation")
         return None
 
     # Build the prompt
@@ -155,14 +155,15 @@ async def generate_patient_insights(extracted_data) -> Optional[dict]:
     )
 
     try:
-        logger.info("Generating patient insights via Gemini...")
-        response_text = _generate_text(
+        logger.info("Generating patient insights via LLM...")
+        response_text = await _generate_text(
             prompt=prompt,
-            generation_config={"temperature": 0.2, "max_output_tokens": 4096},
+            use_qwen=False,
+            temperature=0.2,
         )
 
         if not response_text:
-            logger.warning("Gemini returned empty response for patient insights")
+            logger.warning("LLM returned empty response for patient insights")
             return None
 
         # Strip markdown fences
@@ -185,8 +186,8 @@ async def generate_patient_insights(extracted_data) -> Optional[dict]:
     except json.JSONDecodeError as exc:
         logger.error(f"Failed to parse insights JSON: {exc}")
         return None
-    except GeminiServiceError as exc:
-        logger.error(f"Gemini error during insights generation: {exc}")
+    except APIError as exc:
+        logger.error(f"LLM error during insights generation: {exc}")
         return None
     except Exception as exc:
         logger.error(f"Unexpected error generating insights: {exc}")

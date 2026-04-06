@@ -12,7 +12,7 @@ from auth.auth_service import login_user, signup_user, supabase_client
 from auth.jwt_utils import get_current_user
 from core.exceptions import AuthServiceError, OTPServiceError
 from services.otp_service import send_otp, verify_otp
-from db.profile_db import update_phone_verified
+from db.profile_db import update_phone_verified_for_account
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -117,7 +117,11 @@ async def auth_verify_otp(request: OTPVerifyRequest):
     try:
         result = await verify_otp(request.phone, request.code)
         if result.get("verified"):
-            await update_phone_verified(user_id="", phone=request.phone)
+            await update_phone_verified_for_account(
+                user_id=request.user_id or "",
+                email=request.email or "",
+                phone=request.phone,
+            )
         return result
     except OTPServiceError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc))
@@ -177,6 +181,7 @@ async def auth_reset_password(request: PasswordResetConfirmRequest):
             supabase_client
             .table("profiles")
             .update({"password_hash": hashed_password})
+            .eq("email", request.email.lower().strip())
             .eq("phone", request.phone)
             .execute()
         )

@@ -23,22 +23,44 @@ function FamilyDashboardPage() {
   const [rxLoading, setRxLoading] = useState(true);
   const [chunks, setChunks] = useState({});
   const [chunksLoading, setChunksLoading] = useState(false);
-  const [dischargeHistory, setDischargeHistory] = useState([]);
   const [dischargeLoading, setDischargeLoading] = useState(false);
+  const [linkedPid, setLinkedPid] = useState(null);
+  const [linkInput, setLinkInput] = useState('');
+  const [linking, setLinking] = useState(false);
+  const [linkStatus, setLinkStatus] = useState({ type: '', message: '' });
 
   // Fetch prescriptions and history
   useEffect(() => {
-    if (!patientId) { setRxLoading(false); return; }
     (async () => {
       setRxLoading(true);
       setDischargeLoading(true);
       try {
-        const [rxResult, historyResult] = await Promise.all([
-          api.getPatientPrescriptions(patientId).catch(() => ({ items: [] })),
-          api.getPatientHistory(patientId).catch(() => ({ results: [] }))
-        ]);
-        setPrescriptions(rxResult.items || []);
-        setDischargeHistory(historyResult.results || []);
+        // First get profile for linked PID
+        const profile = await api.getPatientProfile().catch(() => ({}));
+        const currentPid = profile.linked_pid;
+        setLinkedPid(currentPid);
+
+        const idsToFetch = [patientId];
+        if (currentPid) idsToFetch.push(currentPid);
+
+        // Fetch for all associated IDs
+        const fetchResults = await Promise.all(idsToFetch.map(id => 
+          Promise.all([
+            api.getPatientPrescriptions(id).catch(() => ({ items: [] })),
+            api.getPatientHistory(id).catch(() => ({ results: [] }))
+          ])
+        ));
+
+        // Merge results
+        const allRx = fetchResults.flatMap(r => r[0].items || []);
+        const allDischarge = fetchResults.flatMap(r => r[1].results || []);
+
+        // Sort by date
+        allRx.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        allDischarge.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+        setPrescriptions(allRx);
+        setDischargeHistory(allDischarge);
       } catch (err) {
         console.warn('Failed to load data:', err.message);
       } finally { 
@@ -47,6 +69,25 @@ function FamilyDashboardPage() {
       }
     })();
   }, [patientId]);
+
+  const handleLinkPid = async (e) => {
+    e.preventDefault();
+    if (!linkInput.trim()) return;
+    setLinking(true);
+    setLinkStatus({ type: 'info', message: 'Linking your records...' });
+    try {
+      const res = await api.linkPatientPid(linkInput);
+      setLinkStatus({ type: 'success', message: res.message });
+      setLinkedPid(linkInput);
+      setLinkInput('');
+      // Trigger refresh
+      window.location.reload(); 
+    } catch (err) {
+      setLinkStatus({ type: 'error', message: err.message });
+    } finally {
+      setLinking(false);
+    }
+  };
 
   // Fetch chunks when tab changes
   useEffect(() => {
@@ -93,8 +134,40 @@ function FamilyDashboardPage() {
           <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>Family Dashboard</h1>
           <p style={{ color: '#94a3b8', fontSize: '16px', marginTop: '6px' }}>
             AI-generated clinical insights for <span style={{ color: '#5eead4', fontWeight: 600 }}>{patientName}</span>
+            {linkedPid && <span style={{ marginLeft: '12px', fontSize: '12px', background: 'rgba(94,234,212,.1)', color: '#5eead4', padding: '2px 8px', borderRadius: '6px' }}>Linked: {linkedPid}</span>}
           </p>
         </div>
+
+        {/* Link Records Section */}
+        {!linkedPid && (
+          <div style={{ background: 'rgba(13,148,136,.05)', border: '1px dashed rgba(13,148,136,.3)', borderRadius: '20px', padding: '24px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+            <div style={{ flex: 1, minWidth: '300px' }}>
+              <h4 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#5eead4' }}>Link Your Medical Records</h4>
+              <p style={{ fontSize: '14px', color: '#94a3b8', marginTop: '4px' }}>Did your doctor give you a system-generated ID? Enter it here to see your records instantly.</p>
+            </div>
+            <form onSubmit={handleLinkPid} style={{ display: 'flex', gap: '10px', flex: '0 0 auto' }}>
+              <input 
+                type="text" 
+                placeholder="PID-XXXXXX"
+                value={linkInput}
+                onChange={(e) => setLinkInput(e.target.value.toUpperCase())}
+                style={{ background: 'rgba(0,0,0,.2)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '10px', padding: '10px 16px', color: '#fff', fontSize: '14px', width: '140px', outline: 'none' }}
+              />
+              <button 
+                type="submit" 
+                disabled={linking || !linkInput}
+                style={{ background: '#0d9488', color: '#fff', border: 'none', borderRadius: '10px', padding: '10px 20px', fontWeight: 700, cursor: 'pointer', opacity: (linking || !linkInput) ? 0.6 : 1 }}
+              >
+                {linking ? 'Linking...' : 'Link ID'}
+              </button>
+            </form>
+            {linkStatus.message && (
+              <p style={{ width: '100%', fontSize: '12px', color: linkStatus.type === 'error' ? '#f87171' : '#5eead4', margin: 0 }}>
+                {linkStatus.message}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Tab Navigation */}
         <div style={{ display: 'flex', gap: '4px', marginBottom: '28px', overflowX: 'auto', paddingBottom: '4px' }}>

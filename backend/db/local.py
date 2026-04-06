@@ -26,7 +26,8 @@ def init_db():
             role TEXT,
             phone TEXT,
             phone_verified BOOLEAN DEFAULT 0,
-            password_hash TEXT
+            password_hash TEXT,
+            pid TEXT
         );
 
         CREATE TABLE IF NOT EXISTS prescriptions (
@@ -174,6 +175,7 @@ def _run_migrations():
         ("prescriptions", "raw_ocr_text", "TEXT"),
         ("prescriptions", "patient_insights", "TEXT"),
         ("prescriptions", "linked_prescription_id", "TEXT"),
+        ("profiles", "pid", "TEXT"),
         ("discharge_results", "risk_score", "INTEGER"),
         ("discharge_results", "risk_level", "TEXT"),
     ]
@@ -247,4 +249,3 @@ def seed_mock_users():
 
 
 init_db()
-seed_mock_users()

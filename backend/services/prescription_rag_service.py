@@ -452,14 +452,14 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
       4. If retry also fails → fallback to regex-based extraction from OCR text.
       5. Parse result into PrescriptionExtractedData.
     """
-    from services.gemini_service import (  # local import to avoid circular
+    from services.llm_service import (  # local import to avoid circular
         _generate_text,
-        is_gemini_configured,
+        is_llm_configured,
     )
-    from core.exceptions import GeminiServiceError
+    from core.exceptions import APIError
 
-    if not is_gemini_configured():
-        raise GeminiServiceError("Gemini API key not configured")
+    if not is_llm_configured():
+        raise APIError("LLM API key not configured", status_code=500)
 
     context_snippets = retrieve_context(ocr_text, top_k=4)
     context_text = "\n\n".join(f"• {s}" for s in context_snippets)
@@ -470,16 +470,17 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
     )
 
     # --- Attempt 1 (deterministic: temperature=0.0) ---
-    logger.info("Calling Gemini for prescription RAG extraction (attempt 1, t=0.0)...")
-    response_text = _generate_text(
+    logger.info("Calling LLM for prescription RAG extraction (attempt 1, t=0.0)...")
+    response_text = await _generate_text(
         prompt=prompt,
-        generation_config={"temperature": 0.0, "max_output_tokens": 4096},
+        use_qwen=True,
+        temperature=0.0,
     )
 
     if not response_text:
-        raise GeminiServiceError("Gemini returned empty response for prescription extraction")
+        raise APIError("LLM returned empty response for prescription extraction", status_code=500)
 
-    logger.info(f"Gemini prescription response (attempt 1): {len(response_text)} chars")
+    logger.info(f"LLM prescription response (attempt 1): {len(response_text)} chars")
 
     try:
         data = _extract_json(response_text)
@@ -491,17 +492,18 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
         logger.warning(f"Raw response (attempt 1): {response_text[:500]}")
 
     # --- Attempt 2: Retry with reinforced prompt ---
-    logger.info("Retrying Gemini with reinforced JSON-only prompt (attempt 2)...")
+    logger.info("Retrying LLM with reinforced JSON-only prompt (attempt 2)...")
     retry_prompt = _RETRY_PROMPT.format(ocr_text=ocr_text)
 
     try:
-        response_text_2 = _generate_text(
+        response_text_2 = await _generate_text(
             prompt=retry_prompt,
-            generation_config={"temperature": 0.0, "max_output_tokens": 4096},
+            use_qwen=True,
+            temperature=0.0,
         )
 
         if response_text_2:
-            logger.info(f"Gemini prescription response (attempt 2): {len(response_text_2)} chars")
+            logger.info(f"LLM prescription response (attempt 2): {len(response_text_2)} chars")
             try:
                 data = _extract_json(response_text_2)
                 result = _parse_gemini_to_extracted_data(data)
@@ -511,10 +513,10 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
                 logger.warning(f"Attempt 2 JSON parse also failed: {exc2}")
                 logger.warning(f"Raw response (attempt 2): {response_text_2[:500]}")
     except Exception as retry_exc:
-        logger.warning(f"Retry Gemini call failed: {retry_exc}")
+        logger.warning(f"Retry LLM call failed: {retry_exc}")
 
     # --- Fallback: regex extraction from OCR ---
-    logger.warning("Both Gemini attempts failed to return JSON. Using fallback regex extraction.")
+    logger.warning("Both LLM attempts failed to return JSON. Using fallback regex extraction.")
     fallback = _fallback_extraction_from_ocr(ocr_text)
     fallback.raw_ocr_text = ocr_text
     return fallback

@@ -9,7 +9,7 @@ from main import app
 
 @pytest.fixture(autouse=True)
 def patch_startup_health(monkeypatch):
-    monkeypatch.setattr("main.check_gemini_health", lambda: {"status": "ok"}, raising=False)
+    monkeypatch.setattr("main.check_llm_health", lambda: {"status": "ok"}, raising=False)
     monkeypatch.setattr("main.check_twilio_health", lambda: {"status": "ok"}, raising=False)
     monkeypatch.setattr("main.check_supabase_health", lambda: {"status": "ok"}, raising=False)
     monkeypatch.setattr("main.check_s3_health", lambda: {"status": "ok"}, raising=False)

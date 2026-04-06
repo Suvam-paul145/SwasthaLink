@@ -3,8 +3,20 @@ All application-level custom exceptions in one place.
 """
 
 
-class GeminiServiceError(Exception):
-    """Custom exception for Gemini service errors"""
+class APIError(Exception):
+    """Generic API error with status code."""
+    def __init__(self, message: str, status_code: int = 500):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class LLMServiceError(APIError):
+    """Custom exception for LLM service errors"""
+    pass
+
+
+class LlamaCloudServiceError(Exception):
+    """Custom exception for LlamaCloud document extraction errors."""
 
     def __init__(self, message: str, status_code: int = 500):
         super().__init__(message)

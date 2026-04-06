@@ -1,5 +1,5 @@
 from models import ProcessResponse, Medication, ComprehensionQuestion
-from core.exceptions import GeminiServiceError
+from core.exceptions import LLMServiceError
 
 
 def _sample_process_response():
@@ -78,10 +78,10 @@ def test_process_summary_with_patient_context_saves_history(client, monkeypatch)
     async def _ok_async(*args, **kwargs):
         return {"success": True}
 
-    async def _save_discharge_result(*, patient_id, doctor_id, gemini_result):
+    async def _save_discharge_result(*, patient_id, doctor_id, llm_result):
         saved["patient_id"] = patient_id
         saved["doctor_id"] = doctor_id
-        saved["gemini_result"] = gemini_result
+        saved["llm_result"] = llm_result
         return {"success": True}
 
     monkeypatch.setattr("routes.discharge.generate_session_id", lambda: "session-xyz")
@@ -104,7 +104,7 @@ def test_process_summary_with_patient_context_saves_history(client, monkeypatch)
     assert response.status_code == 200
     assert saved["patient_id"] == "patient-123"
     assert saved["doctor_id"] == "doctor-123"
-    assert saved["gemini_result"]["session_id"] == "session-xyz"
+    assert saved["llm_result"]["session_id"] == "session-xyz"
 
 
 def test_process_summary_too_short(client):
@@ -163,7 +163,7 @@ def test_quiz_submit_needs_re_explain(client, monkeypatch):
 
 def test_process_summary_rate_limited_returns_429(client, monkeypatch):
     async def _rate_limited(*args, **kwargs):
-        raise GeminiServiceError("Request blocked before hitting limit", status_code=429)
+        raise LLMServiceError("Request blocked before hitting limit", status_code=429)
 
     monkeypatch.setattr("routes.discharge.process_discharge_summary", _rate_limited)
 
@@ -186,7 +186,7 @@ def test_upload_rate_limited_returns_429(client, monkeypatch):
         return {"s3_key": "demo/key"}
 
     async def _rate_limited_extract(*args, **kwargs):
-        raise GeminiServiceError("Request blocked before hitting limit", status_code=429)
+        raise LLMServiceError("Request blocked before hitting limit", status_code=429)
 
     monkeypatch.setattr("routes.discharge.upload_file", _mock_upload_file)
     monkeypatch.setattr("routes.discharge.extract_text_from_image", _rate_limited_extract)

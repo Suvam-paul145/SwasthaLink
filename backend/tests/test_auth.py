@@ -103,14 +103,19 @@ def test_verify_otp_marks_phone_verified(client, monkeypatch):
 
     calls = {"count": 0}
 
-    async def _mock_update_phone_verified(user_id, phone):
+    async def _mock_update_phone_verified(user_id, email, phone):
         calls["count"] += 1
+        assert user_id == "user-123"
+        assert email == "test@example.com"
         return {"success": True}
 
     monkeypatch.setattr("routes.auth.verify_otp", _mock_verify_otp)
-    monkeypatch.setattr("routes.auth.update_phone_verified", _mock_update_phone_verified)
+    monkeypatch.setattr("routes.auth.update_phone_verified_for_account", _mock_update_phone_verified)
 
-    response = client.post("/api/auth/verify-otp", json={"phone": "+919876543210", "code": "123456"})
+    response = client.post(
+        "/api/auth/verify-otp",
+        json={"phone": "+919876543210", "code": "123456", "user_id": "user-123", "email": "test@example.com"},
+    )
     assert response.status_code == 200
     body = response.json()
     assert body["verified"] is True

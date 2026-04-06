@@ -1,5 +1,5 @@
 """
-Gemini API Rate Limiter Service.
+LLM API Rate Limiter Service.
 
 Tracks usage per-minute and per-day.  Proactively blocks requests
 *before* they hit the API and prints clear console alerts telling the
@@ -11,8 +11,8 @@ Supports:
 - Automatic counter reset when the active API key changes
 
 Usage:
-    from services.rate_limiter_service import gemini_rate_limiter
-    gemini_rate_limiter.check_and_record()  # raises if over limit
+    from services.rate_limiter_service import llm_rate_limiter
+    llm_rate_limiter.check_and_record()  # raises if over limit
 """
 
 import hashlib
@@ -55,11 +55,11 @@ def _as_fraction(value: Optional[str], default: float) -> float:
 
 
 _default_warning_threshold = _as_fraction(
-    os.getenv("GEMINI_RATE_WARNING_THRESHOLD", os.getenv("RATE_ALERT_THRESHOLD_PERCENT", "80")),
+    os.getenv("LLM_RATE_WARNING_THRESHOLD", os.getenv("RATE_ALERT_THRESHOLD_PERCENT", "80")),
     0.80,
 )
 _default_block_threshold = _as_fraction(
-    os.getenv("GEMINI_RATE_BLOCK_THRESHOLD", "95"),
+    os.getenv("LLM_RATE_BLOCK_THRESHOLD", "95"),
     0.95,
 )
 
@@ -68,15 +68,15 @@ if _default_block_threshold <= _default_warning_threshold:
     _default_block_threshold = min(0.999, _default_warning_threshold + 0.05)
 
 RATE_LIMITS = {
-    "requests_per_minute": _as_positive_int(os.getenv("GEMINI_RPM_LIMIT"), 15),
-    "requests_per_day": _as_positive_int(os.getenv("GEMINI_RPD_LIMIT"), 1500),
+    "requests_per_minute": _as_positive_int(os.getenv("LLM_RPM_LIMIT"), 15),
+    "requests_per_day": _as_positive_int(os.getenv("LLM_RPD_LIMIT"), 1500),
     "warning_threshold": _default_warning_threshold,  # alert at threshold
     "block_threshold": _default_block_threshold,      # block at threshold
 }
 
 _BANNER = """
 ╔══════════════════════════════════════════════════════════════════╗
-║  {icon}  GEMINI API RATE LIMIT {level:<8}                         ║
+║  {icon}  LLM API RATE LIMIT {level:<8}                         ║
 ║  Per-minute : {rpm_used:>4}/{rpm_limit:<4} requests ({rpm_pct:>3.0f}%)                   ║
 ║  Per-day    : {rpd_used:>5}/{rpd_limit:<5} requests ({rpd_pct:>3.0f}%)                  ║
 ║  ACTION     : {action:<50}║
@@ -85,10 +85,10 @@ _BANNER = """
 
 
 class RateLimitExceeded(Exception):
-    """Raised when the Gemini API rate limit is about to be breached."""
+    """Raised when the LLM API rate limit is about to be breached."""
 
 
-class GeminiRateLimiter:
+class LLMRateLimiter:
     """Sliding-window rate limiter with console alerts."""
 
     def __init__(self, config: dict | None = None):
@@ -144,7 +144,7 @@ class GeminiRateLimiter:
 
         if self._active_key_fingerprint is not None:
             logger.warning(
-                "Gemini API key rotation detected (%s -> %s). Resetting in-memory RPM/RPD counters.",
+                "LLM API key rotation detected (%s -> %s). Resetting in-memory RPM/RPD counters.",
                 self._active_key_fingerprint,
                 key_fingerprint,
             )
@@ -159,7 +159,7 @@ class GeminiRateLimiter:
 
     def check_and_record(self, context: str = "", api_key: Optional[str] = None) -> None:
         """
-        Call before every Gemini API request.
+        Call before every LLM API request.
 
         - Records the request timestamp.
         - Prints WARNING at configured warning threshold.
@@ -189,11 +189,11 @@ class GeminiRateLimiter:
             if projected_rpm_pct >= self.block_pct or projected_rpd_pct >= self.block_pct:
                 self._print_banner(
                     "BLOCKED", "🚫",
-                    "CHANGE YOUR GEMINI API KEY NOW!",
+                    "CHANGE YOUR LLM API KEY NOW!",
                     rpm_used, rpd_used,
                 )
                 raise RateLimitExceeded(
-                    "Gemini request blocked to avoid provider quota breach. "
+                    "LLM request blocked to avoid provider quota breach. "
                     f"Context='{context or 'n/a'}'. "
                     f"Current usage: RPM {rpm_used}/{self.rpm_limit}, RPD {rpd_used}/{self.rpd_limit}. "
                     f"Projected next call: RPM {projected_rpm_used}/{self.rpm_limit}, "
@@ -217,7 +217,7 @@ class GeminiRateLimiter:
             self._day_window.append(now)
 
             if context:
-                logger.debug(f"Gemini call recorded ({context}): RPM={rpm_used+1}, RPD={rpd_used+1}")
+                logger.debug(f"LLM call recorded ({context}): RPM={rpm_used+1}, RPD={rpd_used+1}")
 
     def get_usage(self) -> dict:
         """Return current usage snapshot (for health endpoints)."""
@@ -264,4 +264,4 @@ class GeminiRateLimiter:
 
 # ── Singleton ──────────────────────────────────────────────────────────────────
 
-gemini_rate_limiter = GeminiRateLimiter()
+llm_rate_limiter = LLMRateLimiter()
