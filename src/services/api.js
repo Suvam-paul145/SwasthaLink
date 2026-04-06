@@ -81,14 +81,14 @@ const handleResponse = async (response) => {
  */
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
-  const { timeout = REQUEST_TIMEOUT, ...fetchOptions } = options;
+  const { timeout = REQUEST_TIMEOUT, ...requestOptions } = options;
   const requestHeaders = {
     ...DEFAULT_HEADERS,
-    ...(fetchOptions.headers || {}),
+    ...(requestOptions.headers || {}),
   };
 
   // FormData must not send a JSON content type.
-  if (fetchOptions.body instanceof FormData) {
+  if (requestOptions.body instanceof FormData) {
     delete requestHeaders['Content-Type'];
   }
 
@@ -99,7 +99,7 @@ const apiRequest = async (endpoint, options = {}) => {
     try {
       const response = await fetchWithTimeout(url, {
         ...defaultOptions,
-        ...fetchOptions,
+        ...requestOptions,
       }, timeout);
 
     return await handleResponse(response);
@@ -127,7 +127,8 @@ const apiRequest = async (endpoint, options = {}) => {
  * API Service Methods
  */
 const api = {
-  AUTH_REQUEST_TIMEOUT: 180000,
+  // Auth endpoints can hit cold-start latency right after deployment on free-tier hosting.
+  AUTH_REQUEST_TIMEOUT: 180000, // 3 minutes
   /**
    * Login with role, email and password.
    * @param {Object} data - Login request data
