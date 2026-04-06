@@ -6,11 +6,6 @@ import os
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-
-import httpx
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -89,58 +84,7 @@ class RateAlertService:
         )
 
     def _send_alerts(self, title, body):
-        self._send_email_alert(title, body)
-        self._create_github_issue_alert(title, body)
-
-    def _send_email_alert(self, title, body):
-        if not _as_bool(os.getenv("RATE_ALERT_EMAIL_ENABLED", "false")):
-            return
-        smtp_host = os.getenv("SMTP_HOST")
-        smtp_port = _as_int(os.getenv("SMTP_PORT", "587"), 587)
-        smtp_user = os.getenv("SMTP_USERNAME")
-        smtp_pass = os.getenv("SMTP_PASSWORD")
-        from_email = os.getenv("ALERT_FROM_EMAIL")
-        to_raw = os.getenv("ALERT_TO_EMAIL", "")
-        to_emails = [x.strip() for x in to_raw.split(",") if x.strip()]
-        if not all([smtp_host, smtp_user, smtp_pass, from_email]) or not to_emails:
-            logger.warning("Email alert enabled but SMTP env vars incomplete")
-            return
-        try:
-            msg = MIMEMultipart()
-            msg["From"] = from_email
-            msg["To"] = ", ".join(to_emails)
-            msg["Subject"] = title
-            msg.attach(MIMEText(body, "plain", "utf-8"))
-            use_tls = _as_bool(os.getenv("SMTP_USE_TLS", "true"), True)
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
-                if use_tls:
-                    server.starttls()
-                server.login(smtp_user, smtp_pass)
-                server.sendmail(from_email, to_emails, msg.as_string())
-            logger.info("Rate alert email sent successfully")
-        except Exception as exc:
-            logger.error(f"Failed to send rate alert email: {exc}")
-
-    def _create_github_issue_alert(self, title, body):
-        if not _as_bool(os.getenv("RATE_ALERT_GITHUB_ENABLED", "false")):
-            return
-        token = os.getenv("GITHUB_TOKEN")
-        owner = os.getenv("GITHUB_REPO_OWNER")
-        repo = os.getenv("GITHUB_REPO_NAME")
-        if not token or not owner or not repo:
-            logger.warning("GitHub alert enabled but GITHUB_* env vars incomplete")
-            return
-        url = f"https://api.github.com/repos/{owner}/{repo}/issues"
-        headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
-        payload = {"title": title, "body": f"## Rate alert\n\n{body}\n_Auto-generated._", "labels": ["ops"]}
-        try:
-            r = httpx.post(url, headers=headers, json=payload, timeout=20.0)
-            if r.status_code >= 300:
-                logger.error(f"GitHub issue alert failed: {r.status_code}")
-            else:
-                logger.info("Rate alert GitHub issue created")
-        except Exception as exc:
-            logger.error(f"GitHub issue alert failed: {exc}")
+        logger.warning(f"Rate alert: {title}")
 
     def get_status(self) -> Dict[str, Any]:
         self._reset_if_new_day()

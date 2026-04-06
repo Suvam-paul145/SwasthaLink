@@ -1,215 +1,171 @@
 # SwasthaLink Deployment Guide (Vercel + Render)
 
-This guide covers:
-1. Where to get values for your `.env` variables (especially `SENTRY_DSN` + SMTP email alert settings)
-2. Full step-by-step deployment of **frontend on Vercel** and **backend on Render**
+Step-by-step guide to deploy the **React frontend on Vercel** and the **FastAPI backend on Render**.
 
 ---
 
-## 0) Security first (very important)
+## 1) Architecture overview
 
-Your current `backend/.env` appears to contain real credentials. Treat them as exposed and rotate them immediately:
+| Layer | Platform | Directory | Start command |
+|-------|----------|-----------|---------------|
+| Frontend (React + Vite) | **Vercel** | repo root (`.`) | `npm run build` → `dist/` |
+| Backend (FastAPI) | **Render** | `backend/` | `uvicorn main:app --host 0.0.0.0 --port $PORT` |
 
-- Gemini API key
-- Twilio SID/token/API keys
-- Supabase keys
-- AWS access keys
-- GitHub token
-
-After rotating, update values in your local `.env` and in hosting dashboards (Render/Vercel).
-
----
-
-## 1) Where to get these `.env` values
-
-### 1.1 `SENTRY_DSN=your_sentry_dsn_here`
-
-**Where to get it:**
-1. Go to [https://sentry.io](https://sentry.io)
-2. Create/login to org
-3. Create a project (Python for backend and/or React for frontend)
-4. Open **Project Settings → Client Keys (DSN)**
-5. Copy the DSN value
-
-**Important for this repo:**
-- `SENTRY_DSN` exists in `.env` templates, but backend code currently has no Sentry SDK initialization.
-- So this value is currently optional unless you add Sentry instrumentation.
+Key wiring:
+- Frontend reads `VITE_API_URL` (set in Vercel) to call the backend.
+- Backend reads `FRONTEND_URL` (set in Render) for CORS allow-list.
 
 ---
 
-### 1.2 Email alert channel values (SMTP)
+## 2) Deploy backend to Render
 
-These are used by `backend/rate_alert_service.py` when `RATE_ALERT_EMAIL_ENABLED=true`.
+### 2.1 — Push code to GitHub
 
-| Variable | Where to get it | Example / Notes |
-|---|---|---|
-| `RATE_ALERT_EMAIL_ENABLED` | You set this manually | `true` to enable emails, `false` to disable |
-| `SMTP_HOST` | Your mail provider SMTP docs | Gmail: `smtp.gmail.com` |
-| `SMTP_PORT` | Your mail provider SMTP docs | `587` for STARTTLS (common) |
-| `SMTP_USERNAME` | Your SMTP account username | Usually your email address |
-| `SMTP_PASSWORD` | Your SMTP/app password | For Gmail use **App Password**, not normal password |
-| `SMTP_USE_TLS` | You set this manually | `true` for port `587` |
-| `ALERT_FROM_EMAIL` | A sender email allowed by provider | Should match/align with SMTP account |
-| `ALERT_TO_EMAIL` | Recipient inbox(es) you choose | Supports comma-separated emails |
+Make sure your `testing` branch is up to date and pushed.
 
-#### Gmail setup (recommended quick path)
+### 2.2 — Create a Render Web Service
 
-1. Enable 2-Step Verification on Google account
-2. Generate **App Password**: Google Account → Security → App passwords
-3. Use:
-   - `SMTP_HOST=smtp.gmail.com`
-   - `SMTP_PORT=587`
-   - `SMTP_USE_TLS=true`
-   - `SMTP_USERNAME=your_gmail@gmail.com`
-   - `SMTP_PASSWORD=<16-char-app-password>`
-
----
-
-## 2) Deployment architecture for this repo
-
-- **Frontend (React + Vite)**: deploy on **Vercel** from repo root
-- **Backend (FastAPI)**: deploy on **Render** from `backend` directory
-
-From your codebase:
-- Frontend API URL comes from `VITE_API_URL`
-- Backend CORS includes `FRONTEND_URL`
-- Render backend start command: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-
----
-
-## 3) Step-by-step: Deploy backend to Render
-
-### Step 3.1 — Push latest code to GitHub
-
-Make sure branch is up to date and pushed.
-
-### Step 3.2 — Create Render Web Service
-
-1. Open [https://render.com](https://render.com)
-2. New → **Web Service**
-3. Connect your GitHub repo: `Suvam-paul145/SwasthaLink`
-4. Configure:
-   - **Root Directory**: `backend`
-   - **Runtime**: Python
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
-
-### Step 3.3 — Add backend environment variables in Render
-
-Set at minimum:
-
-- `GEMINI_API_KEY`
-- `TWILIO_ACCOUNT_SID`
-- `TWILIO_AUTH_TOKEN`
-- `TWILIO_WHATSAPP_NUMBER` (sandbox default: `whatsapp:+14155238886`)
-- `SUPABASE_URL`
-- `SUPABASE_KEY`
-- `FRONTEND_URL` (temporarily your Vercel preview URL or later production URL)
-- `ENVIRONMENT=production`
-- `DEBUG=false`
-
-Optional (only if used):
-
-- `AWS_ACCESS_KEY_ID`
-- `AWS_SECRET_ACCESS_KEY`
-- `AWS_REGION`
-- `S3_BUCKET_NAME`
-- `SENTRY_DSN`
-- `RATE_ALERT_*`
-- SMTP variables for email alerts
-- GitHub alert variables
-
-### Step 3.4 — Deploy and verify backend
-
-After deploy completes, check:
-
-- `https://<your-render-service>.onrender.com/api/health`
-- `https://<your-render-service>.onrender.com/docs`
-
-If health is degraded/down, fix missing env vars first.
-
----
-
-## 4) Step-by-step: Deploy frontend to Vercel
-
-### Step 4.1 — Create Vercel project
-
-1. Open [https://vercel.com](https://vercel.com)
-2. New Project → Import `Suvam-paul145/SwasthaLink`
+1. Go to [https://render.com](https://render.com) → **New** → **Web Service**
+2. Connect your GitHub repo: `Suvam-paul145/SwasthaLink`
 3. Configure:
-   - **Framework Preset**: Vite
-   - **Root Directory**: `.`
-   - **Build Command**: `npm run build`
-   - **Output Directory**: `dist`
 
-### Step 4.2 — Add frontend env var in Vercel
+| Setting | Value |
+|---------|-------|
+| **Root Directory** | `backend` |
+| **Runtime** | Python |
+| **Build Command** | `pip install -r requirements.txt` |
+| **Start Command** | `uvicorn main:app --host 0.0.0.0 --port $PORT` |
 
-Set:
+### 2.3 — Set backend environment variables
 
-- `VITE_API_URL=https://<your-render-service>.onrender.com`
+Add these in the Render dashboard under **Environment**:
 
-Redeploy if you add/change env vars after first deployment.
+**Required:**
 
-### Step 4.3 — Verify frontend
+| Variable | Description |
+|----------|-------------|
+| `QWEN_API_KEY` | OpenRouter API key for Qwen model |
+| `QWEN_BASE_URL` | `https://openrouter.ai/api/v1` |
+| `QWEN_MODEL_NAME` | `qwen/qwen3.6-plus:free` |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+| `TWILIO_WHATSAPP_NUMBER` | `whatsapp:+14155238886` (sandbox) |
+| `TWILIO_API_KEY_SID` | Twilio API Key SID |
+| `TWILIO_API_KEY_SECRET` | Twilio API Key Secret |
+| `TWILIO_VERIFY_SERVICE_SID` | Twilio Verify Service SID |
+| `SUPABASE_URL` | Your Supabase project URL |
+| `SUPABASE_KEY` | Supabase anon/public key |
+| `FRONTEND_URL` | Your Vercel URL (set after frontend deploy) |
+| `ENVIRONMENT` | `production` |
+| `DEBUG` | `false` |
+| `JWT_SECRET` | A strong random secret for JWT signing |
+| `GROQ_API_KEY` | Groq API key |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` |
 
-Open your Vercel URL and ensure:
+**Optional (if using S3 uploads):**
 
-- Pages load
-- API calls succeed (no CORS error)
-- End-to-end flow works
+| Variable | Description |
+|----------|-------------|
+| `AWS_ACCESS_KEY_ID` | AWS IAM access key |
+| `AWS_SECRET_ACCESS_KEY` | AWS IAM secret key |
+| `AWS_REGION` | e.g. `ap-south-1` |
+| `S3_BUCKET_NAME` | Your S3 bucket name |
 
----
+**Optional (rate alert tuning):**
 
-## 5) Final CORS sync (critical)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RATE_ALERTS_ENABLED` | `true` | Enable usage tracking |
+| `RATE_ALERT_THRESHOLD_PERCENT` | `80` | Alert threshold % |
+| `RATE_ALERT_LLM_DAILY_LIMIT` | `1000` | Daily LLM call limit |
+| `RATE_ALERT_TWILIO_DAILY_LIMIT` | `500` | Daily Twilio call limit |
+| `RATE_ALERT_SUPABASE_DAILY_LIMIT` | `5000` | Daily Supabase call limit |
+| `RATE_ALERT_S3_DAILY_LIMIT` | `1000` | Daily S3 call limit |
 
-After Vercel URL is ready:
+### 2.4 — Deploy and verify
 
-1. Go back to Render service env vars
-2. Set `FRONTEND_URL=https://<your-vercel-app>.vercel.app` (or your custom domain)
-3. Redeploy backend
-
-This is required because backend CORS allow-list includes `FRONTEND_URL`.
-
----
-
-## 6) Recommended post-deploy checklist
-
-- [ ] Backend `/api/health` is `ok` or expected `degraded`
-- [ ] Frontend can call backend without CORS issues
-- [ ] Twilio WhatsApp sandbox joined and test message delivered
-- [ ] Supabase logging works
-- [ ] (Optional) S3 upload works
-- [ ] (Optional) Email alerts test passes after forcing high usage threshold
-
----
-
-## 7) Optional: keep Render free tier warm
-
-If your Render plan sleeps on inactivity, use an uptime monitor to ping:
+After the deploy completes, check:
 
 - `https://<your-render-service>.onrender.com/api/health`
+- `https://<your-render-service>.onrender.com/docs` (Swagger UI)
 
-at regular intervals.
+If health shows `degraded`, fix any missing env vars first.
 
 ---
 
-## 8) Quick copy template for email alert vars
+## 3) Deploy frontend to Vercel
 
-```dotenv
-RATE_ALERT_EMAIL_ENABLED=true
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=your_email@gmail.com
-SMTP_PASSWORD=your_gmail_app_password
-SMTP_USE_TLS=true
-ALERT_FROM_EMAIL=your_email@gmail.com
-ALERT_TO_EMAIL=your_email@gmail.com,another_email@gmail.com
+### 3.1 — Create a Vercel project
+
+1. Go to [https://vercel.com](https://vercel.com) → **New Project**
+2. Import `Suvam-paul145/SwasthaLink`
+3. Configure:
+
+| Setting | Value |
+|---------|-------|
+| **Framework Preset** | Vite |
+| **Root Directory** | `.` |
+| **Build Command** | `npm run build` |
+| **Output Directory** | `dist` |
+
+### 3.2 — Set frontend environment variable
+
+| Variable | Value |
+|----------|-------|
+| `VITE_API_URL` | `https://<your-render-service>.onrender.com` |
+
+> Redeploy if you add or change env vars after the first deployment.
+
+### 3.3 — Verify frontend
+
+Open your Vercel URL and check:
+
+- Pages load correctly
+- API calls succeed (no CORS errors in console)
+- Login, discharge processing, and WhatsApp flows work end-to-end
+
+---
+
+## 4) Final CORS sync (critical)
+
+After Vercel gives you a URL:
+
+1. Go back to **Render** → your service → **Environment**
+2. Set `FRONTEND_URL=https://<your-vercel-app>.vercel.app`
+3. **Redeploy** the backend
+
+This is required because the backend CORS allow-list reads `FRONTEND_URL`.
+
+---
+
+## 5) Post-deploy checklist
+
+- [ ] Backend `/api/health` returns `ok` or expected `degraded`
+- [ ] Frontend loads and can call backend without CORS errors
+- [ ] Twilio WhatsApp sandbox joined and test message delivered
+- [ ] Supabase queries working (login, data storage)
+- [ ] (If used) S3 upload works
+
+---
+
+## 6) Keep Render free tier alive
+
+Free-tier Render services sleep after 15 minutes of inactivity. Use an uptime monitor (e.g. UptimeRobot, cron-job.org) to ping:
+
+```
+https://<your-render-service>.onrender.com/api/health
 ```
 
+every 5–10 minutes.
+
 ---
 
-## 9) Notes about Sentry in this project
+## 7) Troubleshooting
 
-- `SENTRY_DSN` is present in env templates.
-- Current backend code does not initialize Sentry SDK yet.
-- If you want, add Sentry instrumentation first, then set DSN on Render/Vercel.
+| Problem | Fix |
+|---------|-----|
+| CORS error in browser console | Set `FRONTEND_URL` on Render to your exact Vercel URL, then redeploy |
+| Backend health `degraded` | Check Render logs → usually a missing env var |
+| Frontend shows blank / API errors | Verify `VITE_API_URL` in Vercel points to the Render URL (no trailing slash) |
+| Twilio not sending | Ensure phone has joined sandbox; check `TWILIO_*` vars on Render |
+| Render deploy fails on build | Check `backend/requirements.txt` is valid; Render needs Python 3.11+ |
