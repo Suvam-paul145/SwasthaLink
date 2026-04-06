@@ -184,11 +184,26 @@ const api = {
    * @param {string} data.previous_simplified - Previous simplified text
    * @returns {Promise<Object>} Simplified summary with medications, quiz, etc.
    */
-  processSummary: async (data) => {
+  processDischarge: async (data) => {
     return apiRequest(API_ENDPOINTS.PROCESS, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        discharge_text: data.discharge_text,
+        role: data.role,
+        language: data.language,
+        patient_id: data.patient_id,
+        doctor_id: data.doctor_id,
+        re_explain: data.re_explain,
+        previous_simplified: data.previous_simplified,
+      }),
     });
+  },
+
+  /**
+   * Backward-compatible alias for older callers.
+   */
+  processSummary: async (data) => {
+    return api.processDischarge(data);
   },
 
   /**
@@ -592,6 +607,19 @@ const api = {
     return await apiRequest('/api/patient/profile', {
       method: 'GET',
     });
+  },
+
+  /**
+   * Check interaction risks for a medication list.
+   * @param {Array<string>} medications - Medication names
+   * @returns {Promise<Array>} Interaction list
+   */
+  checkDrugInteractions: async (medications = []) => {
+    const response = await apiRequest('/api/drug-interactions', {
+      method: 'POST',
+      body: JSON.stringify({ medications }),
+    });
+    return Array.isArray(response) ? response : (response?.interactions || []);
   },
 };
 

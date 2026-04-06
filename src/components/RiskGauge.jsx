@@ -1,41 +1,115 @@
-import React from 'react';
+import React from "react";
 
-/**
- * RiskGauge Component
- * Renders an SVG gauge showing the readmission risk score.
- */
-export default function RiskGauge({ score, level }) {
-  // Score is 0-100, maps to -90 to 90 degrees
-  const angle = (score / 100) * 180 - 90;
-  const color = level === 'low' ? '#34d399' : level === 'moderate' ? '#f59e0b' : '#ef4444';
-  
+function RiskGauge({ score = 0, level = "low" }) {
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+  const safeScore = clamp(Number(score) || 0, 0, 100);
+
+  const levelFromScore = (value) => {
+    if (value <= 34) return "low";
+    if (value <= 64) return "moderate";
+    return "high";
+  };
+
+  const safeLevel =
+    level === "low" || level === "moderate" || level === "high"
+      ? level
+      : levelFromScore(safeScore);
+
+  const COLORS = {
+    low: "#22c55e",
+    moderate: "#f59e0b",
+    high: "#ef4444",
+    track: "#e5e7eb",
+    textMain: "#111827",
+    textSub: "#6b7280",
+  };
+
+  const needleColor = COLORS[safeLevel];
+
+  const width = 220;
+  const height = 140;
+  const cx = 110;
+  const cy = 110;
+  const radius = 88;
+
+  const pctToAngle = (pct) => 180 - (pct / 100) * 180;
+  const polar = (angleDeg, r) => {
+    const rad = (angleDeg * Math.PI) / 180;
+    return {
+      x: cx + r * Math.cos(rad),
+      y: cy - r * Math.sin(rad),
+    };
+  };
+
+  const arcPath = (startPct, endPct) => {
+    const startAngle = pctToAngle(startPct);
+    const endAngle = pctToAngle(endPct);
+    const startPoint = polar(startAngle, radius);
+    const endPoint = polar(endAngle, radius);
+    return `M ${startPoint.x} ${startPoint.y} A ${radius} ${radius} 0 0 1 ${endPoint.x} ${endPoint.y}`;
+  };
+
+  const needleAngle = pctToAngle(safeScore);
+
   return (
-    <div style={{ textAlign: 'center', width: '200px', margin: '0 auto' }}>
-      <svg viewBox="0 0 200 110" width="200">
-        {/* Background arc segments */}
-        {/* Low (0-35) */}
-        <path d="M 20 100 A 80 80 0 0 1 75 32" stroke="#34d399" strokeWidth="12" fill="none"/>
-        {/* Moderate (35-65) */}
-        <path d="M 75 32 A 80 80 0 0 1 146 39" stroke="#f59e0b" strokeWidth="12" fill="none"/>
-        {/* High (65-100) */}
-        <path d="M 146 39 A 80 80 0 0 1 180 100" stroke="#ef4444" strokeWidth="12" fill="none"/>
-        
-        {/* Needle */}
+    <div
+      style={{
+        width: "100%",
+        maxWidth: 320,
+        margin: "0 auto",
+        padding: 16,
+        borderRadius: 16,
+        background: "#ffffff",
+        boxSizing: "border-box",
+      }}
+    >
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ width: "100%", height: "auto", display: "block" }}
+      >
+        <path d={arcPath(0, 100)} stroke={COLORS.track} strokeWidth="16" fill="none" />
+        <path d={arcPath(0, 34)} stroke={COLORS.low} strokeWidth="16" fill="none" />
+        <path d={arcPath(35, 64)} stroke={COLORS.moderate} strokeWidth="16" fill="none" />
+        <path d={arcPath(65, 100)} stroke={COLORS.high} strokeWidth="16" fill="none" />
+
         <line
-          x1="100" y1="100"
-          x2={100 + 65 * Math.cos((angle - 90) * Math.PI / 180)}
-          y2={100 + 65 * Math.sin((angle - 90) * Math.PI / 180)}
-          stroke={color} strokeWidth="3" strokeLinecap="round"
+          x1={cx}
+          y1={cy}
+          x2={cx + 72}
+          y2={cy}
+          stroke={needleColor}
+          strokeWidth="5"
+          strokeLinecap="round"
+          transform={`rotate(${-needleAngle} ${cx} ${cy})`}
         />
-        <circle cx="100" cy="100" r="5" fill={color}/>
+        <circle cx={cx} cy={cy} r="8" fill={needleColor} />
       </svg>
-      
-      <div style={{ fontSize: 24, fontWeight: 600, color, marginTop: '-5px' }}>
-        {score} / 100
-      </div>
-      <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#9ca3af' }}>
-        {level} Readmission Risk
+
+      <div style={{ textAlign: "center", marginTop: 6 }}>
+        <div
+          style={{
+            fontSize: 36,
+            fontWeight: 800,
+            lineHeight: 1,
+            color: COLORS.textMain,
+          }}
+        >
+          {Math.round(safeScore)}
+        </div>
+        <div
+          style={{
+            marginTop: 6,
+            fontSize: 14,
+            fontWeight: 600,
+            color: COLORS.textSub,
+            textTransform: "capitalize",
+          }}
+        >
+          {safeLevel} readmission risk
+        </div>
       </div>
     </div>
   );
 }
+
+export default RiskGauge;

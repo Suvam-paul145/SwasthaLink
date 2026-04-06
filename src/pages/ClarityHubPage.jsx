@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getGroqChatbotReply } from "../services/groq";
+import RiskGauge from "../components/RiskGauge";
 
 function ClarityHubPage() {
   const navigate = useNavigate();
@@ -10,6 +11,7 @@ function ClarityHubPage() {
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isAssistantTyping, setIsAssistantTyping] = useState(false);
   const [chatInput, setChatInput] = useState("");
+  const [latestRisk, setLatestRisk] = useState(null);
   const [chatMessages, setChatMessages] = useState([
     {
       id: "welcome",
@@ -66,6 +68,15 @@ function ClarityHubPage() {
     try {
       const result = await getGroqChatbotReply(patientId, question);
       answer = result?.answer || "Sorry, I could not find an answer.";
+      if (
+        typeof result?.risk_score === "number" &&
+        ["low", "moderate", "high"].includes(result?.risk_level)
+      ) {
+        setLatestRisk({
+          risk_score: result.risk_score,
+          risk_level: result.risk_level,
+        });
+      }
     } catch (e) {
       answer = "Sorry, there was an error contacting the assistant.";
     }
@@ -216,6 +227,13 @@ function ClarityHubPage() {
 
         {/* Goals and Vitals Sidebar */}
         <section className="col-span-4 space-y-8">
+          {latestRisk ? (
+            <div className="bg-surface-container-low rounded-xl p-6 border border-white/5">
+              <h4 className="text-lg font-headline font-bold text-white mb-4">Readmission Risk</h4>
+              <RiskGauge score={latestRisk.risk_score} level={latestRisk.risk_level} />
+            </div>
+          ) : null}
+
           {/* Today's Goal Section */}
           <div className="bg-surface-container-low rounded-xl p-8 border border-white/5 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4">

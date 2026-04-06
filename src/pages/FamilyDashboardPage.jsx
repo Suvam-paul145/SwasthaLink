@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import ChatbotPanel from '../components/ChatbotPanel';
-import RiskGauge from '../components/RiskGauge';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -20,6 +19,7 @@ function FamilyDashboardPage() {
 
   const [activeTab, setActiveTab] = useState('overview');
   const [prescriptions, setPrescriptions] = useState([]);
+  const [dischargeHistory, setDischargeHistory] = useState([]);
   const [rxLoading, setRxLoading] = useState(true);
   const [chunks, setChunks] = useState({});
   const [chunksLoading, setChunksLoading] = useState(false);
@@ -104,6 +104,7 @@ function FamilyDashboardPage() {
   }, [activeTab, patientId]);
 
   const latestRx = prescriptions[0];
+  const latestDischarge = dischargeHistory[0];
   const insights = latestRx?.patient_insights;
   const extracted = latestRx?.extracted_data || latestRx || {};
   const medicationChunks = chunks.medication || [];
@@ -249,18 +250,56 @@ function FamilyDashboardPage() {
                 </div>
               </div>
 
-              {/* Readmission Risk */}
+              {/* Latest Discharge Summary */}
               <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(255,255,255,.08)', gridColumn: 'span 1' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
                   <div>
-                    <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.2em', color: '#64748b' }}>Risk Assessment</p>
-                    <h4 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Readmission Risk</h4>
+                    <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.2em', color: '#64748b' }}>Discharge</p>
+                    <h4 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Latest Summary</h4>
                   </div>
                 </div>
-                {dischargeLoading ? <SkeletonBlock /> : dischargeHistory.length > 0 && dischargeHistory[0].risk_score !== undefined ? (
-                  <RiskGauge score={dischargeHistory[0].risk_score} level={dischargeHistory[0].risk_level} />
+                {dischargeLoading ? <SkeletonBlock /> : latestDischarge ? (
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    <div>
+                      <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.16em', color: '#64748b', marginBottom: '4px' }}>Simplified English</p>
+                      <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.6 }}>
+                        {latestDischarge.simplified_english || 'Not available'}
+                      </p>
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.16em', color: '#64748b', marginBottom: '4px' }}>Medications</p>
+                      {(latestDischarge.medications || []).length > 0 ? (
+                        <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                          {(latestDischarge.medications || []).slice(0, 3).map((med, idx) => (
+                            <li key={idx} style={{ fontSize: '13px', color: '#cbd5e1', marginBottom: '4px' }}>
+                              {typeof med === 'string' ? med : `${med.name || 'Medication'} ${med.dosage || ''} ${med.frequency || ''}`.trim()}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p style={{ fontSize: '13px', color: '#64748b' }}>No medications listed.</p>
+                      )}
+                    </div>
+                    <div>
+                      <p style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '.16em', color: '#64748b', marginBottom: '4px' }}>Quiz Questions</p>
+                      {(latestDischarge.quiz_questions || []).length > 0 ? (
+                        <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                          {(latestDischarge.quiz_questions || []).slice(0, 2).map((q, idx) => (
+                            <li key={idx} style={{ fontSize: '13px', color: '#cbd5e1', marginBottom: '4px' }}>
+                              {typeof q === 'string' ? q : (q.question || 'Question')}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p style={{ fontSize: '13px', color: '#64748b' }}>No quiz questions available.</p>
+                      )}
+                    </div>
+                  </div>
                 ) : (
-                  <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic', textAlign: 'center', marginTop: '20px' }}>Risk score not computed yet. Ask Doctor to process discharge summary.</p>
+                  <div style={{ textAlign: 'center', padding: '24px 12px', border: '1px dashed rgba(94,234,212,.35)', borderRadius: '14px', background: 'rgba(13,148,136,.06)' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '34px', color: '#5eead4', display: 'block', marginBottom: '8px' }}>clinical_notes</span>
+                    <p style={{ fontSize: '15px', color: '#e2e8f0', fontWeight: 700, margin: 0 }}>No discharge summary yet</p>
+                  </div>
                 )}
               </div>
 

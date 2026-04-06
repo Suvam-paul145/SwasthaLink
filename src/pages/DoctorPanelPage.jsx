@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import api, { validators } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_OPTIONS } from "../utils/auth";
+import DrugWarningBanner from "../components/DrugWarningBanner";
 
 /**
  * Generate a unique patient ID in format PID-XXXXXX
@@ -45,6 +46,11 @@ function DoctorPanelPage() {
   // Auto-generated patient ID (system-generated after diagnosis)
   const [autoPatientId, setAutoPatientId] = useState(null);
   const [dischargePatientId, setDischargePatientId] = useState(null);
+  const [patientDirectory, setPatientDirectory] = useState([]);
+  const [selectedDischargePatientId, setSelectedDischargePatientId] = useState('');
+  const [dischargeResult, setDischargeResult] = useState(null);
+  const [interactions, setInteractions] = useState([]);
+  const [shareToast, setShareToast] = useState("");
   const [copiedId, setCopiedId] = useState(null);
 
   // Pending reviews from API
@@ -60,7 +66,17 @@ function DoctorPanelPage() {
 
   const selectedReview = pendingReviews.find((review) => review.id === selectedReviewId) ?? pendingReviews[0];
 
-  // No patient directory fetch needed — patient IDs are auto-generated
+  // Load patient directory for discharge summary assignment
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await api.getPatients();
+        setPatientDirectory(result?.items || []);
+      } catch (err) {
+        console.warn('Patient directory fetch:', err.message);
+      }
+    })();
+  }, []);
 
   // Fetch pending prescriptions
   useEffect(() => {
@@ -103,6 +119,38 @@ function DoctorPanelPage() {
       }
     })();
   }, [doctorId, uploadStatus]);
+
+  // Check interactions after discharge result is set and has >= 2 medications.
+  useEffect(() => {
+    const meds =
+      dischargeResult?.medications ||
+      dischargeResult?.result?.medications ||
+      dischargeResult?.data?.medications ||
+      [];
+    if (meds.length < 2) {
+      setInteractions([]);
+      return;
+    }
+
+    const names = meds
+      .map((m) => (typeof m === "string" ? m : m?.name))
+      .filter(Boolean);
+
+    if (names.length < 2) {
+      setInteractions([]);
+      return;
+    }
+
+    (async () => {
+      try {
+        const data = await api.checkDrugInteractions(names);
+        setInteractions(data);
+      } catch (error) {
+        console.warn("Drug interaction check failed:", error.message);
+        setInteractions([]);
+      }
+    })();
+  }, [dischargeResult]);
 
   // No need to sync selected patient — IDs are system-generated
 
@@ -206,6 +254,24 @@ function DoctorPanelPage() {
       alert("Failed to export summary: " + err.message);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    const shareToken =
+      dischargeResult?.share_token ||
+      dischargeResult?.result?.share_token ||
+      dischargeResult?.data?.share_token;
+    if (!shareToken) return;
+
+    const shareUrl = `https://${window.location.host}/share/${shareToken}`;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareToast("Link copied!");
+      setTimeout(() => setShareToast(""), 1600);
+    } catch {
+      setShareToast("Copy failed");
+      setTimeout(() => setShareToast(""), 1600);
     }
   };
 
@@ -323,33 +389,29 @@ function DoctorPanelPage() {
             </div>
             
             <div className="p-5 space-y-4">
-              {/* Auto-generated Patient ID + Target Role */}
+              {/* Patient + Target Role */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Patient ID</label>
-                  <div className="rounded-2xl border border-white/10 bg-[#0d1f2d] px-3 py-3 flex items-center gap-3">
-                    <span className="material-symbols-outlined text-teal-200">badge</span>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-white font-mono font-bold tracking-wider">
-                          {dischargePatientId || <span className="text-slate-400 italic font-normal font-sans">Wait for submit</span>}
-                        </p>
-                        {dischargePatientId && (
-                          <button 
-                            onClick={() => copyToClipboard(dischargePatientId, () => {
-                              setCopiedId(dischargePatientId);
-                              setTimeout(() => setCopiedId(null), 2000);
-                            })}
-                            className="text-teal-400 hover:text-white transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-sm">
-                              {copiedId === dischargePatientId ? 'check' : 'content_copy'}
-                            </span>
-                          </button>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-500 uppercase tracking-tighter">System-generated clinical ID</p>
-                    </div>
+                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Patient</label>
+                  <div className="rounded-2xl border border-white/10 bg-[#0d1f2d] px-3 py-2 flex items-center gap-3">
+                    <span className="material-symbols-outlined text-teal-200">person_search</span>
+                    <select
+                      id="discharge-patient-select"
+                      value={selectedDischargePatientId}
+                      onChange={(e) => setSelectedDischargePatientId(e.target.value)}
+                      className="w-full bg-transparent text-sm text-white outline-none"
+                    >
+                      <option value="" className="bg-[#0d1f2d] text-white">Select a patient...</option>
+                      {patientDirectory.map((patient) => {
+                        const pid = patient.user_id || patient.id || patient.email;
+                        const pname = patient.full_name || patient.name || patient.email;
+                        return (
+                          <option key={pid} value={pid} className="bg-[#0d1f2d] text-white">
+                            {pname} ({pid})
+                          </option>
+                        );
+                      })}
+                    </select>
                   </div>
                 </div>
 
@@ -384,22 +446,25 @@ function DoctorPanelPage() {
                 onClick={async () => {
                    const text = document.getElementById('discharge-text-input').value;
                    const role = document.getElementById('discharge-role-select').value;
+                   const patientId = document.getElementById('discharge-patient-select').value;
                    if (text.length < 50) return alert("Text too short (min 50 chars)");
+                   if (!patientId) return alert("Please select a patient");
 
-                   // Auto-generate a patient ID for this discharge
-                   const newPatientId = generatePatientId();
-                   setDischargePatientId(newPatientId);
+                   setDischargePatientId(patientId);
+                   setDischargeResult(null);
+                   setInteractions([]);
 
                    setUploadStatus("Processing Discharge...");
                    try {
-                     const response = await api.processSummary({
+                     const response = await api.processDischarge({
                        discharge_text: text,
                        role: role,
                        language: 'en',
-                       patient_id: newPatientId,
+                       patient_id: patientId,
                        doctor_id: doctorId
                      });
-                     alert(`Discharge processed successfully! Patient ID: ${newPatientId}`);
+                     setDischargeResult(response);
+                     alert(`Discharge processed successfully! Patient ID: ${patientId}`);
                      setUploadStatus("Idle");
                    } catch(e) {
                      alert("Error processing: " + e.message);
@@ -411,6 +476,25 @@ function DoctorPanelPage() {
               >
                 Simplify &amp; Save Discharge Summary
               </button>
+
+              <DrugWarningBanner interactions={interactions} />
+
+              {(dischargeResult?.share_token || dischargeResult?.result?.share_token || dischargeResult?.data?.share_token) && (
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={handleCopyShareLink}
+                    className="rounded-xl bg-cyan-400 px-4 py-2 text-sm font-bold text-slate-900 hover:bg-cyan-300 transition-colors"
+                  >
+                    Share with family
+                  </button>
+                  {shareToast && (
+                    <div className="mt-2 inline-block rounded-lg border border-emerald-300/40 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-200">
+                      {shareToast}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
