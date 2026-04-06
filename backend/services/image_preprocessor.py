@@ -28,7 +28,7 @@ except ImportError:
     logger.warning("opencv-python-headless not installed — image preprocessing disabled")
 
 try:
-    from PIL import Image, ImageOps, ExifTags
+    from PIL import Image, ImageOps
     _HAS_PIL = True
 except ImportError:
     _HAS_PIL = False

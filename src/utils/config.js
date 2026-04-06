@@ -17,6 +17,9 @@ export const API_ENDPOINTS = {
   AUTH_SIGNUP: '/api/auth/signup',
   AUTH_SEND_OTP: '/api/auth/send-otp',
   AUTH_VERIFY_OTP: '/api/auth/verify-otp',
+  AUTH_ME: '/api/auth/me',
+  AUTH_FORGOT_PASSWORD: '/api/auth/forgot-password',
+  AUTH_RESET_PASSWORD: '/api/auth/reset-password',
 
   // Prescription RAG pipeline endpoints
   PRESCRIPTION_EXTRACT: '/api/prescriptions/extract',
@@ -28,8 +31,16 @@ export const API_ENDPOINTS = {
   PRESCRIPTIONS_FOR_PATIENT: (patientId) => `/api/prescriptions/for-patient/${patientId}`,
   PRESCRIPTIONS_ALL: '/api/prescriptions/all',
   PRESCRIPTION_DOCTOR_VIEW: (id) => `/api/prescriptions/${id}/doctor-view`,
+  PRESCRIPTION_ADMIN_VIEW: (id) => `/api/prescriptions/${id}/admin-view`,
+  PRESCRIPTION_AUDIT_LOG: (id) => `/api/prescriptions/${id}/audit-log`,
   RATE_LIMIT_STATUS: '/api/rate-limit-status',
   PATIENTS_LIST: '/api/patients',
+  PATIENT_CHUNKS: (patientId) => `/api/patients/${patientId}/chunks`,
+  PATIENT_CHUNKS_BY_TYPE: (patientId, type) => `/api/patients/${patientId}/chunks/${type}`,
+  PATIENT_CHATBOT_CONTEXT: (patientId) => `/api/patients/${patientId}/chatbot-context`,
+  PATIENT_FAQ_SUGGESTIONS: (patientId) => `/api/patients/${patientId}/faq-suggestions`,
+  PATIENT_CHATBOT_QUERY: (patientId) => `/api/patients/${patientId}/chatbot-query`,
+  PATIENT_HISTORY: (patientId) => `/api/patient/${patientId}/history`,
 
   // Utility endpoints
   HEALTH: '/api/health',

@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: swasthalink-ingress
+  namespace: swasthalink
+spec:
+  rules:
+    - host: swasthalink.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: swasthalink-backend
+                port:
+                  number: 8000
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: swasthalink-frontend
+                port:
+                  number: 80

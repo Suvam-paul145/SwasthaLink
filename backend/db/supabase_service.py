@@ -3,18 +3,21 @@ Supabase Service — Session logging + analytics.
 Prescription and profile CRUD have been moved to db.prescription_db and db.profile_db.
 """
 
+import inspect
 import os
 import logging
+from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timedelta, timezone
 import uuid
-import inspect
+
 
 try:
-    from supabase import create_client
+    from supabase import create_client, Client
     SUPABASE_SDK_AVAILABLE = True
 except ImportError:
     create_client = None
+    Client = None
     SUPABASE_SDK_AVAILABLE = False
 
 from core.config import read_env
@@ -27,6 +30,10 @@ if not SUPABASE_SDK_AVAILABLE:
     logger.warning("Supabase SDK not installed. Install with: pip install supabase==2.8.1")
 
 
+SCHEMA_FILE_PATH = Path(__file__).with_name("supabase_schema.sql")
+_logged_warnings: set[str] = set()
+
+
 # Load Supabase credentials
 SUPABASE_URL = read_env("VITE_SUPABASE_URL", "SUPABASE_URL")
 SUPABASE_KEY = read_env(
@@ -36,11 +43,18 @@ SUPABASE_KEY = read_env(
     "VITE_SUPABASE_PUBLISHABLE_DEFAULT_KEY",
 )
 
-# Initialize Supabase client (local mock)
-from db.mock_supabase import MockSupabaseClient
-supabase_client = MockSupabaseClient()
 
-logger.info("Local SQLite mock client initialized successfully")
+# Initialize Supabase client
+if SUPABASE_SDK_AVAILABLE and SUPABASE_URL and SUPABASE_KEY:
+    supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    logger.info("Real Supabase client initialized successfully.")
+else:
+    logger.error(
+        "Real Supabase credentials missing. SDK or keys are not available. "
+        "Ensure SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set."
+    )
+    supabase_client = None
+
 
 
 class SupabaseServiceError(Exception):
@@ -48,12 +62,87 @@ class SupabaseServiceError(Exception):
     pass
 
 
+def _warn_once(key: str, message: str) -> None:
+    """Log one-time warnings for repeated setup issues."""
+    if key in _logged_warnings:
+        return
+    _logged_warnings.add(key)
+    logger.warning(message)
+
+
+def _extract_error_payload(exc: Exception) -> Dict[str, Any]:
+    """Normalize Supabase/PostgREST errors into a dict shape."""
+    payload: Dict[str, Any] = {}
+
+    for key in ("code", "message", "details", "hint"):
+        value = getattr(exc, key, None)
+        if value is not None:
+            payload[key] = value
+
+    if not payload and len(getattr(exc, "args", ())) == 1 and isinstance(exc.args[0], dict):
+        payload.update(exc.args[0])
+
+    if "message" not in payload:
+        payload["message"] = str(exc)
+
+    return payload
+
+
+def _is_missing_table_error(exc: Exception, table_name: Optional[str] = None) -> bool:
+    """Return True when PostgREST reports a missing table in the schema cache."""
+    payload = _extract_error_payload(exc)
+    code = str(payload.get("code", ""))
+    message = str(payload.get("message", "")).lower()
+
+    is_missing = code == "PGRST205" or "could not find the table" in message
+    if not is_missing:
+        return False
+
+    if not table_name:
+        return True
+
+    table_name = table_name.lower()
+    return (
+        f"'{table_name}'" in message
+        or f"public.{table_name}" in message
+        or f"table '{table_name}'" in message
+    )
+
+
+def get_schema_file_path() -> str:
+    """Return the canonical schema file path for real Supabase setup."""
+    return str(SCHEMA_FILE_PATH)
+
+
 async def _execute_query(query):
-    """Execute Supabase query in both async (real) and sync (mock) modes."""
+    """
+    Execute Supabase queries in both sync and async SDK modes.
+    """
     result = query.execute()
     if inspect.isawaitable(result):
         return await result
     return result
+
+
+def is_supabase_table_available(table_name: str) -> bool:
+    """Check whether a required table is present in the real Supabase schema."""
+    try:
+        if not supabase_client:
+            return False
+        supabase_client.table(table_name).select("*").limit(1).execute()
+        return True
+    except Exception as exc:
+        if _is_missing_table_error(exc, table_name):
+            _warn_once(
+                f"missing-table:{table_name}",
+                (
+                    f"Supabase table '{table_name}' is missing. "
+                    f"Apply the schema in {get_schema_file_path()} to your Supabase project."
+                ),
+            )
+            return False
+        logger.error(f"Failed to verify Supabase table '{table_name}': {exc}")
+        return False
 
 
 def _history_enabled() -> bool:
@@ -255,7 +344,7 @@ async def update_session_quiz_score(session_id: str, quiz_score: int, re_explain
             logger.warning("Supabase client not available")
             return {"success": False, "error": "Supabase not configured"}
 
-        result = supabase_client.table("sessions").update({
+        supabase_client.table("sessions").update({
             "quiz_score": quiz_score,
             "re_explained": re_explained
         }).eq("id", session_id).execute()
@@ -284,7 +373,7 @@ async def update_session_whatsapp_status(session_id: str, whatsapp_sent: bool) -
             logger.warning("Supabase client not available")
             return {"success": False, "error": "Supabase not configured"}
 
-        result = supabase_client.table("sessions").update({
+        supabase_client.table("sessions").update({
             "whatsapp_sent": whatsapp_sent
         }).eq("id", session_id).execute()
 
@@ -395,16 +484,44 @@ def check_supabase_health() -> Dict[str, Any]:
                 "available": False
             }
 
-        result = supabase_client.table("sessions").select("id").limit(1).execute()
+        supabase_client.table("sessions").select("id").limit(1).execute()
+
+        followup_ready = is_supabase_table_available("followup_messages")
 
         return {
-            "status": "ok",
-            "message": "Supabase service is healthy",
+            "status": "ok" if followup_ready else "degraded",
+            "message": (
+                "Supabase service is healthy"
+                if followup_ready
+                else (
+                    "Supabase core tables are available, but follow-up queue tables are missing. "
+                    f"Apply the schema in {get_schema_file_path()}."
+                )
+            ),
             "available": True,
-            "table_accessible": True
+            "table_accessible": True,
+            "followup_queue_ready": followup_ready,
         }
 
     except Exception as e:
+        if _is_missing_table_error(e, "sessions"):
+            payload = _extract_error_payload(e)
+            message = (
+                "Supabase is reachable, but the SwasthaLink schema is not initialized. "
+                f"Run the SQL in {get_schema_file_path()} in the Supabase SQL Editor. "
+                f"Original error: {payload.get('message', str(e))}"
+            )
+            _warn_once("supabase-schema-missing", message)
+            return {
+                "status": "degraded",
+                "message": message,
+                "available": False,
+                "table_accessible": False,
+                "setup_required": True,
+                "schema_file": get_schema_file_path(),
+                "followup_queue_ready": False,
+            }
+
         logger.error(f"Supabase health check failed: {e}")
         return {
             "status": "down",
@@ -415,62 +532,14 @@ def check_supabase_health() -> Dict[str, Any]:
 
 def get_schema_sql() -> str:
     """Get SQL schema for creating Supabase tables."""
-    return """
-create extension if not exists pgcrypto;
-
-create table if not exists public.discharge_results (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  patient_id text not null,
-  doctor_id text,
-  simplified_english text not null,
-  simplified_bengali text not null,
-  medications jsonb not null default '[]'::jsonb,
-  follow_up jsonb,
-  warning_signs jsonb not null default '[]'::jsonb,
-  quiz_questions jsonb not null default '[]'::jsonb
-);
-
-create index if not exists idx_discharge_results_patient_created
-  on public.discharge_results (patient_id, created_at desc);
-
-create table if not exists public.share_tokens (
-  token text primary key,
-  session_id uuid not null,
-  patient_id text not null,
-  expires_at timestamptz not null,
-  created_at timestamptz not null default now()
-);
-
-create index if not exists idx_share_tokens_session
-  on public.share_tokens (session_id);
-
-create index if not exists idx_share_tokens_expires_at
-  on public.share_tokens (expires_at);
-
-create table if not exists public.followup_messages (
-  id uuid primary key default gen_random_uuid(),
-  created_at timestamptz not null default now(),
-  session_id uuid not null,
-  patient_id text not null,
-  patient_name text,
-  phone_number text not null,
-  day_offset int not null,
-  scheduled_for timestamptz not null,
-  message_text text not null,
-  medications jsonb not null default '[]'::jsonb,
-  status text not null default 'pending', -- pending|sent|failed
-  sent_at timestamptz,
-  twilio_sid text,
-  error text
-);
-
-create index if not exists idx_followup_messages_status_scheduled
-  on public.followup_messages (status, scheduled_for);
-"""
+    try:
+        return SCHEMA_FILE_PATH.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.error(f"Failed to read Supabase schema file at {SCHEMA_FILE_PATH}: {exc}")
+        return ""
 
 
-async def save_discharge_result(patient_id: str, doctor_id: Optional[str], gemini_result: Dict[str, Any]) -> Dict[str, Any]:
+async def save_discharge_result(patient_id: str, doctor_id: Optional[str], llm_result: Dict[str, Any]) -> Dict[str, Any]:
     """Save the final discharge result to Supabase."""
     try:
         if not supabase_client:
@@ -481,15 +550,17 @@ async def save_discharge_result(patient_id: str, doctor_id: Optional[str], gemin
             "created_at": datetime.utcnow().isoformat(),
             "patient_id": patient_id,
             "doctor_id": doctor_id,
-            "simplified_english": gemini_result.get("simplified_english"),
-            "simplified_bengali": gemini_result.get("simplified_bengali"),
-            "medications": gemini_result.get("medications", []),
-            "follow_up": gemini_result.get("follow_up", {}),
-            "warning_signs": gemini_result.get("warning_signs", []),
+            "simplified_english": llm_result.get("simplified_english"),
+            "simplified_bengali": llm_result.get("simplified_bengali"),
+            "medications": llm_result.get("medications", []),
+            "follow_up": llm_result.get("follow_up", {}),
+            "warning_signs": llm_result.get("warning_signs", []),
             "quiz_questions": (
-                gemini_result.get("quiz_questions")
-                or gemini_result.get("comprehension_questions", [])
+                llm_result.get("quiz_questions")
+                or llm_result.get("comprehension_questions", [])
             ),
+            "risk_score": llm_result.get("risk_score"),
+            "risk_level": llm_result.get("risk_level"),
         }
 
         result = await _execute_query(
@@ -688,6 +759,15 @@ async def create_followup_message_jobs(jobs: List[Dict[str, Any]]) -> Dict[str, 
             "jobs": result.data if getattr(result, "data", None) else payload,
         }
     except Exception as e:
+        if _is_missing_table_error(e, "followup_messages"):
+            return {
+                "success": False,
+                "error": (
+                    "Supabase table 'followup_messages' is missing. "
+                    f"Apply {get_schema_file_path()} first."
+                ),
+                "jobs": [],
+            }
         logger.error(f"Failed to create follow-up jobs: {e}")
         return {"success": False, "error": str(e), "jobs": []}
 
@@ -708,6 +788,15 @@ async def get_pending_followup_jobs(limit: int = 200) -> List[Dict[str, Any]]:
         )
         return result.data if getattr(result, "data", None) else []
     except Exception as e:
+        if _is_missing_table_error(e, "followup_messages"):
+            _warn_once(
+                "followup-queue-missing",
+                (
+                    "Skipping follow-up queue restore because Supabase table "
+                    f"'followup_messages' is missing. Apply {get_schema_file_path()} first."
+                ),
+            )
+            return []
         logger.error(f"Failed to list pending follow-up jobs: {e}")
         return []
 

@@ -55,7 +55,41 @@ from models.prescription import (
     PrescriptionApproveRequest,
     PrescriptionRejectRequest,
     PrescriptionPatientViewResponse,
+    # Multi-layer pipeline models
+    RawExtractionPayload,
+    DoctorDashboardPayload,
+    AdminPanelPayload,
+    PatientDataChunk,
+    ChatbotContextPayload,
+    AuditLogEntry,
 )
+
+__all__ = [
+    "ProcessRequest",
+    "ProcessResponse",
+    "QuizSubmitRequest",
+    "QuizSubmitResponse",
+    "UploadResponse",
+    "WhatsAppRequest",
+    "WhatsAppResponse",
+    "PrescriptionTest",
+    "DosageSchedule",
+    "PatientInsights",
+    "PrescriptionMedication",
+    "PrescriptionExtractedData",
+    "PrescriptionStatusEnum",
+    "PrescriptionRecord",
+    "PrescriptionExtractResponse",
+    "PrescriptionApproveRequest",
+    "PrescriptionRejectRequest",
+    "PrescriptionPatientViewResponse",
+    "RawExtractionPayload",
+    "DoctorDashboardPayload",
+    "AdminPanelPayload",
+    "PatientDataChunk",
+    "ChatbotContextPayload",
+    "AuditLogEntry",
+]
 
 __all__ = [
     # Common
@@ -76,4 +110,7 @@ __all__ = [
     "PrescriptionRecord", "PrescriptionExtractResponse",
     "PrescriptionApproveRequest", "PrescriptionRejectRequest",
     "PrescriptionPatientViewResponse",
+    # Pipeline
+    "RawExtractionPayload", "DoctorDashboardPayload", "AdminPanelPayload",
+    "PatientDataChunk", "ChatbotContextPayload", "AuditLogEntry",
 ]

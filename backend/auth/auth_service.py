@@ -1,18 +1,22 @@
 """
 Authentication service for role-based login.
-
-Primary mode:
-  - Supabase email/password authentication
-  - Optional role + name from user metadata or profiles table
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from db.mock_supabase import MockSupabaseClient
+from db.supabase_service import get_schema_file_path, supabase_client
 from core.exceptions import AuthServiceError
 
-supabase_client = MockSupabaseClient()
+# Import JWT utility for generating tokens on signup
+try:
+    from auth.jwt_utils import create_access_token
+    JWT_AVAILABLE = True
+except ImportError:
+    JWT_AVAILABLE = False
+
+# supabase_client imported from supabase_service
 logger = logging.getLogger(__name__)
 
 SUPPORTED_ROLES = {"patient", "doctor", "admin"}
@@ -74,6 +78,55 @@ def _fetch_profile_row(user_id: Optional[str], email: str) -> Optional[Dict[str,
             continue
 
     return None
+
+
+def _upsert_profile_row(
+    *,
+    user_id: Optional[str],
+    email: str,
+    name: str,
+    role: str,
+    phone: str,
+) -> None:
+    """Ensure a profile row exists and stays in sync with auth metadata."""
+    if not supabase_client or not user_id:
+        return
+
+    payload = {
+        "id": user_id,
+        "user_id": user_id,
+        "email": email.strip().lower(),
+        "full_name": name.strip(),
+        "name": name.strip(),
+        "role": role,
+        "phone": phone,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    try:
+        supabase_client.table("profiles").upsert(payload).execute()
+    except Exception as exc:
+        logger.warning(f"Profile sync after auth signup/login failed: {exc}")
+
+
+def _raise_actionable_signup_error(exc: Exception) -> None:
+    """Map Supabase auth signup errors to clearer developer-facing messages."""
+    error_msg = str(exc)
+    lowered = error_msg.lower()
+
+    if "already registered" in lowered or "duplicate" in lowered:
+        raise AuthServiceError("An account with this email already exists", status_code=409)
+
+    if "database error saving new user" in lowered:
+        raise AuthServiceError(
+            (
+                "Supabase Auth could not create the user because the profile/signup database trigger failed. "
+                f"Re-run {get_schema_file_path()} in the Supabase SQL Editor, then try signup again."
+            ),
+            status_code=500,
+        )
+
+    raise AuthServiceError(f"Signup failed: {error_msg}", status_code=500)
 
 
 def _resolve_user_identity(user: Any, expected_role: str) -> Dict[str, Optional[str]]:
@@ -183,18 +236,23 @@ def signup_user(name: str, email: str, password: str, phone: str, role: str = "p
             raise AuthServiceError("Failed to create account — please try again", status_code=500)
 
         user_id = getattr(auth_user, "id", None)
+        _upsert_profile_row(
+            user_id=user_id,
+            email=normalized_email,
+            name=name.strip(),
+            role=validated_role,
+            phone=phone,
+        )
 
-        try:
-            supabase_client.table("profiles").insert({
-                "user_id": user_id,
-                "full_name": name.strip(),
-                "email": normalized_email,
-                "role": validated_role,
-                "phone": phone,
-                "phone_verified": False,
-            }).execute()
-        except Exception as profile_exc:
-            logger.warning(f"Profile insert failed (may already exist): {profile_exc}")
+        # Generate a JWT token for the new user
+        access_token = None
+        if JWT_AVAILABLE:
+            access_token = create_access_token(
+                user_id=user_id,
+                email=normalized_email,
+                role=validated_role,
+                name=name.strip(),
+            )
 
         return {
             "user_id": user_id,
@@ -206,14 +264,12 @@ def signup_user(name: str, email: str, password: str, phone: str, role: str = "p
                 "phone": phone,
                 "phone_verified": False,
             },
+            "access_token": access_token,
             "is_demo": False,
         }
 
     except AuthServiceError:
         raise
     except Exception as exc:
-        error_msg = str(exc)
-        if "already registered" in error_msg.lower() or "duplicate" in error_msg.lower():
-            raise AuthServiceError("An account with this email already exists", status_code=409)
         logger.error(f"Signup failed: {exc}")
-        raise AuthServiceError(f"Signup failed: {error_msg}", status_code=500)
+        _raise_actionable_signup_error(exc)

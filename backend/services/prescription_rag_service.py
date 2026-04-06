@@ -18,6 +18,16 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+from db import (
+    supabase_client,
+    create_prescription as _db_create,
+    list_pending_prescriptions as _db_list_pending,
+    list_prescriptions_by_doctor as _db_list_by_doctor,
+    list_approved_prescriptions_for_patient as _db_list_for_patient,
+    approve_prescription_db as _db_approve,
+    reject_prescription_db as _db_reject,
+    get_prescription_by_id as _db_get,
+)
 from models import (
     PrescriptionExtractedData,
     PrescriptionMedication,
@@ -442,14 +452,14 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
       4. If retry also fails → fallback to regex-based extraction from OCR text.
       5. Parse result into PrescriptionExtractedData.
     """
-    from services.gemini_service import (  # local import to avoid circular
-        GEMINI_API_KEY,
+    from services.llm_service import (  # local import to avoid circular
         _generate_text,
+        is_llm_configured,
     )
-    from core.exceptions import GeminiServiceError
+    from core.exceptions import APIError
 
-    if not GEMINI_API_KEY:
-        raise GeminiServiceError("Gemini API key not configured")
+    if not is_llm_configured():
+        raise APIError("LLM API key not configured", status_code=500)
 
     context_snippets = retrieve_context(ocr_text, top_k=4)
     context_text = "\n\n".join(f"• {s}" for s in context_snippets)
@@ -460,16 +470,17 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
     )
 
     # --- Attempt 1 (deterministic: temperature=0.0) ---
-    logger.info("Calling Gemini for prescription RAG extraction (attempt 1, t=0.0)...")
-    response_text = _generate_text(
+    logger.info("Calling LLM for prescription RAG extraction (attempt 1, t=0.0)...")
+    response_text = await _generate_text(
         prompt=prompt,
-        generation_config={"temperature": 0.0, "max_output_tokens": 4096},
+        use_qwen=True,
+        temperature=0.0,
     )
 
     if not response_text:
-        raise GeminiServiceError("Gemini returned empty response for prescription extraction")
+        raise APIError("LLM returned empty response for prescription extraction", status_code=500)
 
-    logger.info(f"Gemini prescription response (attempt 1): {len(response_text)} chars")
+    logger.info(f"LLM prescription response (attempt 1): {len(response_text)} chars")
 
     try:
         data = _extract_json(response_text)
@@ -481,17 +492,18 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
         logger.warning(f"Raw response (attempt 1): {response_text[:500]}")
 
     # --- Attempt 2: Retry with reinforced prompt ---
-    logger.info("Retrying Gemini with reinforced JSON-only prompt (attempt 2)...")
+    logger.info("Retrying LLM with reinforced JSON-only prompt (attempt 2)...")
     retry_prompt = _RETRY_PROMPT.format(ocr_text=ocr_text)
 
     try:
-        response_text_2 = _generate_text(
+        response_text_2 = await _generate_text(
             prompt=retry_prompt,
-            generation_config={"temperature": 0.0, "max_output_tokens": 4096},
+            use_qwen=True,
+            temperature=0.0,
         )
 
         if response_text_2:
-            logger.info(f"Gemini prescription response (attempt 2): {len(response_text_2)} chars")
+            logger.info(f"LLM prescription response (attempt 2): {len(response_text_2)} chars")
             try:
                 data = _extract_json(response_text_2)
                 result = _parse_gemini_to_extracted_data(data)
@@ -501,10 +513,10 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
                 logger.warning(f"Attempt 2 JSON parse also failed: {exc2}")
                 logger.warning(f"Raw response (attempt 2): {response_text_2[:500]}")
     except Exception as retry_exc:
-        logger.warning(f"Retry Gemini call failed: {retry_exc}")
+        logger.warning(f"Retry LLM call failed: {retry_exc}")
 
     # --- Fallback: regex extraction from OCR ---
-    logger.warning("Both Gemini attempts failed to return JSON. Using fallback regex extraction.")
+    logger.warning("Both LLM attempts failed to return JSON. Using fallback regex extraction.")
     fallback = _fallback_extraction_from_ocr(ocr_text)
     fallback.raw_ocr_text = ocr_text
     return fallback
@@ -513,17 +525,6 @@ async def extract_prescription_data(ocr_text: str) -> PrescriptionExtractedData:
 # ---------------------------------------------------------------------------
 # Prescription workflow store — Supabase-backed with in-memory fallback
 # ---------------------------------------------------------------------------
-
-from db import (
-    supabase_client,
-    create_prescription as _db_create,
-    list_pending_prescriptions as _db_list_pending,
-    list_prescriptions_by_doctor as _db_list_by_doctor,
-    list_approved_prescriptions_for_patient as _db_list_for_patient,
-    approve_prescription_db as _db_approve,
-    reject_prescription_db as _db_reject,
-    get_prescription_by_id as _db_get,
-)
 
 
 
@@ -551,6 +552,8 @@ def _record_to_db_row(record: PrescriptionRecord) -> Dict[str, Any]:
         "raw_ocr_text": ed.raw_ocr_text,
         "patient_insights": ed.patient_insights.model_dump() if ed.patient_insights else None,
         "linked_prescription_id": record.linked_prescription_id,
+        "payload_version": 1,
+        "raw_extraction_snapshot": json.dumps(ed.model_dump()),
     }
     return row
 
@@ -643,6 +646,19 @@ async def create_prescription_record(
         raise ValueError("Supabase client is required but not configured.")
     await _db_create(_record_to_db_row(record))
 
+    # Audit: log upload event
+    try:
+        from db.audit_db import create_audit_entry
+        await create_audit_entry(
+            prescription_id=record.prescription_id,
+            action="uploaded",
+            actor_role="doctor",
+            actor_id=doctor_id,
+            details={"report_type": extracted_data.report_type, "confidence": extracted_data.extraction_confidence},
+        )
+    except Exception as audit_exc:
+        logger.warning(f"Audit log failed (non-critical): {audit_exc}")
+
     logger.info(f"Prescription record created: {record.prescription_id}")
     return record
 
@@ -672,11 +688,55 @@ async def list_approved_for_patient(patient_id: str) -> List[PrescriptionRecord]
 
 
 async def approve_record(prescription_id: str, admin_id: str) -> Optional[PrescriptionRecord]:
-    """Approve a pending prescription record."""
+    """Approve a pending prescription record and trigger chunking pipeline."""
     if not supabase_client:
         return None
     row = await _db_approve(prescription_id, admin_id)
-    return _db_row_to_record(row) if row else None
+    if not row:
+        return None
+    record = _db_row_to_record(row)
+
+    # Audit: log approval
+    try:
+        from db.audit_db import create_audit_entry
+        await create_audit_entry(
+            prescription_id=prescription_id,
+            action="approved",
+            actor_role="admin",
+            actor_id=admin_id,
+        )
+    except Exception as audit_exc:
+        logger.warning(f"Audit log failed (non-critical): {audit_exc}")
+
+    # Auto-trigger chunking pipeline
+    try:
+        from services.data_chunker_service import chunk_and_store
+        from services.chatbot_context_service import get_patient_context
+        insights_raw = record.extracted_data.patient_insights
+        insights_dict = insights_raw.model_dump() if insights_raw else None
+        chunks = await chunk_and_store(record, insights_dict)
+        logger.info(f"Auto-chunked {len(chunks)} chunks for prescription {prescription_id}")
+        patient_id = record.extracted_data.patient_id
+        if patient_id:
+            await get_patient_context(patient_id)
+        else:
+            logger.warning(
+                "Skipped chatbot context refresh due to missing patient_id"
+            )
+
+        # Audit: log chunking
+        from db.audit_db import create_audit_entry as _audit
+        await _audit(
+            prescription_id=prescription_id,
+            action="chunked",
+            actor_role="system",
+            actor_id="auto-pipeline",
+            details={"chunk_count": len(chunks)},
+        )
+    except Exception as chunk_exc:
+        logger.warning(f"Chunking pipeline failed (non-critical): {chunk_exc}")
+
+    return record
 
 
 async def reject_record(
@@ -686,7 +746,24 @@ async def reject_record(
     if not supabase_client:
         return None
     row = await _db_reject(prescription_id, admin_id, rejection_reason)
-    return _db_row_to_record(row) if row else None
+    if not row:
+        return None
+    record = _db_row_to_record(row)
+
+    # Audit: log rejection
+    try:
+        from db.audit_db import create_audit_entry
+        await create_audit_entry(
+            prescription_id=prescription_id,
+            action="rejected",
+            actor_role="admin",
+            actor_id=admin_id,
+            details={"reason": rejection_reason},
+        )
+    except Exception as audit_exc:
+        logger.warning(f"Audit log failed (non-critical): {audit_exc}")
+
+    return record
 
 
 async def get_record(prescription_id: str) -> Optional[PrescriptionRecord]:

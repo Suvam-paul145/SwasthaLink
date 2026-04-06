@@ -4,10 +4,9 @@ Handles all WhatsApp message sending via Twilio API
 Supports both sandbox (development) and production WhatsApp Business API
 """
 
-import os
 import logging
-from typing import Dict, Any, Optional
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, Optional
 
 try:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -32,8 +31,8 @@ from core.config import read_env
 from core.exceptions import TwilioServiceError
 from db.supabase_service import (
     create_followup_message_jobs,
-    get_pending_followup_jobs,
     get_followup_job,
+    get_pending_followup_jobs,
     mark_followup_job_sent,
     mark_followup_job_failed,
 )

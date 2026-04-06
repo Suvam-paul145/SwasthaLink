@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "lint": "echo \"No frontend lint configuration yet\"",
+    "format:check": "echo \"No frontend formatter check configured yet\"",
+    "test:unit": "echo \"No frontend unit tests configured yet\"",
+    "test:e2e": "echo \"No frontend E2E tests configured yet\"",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -12,6 +16,7 @@
     "@react-spring/three": "^9.7.5",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@sentry/react": "^10.47.0",
     "chart.js": "^4.5.1",
     "framer-motion": "^12.38.0",
     "gsap": "^3.14.2",

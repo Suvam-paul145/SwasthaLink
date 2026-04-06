@@ -95,3 +95,35 @@ class OTPVerifyRequest(BaseModel):
         ..., min_length=4, max_length=8,
         description="OTP code received",
     )
+    user_id: Optional[str] = Field(None, description="Optional user ID to mark a single profile as verified")
+    email: Optional[str] = Field(None, description="Optional email to disambiguate duplicate phone numbers")
+
+
+class PasswordResetOTPRequest(BaseModel):
+    """Request to send an OTP for password reset"""
+    email: str = Field(..., min_length=5, max_length=320, description="User email address")
+    phone: str = Field(
+        ..., pattern=r'^\+\d{10,15}$',
+        description="Phone in E.164 format",
+    )
+
+class PasswordResetConfirmRequest(BaseModel):
+    """Request to verify OTP and set new password"""
+    email: str = Field(..., min_length=5, max_length=320, description="User email address")
+    phone: str = Field(
+        ..., pattern=r'^\+\d{10,15}$',
+        description="Phone in E.164 format",
+    )
+    code: str = Field(
+        ..., min_length=4, max_length=8,
+        description="OTP code received",
+    )
+    new_password: str = Field(..., min_length=6, max_length=128, description="New password")
+
+    @field_validator("email")
+    @classmethod
+    def validate_reset_email(cls, value: str) -> str:
+        trimmed = value.strip().lower()
+        if "@" not in trimmed or "." not in trimmed.split("@")[-1]:
+            raise ValueError("Invalid email format")
+        return trimmed

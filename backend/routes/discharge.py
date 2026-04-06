@@ -2,20 +2,27 @@
 
 import asyncio
 import logging
-from typing import Optional
+import random
+import string
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
-from fastapi.responses import JSONResponse
+
+
+def _generate_patient_id() -> str:
+    """Generate a system-level patient ID in format PID-XXXXXX."""
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(random.choices(chars, k=6))
+    return f"PID-{code}"
 
 from models import (
     ProcessRequest, ProcessResponse,
     QuizSubmitRequest, QuizSubmitResponse,
     UploadResponse,
 )
-from services.gemini_service import process_discharge_summary, extract_text_from_image
+from services.llm_service import process_discharge_summary, extract_text_from_image
 from services.s3_service import upload_file
 from services.twilio_service import schedule_followup_messages
 from services.rate_alert_service import rate_alert_service
-from core.exceptions import GeminiServiceError, S3ServiceError
+from core.exceptions import APIError, S3ServiceError
 from db.supabase_service import (
     log_session, persist_session_history, append_session_event,
     update_session_quiz_score, generate_session_id, save_discharge_result,
@@ -28,7 +35,7 @@ router = APIRouter()
 
 @router.post("/api/process", response_model=ProcessResponse)
 async def process_summary(request: ProcessRequest):
-    """Core endpoint: Simplify discharge summary using Gemini AI."""
+    """Core endpoint: Simplify discharge summary using the configured LLM."""
     try:
         if len(request.discharge_text.strip()) < 50:
             raise HTTPException(status_code=400, detail="Discharge summary too short — minimum 50 characters required")
@@ -41,7 +48,7 @@ async def process_summary(request: ProcessRequest):
             language=request.language.value, re_explain=request.re_explain,
             previous_simplified=request.previous_simplified,
         )
-        rate_alert_service.track_usage("gemini", context="/api/process")
+        rate_alert_service.track_usage("llm", context="/api/process")
         from services.risk_scoring import compute_risk_score
         
         # Calculate worst-case baseline risk score since the quiz has not been taken yet (quiz_score = 0)
@@ -56,14 +63,20 @@ async def process_summary(request: ProcessRequest):
         result.risk_level = r_level
         result.session_id = session_id
 
-        try:
-            await save_discharge_result(
-                patient_id=request.patient_id,
-                doctor_id=request.doctor_id,
-                gemini_result=result.model_dump(by_alias=True)
-            )
-        except Exception as e:
-            logger.warning(f"Failed to save discharge result to Supabase: {e}")
+        # If no patient_id provided, generate one to ensure every session is tracked
+        if not request.patient_id:
+            request.patient_id = _generate_patient_id()
+            logger.info(f"Auto-generated patient ID: {request.patient_id}")
+
+        if request.patient_id:
+            try:
+                await save_discharge_result(
+                    patient_id=request.patient_id,
+                    doctor_id=request.doctor_id,
+                    llm_result=result.model_dump(by_alias=True)
+                )
+            except Exception as e:
+                logger.warning(f"Failed to save discharge result to Supabase: {e}")
 
         try:
             await log_session(role=request.role.value, language=request.language.value,
@@ -80,50 +93,51 @@ async def process_summary(request: ProcessRequest):
             logger.warning(f"Session logging failed (non-critical): {e}")
 
         share_token = None
-        try:
-            token_result = await create_share_token(
-                session_id=session_id,
-                patient_id=request.patient_id,
-                expires_in_days=30,
-            )
-            if token_result.get("success"):
-                share_token = token_result.get("token")
-            else:
-                logger.warning(f"Share token generation failed: {token_result.get('error')}")
-        except Exception as e:
-            logger.warning(f"Share token generation failed (non-critical): {e}")
+        if request.patient_id:
+            try:
+                token_result = await create_share_token(
+                    session_id=session_id,
+                    patient_id=request.patient_id,
+                    expires_in_days=30,
+                )
+                if token_result.get("success"):
+                    share_token = token_result.get("token")
+                else:
+                    logger.warning(f"Share token generation failed: {token_result.get('error')}")
+            except Exception as e:
+                logger.warning(f"Share token generation failed (non-critical): {e}")
 
         logger.info(f"Successfully processed summary. Session ID: {session_id}")
 
         # Fire-and-forget scheduling of Day-3 and Day-7 follow-up WhatsApp nudges.
-        try:
-            patient_contact = await get_patient_contact(request.patient_id)
-            phone_number = (patient_contact or {}).get("phone_number")
-            patient_name = (patient_contact or {}).get("patient_name", "Patient")
-            medications = [med.name for med in result.medications if getattr(med, "name", None)]
+        if request.patient_id:
+            try:
+                patient_contact = await get_patient_contact(request.patient_id)
+                phone_number = (patient_contact or {}).get("phone_number")
+                patient_name = (patient_contact or {}).get("patient_name", "Patient")
+                medications = [med.name for med in result.medications if getattr(med, "name", None)]
 
-            if phone_number:
-                asyncio.create_task(
-                    schedule_followup_messages(
-                        session_id=session_id,
-                        patient_id=request.patient_id,
-                        phone_number=phone_number,
-                        patient_name=patient_name,
-                        medications=medications,
+                if phone_number:
+                    asyncio.create_task(
+                        schedule_followup_messages(
+                            session_id=session_id,
+                            patient_id=request.patient_id,
+                            phone_number=phone_number,
+                            patient_name=patient_name,
+                            medications=medications,
+                        )
                     )
-                )
-            else:
-                logger.warning(f"Skipping follow-up scheduling: no phone found for patient_id={request.patient_id}")
-        except Exception as e:
-            logger.warning(f"Follow-up scheduling failed (non-critical): {e}")
+                else:
+                    logger.warning(f"Skipping follow-up scheduling: no phone found for patient_id={request.patient_id}")
+            except Exception as e:
+                logger.warning(f"Follow-up scheduling failed (non-critical): {e}")
 
-        response_payload = result.model_dump(by_alias=True)
-        response_payload["share_token"] = share_token
-        return JSONResponse(content=response_payload)
+        result.share_token = share_token
+        return result
 
-    except GeminiServiceError as e:
-        logger.error(f"Gemini service error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except APIError as e:
+        logger.error(f"LLM service error: {e}")
+        raise HTTPException(status_code=getattr(e, "status_code", 500), detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -186,7 +200,7 @@ async def upload_document(file: UploadFile = File(...), session_id: str = Form(N
             logger.warning(f"S3 upload failed (non-critical): {e}")
 
         extracted_text = await extract_text_from_image(image_data=file_content, mime_type=file.content_type)
-        rate_alert_service.track_usage("gemini", context="extract_text_from_image:/api/upload")
+        rate_alert_service.track_usage("llm_service", context="extract_text_from_image:/api/upload")
 
         file_type_map = {"application/pdf": "pdf", "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png"}
         file_type = file_type_map.get(file.content_type, "unknown")
@@ -194,9 +208,12 @@ async def upload_document(file: UploadFile = File(...), session_id: str = Form(N
         logger.info(f"Text extracted successfully: {len(extracted_text)} characters")
         return UploadResponse(extracted_text=extracted_text, file_type=file_type, session_id=session_id)
 
-    except GeminiServiceError as e:
+    except APIError as e:
         logger.error(f"OCR extraction failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to extract text: {str(e)}")
+        raise HTTPException(
+            status_code=getattr(e, "status_code", 500),
+            detail=f"Failed to extract text: {str(e)}",
+        )
     except HTTPException:
         raise
     except Exception as e:

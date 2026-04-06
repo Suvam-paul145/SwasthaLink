@@ -2,15 +2,30 @@
 
 import json
 import logging
+import random
+import string
+from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+
+
+def _generate_patient_id() -> str:
+    """Generate a system-level patient ID in format PID-XXXXXX."""
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(random.choices(chars, k=6))
+    return f"PID-{code}"
 
 from models import (
     PrescriptionExtractResponse, PrescriptionApproveRequest,
     PrescriptionRejectRequest, PrescriptionPatientViewResponse,
 )
-from services.gemini_service import extract_text_from_image
-from services.s3_service import upload_file
+import os
+from services.llm_service import extract_text_from_image
+from services.llamacloud_service import (
+    extract_prescription_data_with_llamacloud,
+    is_llamacloud_configured,
+)
+from services.s3_service import upload_file, generate_presigned_url
 from services.rate_alert_service import rate_alert_service
 from services.image_preprocessor import preprocess_image
 from services.prescription_rag_service import (
@@ -19,10 +34,18 @@ from services.prescription_rag_service import (
     get_record, get_approved_record,
     list_records_by_doctor, list_approved_for_patient,
 )
-from core.exceptions import GeminiServiceError, S3ServiceError
+from core.exceptions import LLMServiceError, LlamaCloudServiceError, S3ServiceError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _build_llamacloud_filename(filename: Optional[str], mime_type: Optional[str]) -> str:
+    """Return a filename with a predictable suffix for LlamaCloud uploads."""
+    base_name = filename or "prescription-upload"
+    if mime_type and "pdf" in mime_type.lower():
+        return base_name if base_name.lower().endswith(".pdf") else f"{base_name}.pdf"
+    return f"{Path(base_name).stem or 'prescription-upload'}.jpg"
 
 
 @router.get("/api/patients")
@@ -59,10 +82,19 @@ async def get_prescriptions_by_doctor(doctor_id: str):
 
 @router.get("/api/prescriptions/for-patient/{patient_id}")
 async def get_prescriptions_for_patient(patient_id: str):
-    """Return all approved prescriptions for a patient."""
+    """Return all approved prescriptions for a patient with S3 image URLs."""
     try:
         records = await list_approved_for_patient(patient_id)
-        return {"count": len(records), "items": [r.model_dump() for r in records]}
+        items = []
+        for r in records:
+            item = r.model_dump()
+            # Generate pre-signed URL for prescription image
+            if r.s3_key:
+                item["image_url"] = generate_presigned_url(r.s3_key, expiration=3600)
+            else:
+                item["image_url"] = None
+            items.append(item)
+        return {"count": len(items), "items": items}
     except Exception as exc:
         logger.error(f"Error fetching patient prescriptions: {exc}")
         raise HTTPException(status_code=500, detail="Failed to fetch prescriptions")
@@ -105,20 +137,63 @@ async def extract_prescription(
         except S3ServiceError as exc:
             logger.warning(f"S3 upload failed (non-critical): {exc}")
 
-        # --- OCR extraction with preprocessed image ---
-        ocr_text = await extract_text_from_image(image_data=preprocessed_content, mime_type="image/jpeg")
-        rate_alert_service.track_usage("gemini", context="ocr:/api/prescriptions/extract")
+        extracted_data = None
+        preferred_provider = "llamacloud" if is_llamacloud_configured() else "llm"
 
-        # --- RAG structured extraction ---
-        extracted_data = await extract_prescription_data(ocr_text)
-        rate_alert_service.track_usage("gemini", context="rag:/api/prescriptions/extract")
+        if preferred_provider == "llamacloud":
+            llama_content = (
+                file_content
+                if file.content_type and "pdf" in file.content_type.lower()
+                else preprocessed_content
+            )
+            llama_mime_type = (
+                file.content_type
+                if file.content_type and "pdf" in file.content_type.lower()
+                else "image/jpeg"
+            )
+            llama_filename = _build_llamacloud_filename(file.filename, llama_mime_type)
+
+            try:
+                extracted_data = await extract_prescription_data_with_llamacloud(
+                    file_content=llama_content,
+                    filename=llama_filename,
+                    mime_type=llama_mime_type,
+                    report_type=report_type or "prescription",
+                )
+                logger.info("Prescription extraction completed with LlamaCloud")
+            except LlamaCloudServiceError as exc:
+                if bool(os.getenv("GROQ_API_KEY")) or bool(os.getenv("QWEN_API_KEY")):
+                    logger.warning("LlamaCloud extraction failed; falling back to LLM: %s", exc)
+                else:
+                    raise
+
+        if extracted_data is None:
+            llm_mime_type = (
+                file.content_type
+                if file.content_type and "pdf" in file.content_type.lower()
+                else "image/jpeg"
+            )
+            # --- OCR extraction with preprocessed image ---
+            ocr_text = await extract_text_from_image(
+                image_data=preprocessed_content,
+                mime_type=llm_mime_type,
+            )
+            rate_alert_service.track_usage("llm", context="ocr:/api/prescriptions/extract")
+
+            # --- RAG structured extraction ---
+            extracted_data = await extract_prescription_data(ocr_text)
+            rate_alert_service.track_usage("llm", context="rag:/api/prescriptions/extract")
+            logger.info("Prescription extraction completed with LLM setup")
 
         # Override report_type from form field
         extracted_data.report_type = report_type or "prescription"
 
-        # If patient_id provided via form, set it on extracted data
+        # Auto-generate patient_id if not provided by frontend
         if patient_id and patient_id.strip():
             extracted_data.patient_id = patient_id.strip()
+        else:
+            extracted_data.patient_id = _generate_patient_id()
+            logger.info(f"Auto-generated patient ID: {extracted_data.patient_id}")
 
         record = await create_prescription_record(
             extracted_data=extracted_data,
@@ -131,9 +206,12 @@ async def extract_prescription(
         return PrescriptionExtractResponse(
             prescription_id=record.prescription_id, status=record.status.value, extracted_data=record.extracted_data,
         )
-    except GeminiServiceError as exc:
-        logger.error(f"Gemini error during prescription extraction: {exc}")
-        raise HTTPException(status_code=500, detail=str(exc))
+    except LLMServiceError as exc:
+        logger.error(f"LLM service error during prescription extraction: {exc}")
+        raise HTTPException(status_code=getattr(exc, "status_code", 500), detail=str(exc))
+    except LlamaCloudServiceError as exc:
+        logger.error(f"LlamaCloud error during prescription extraction: {exc}")
+        raise HTTPException(status_code=getattr(exc, "status_code", 500), detail=str(exc))
     except HTTPException:
         raise
     except Exception as exc:
@@ -241,7 +319,9 @@ async def get_patient_prescription_view(prescription_id: str):
             raise HTTPException(status_code=403, detail="Prescription is not approved")
 
         data = record.extracted_data
-        return PrescriptionPatientViewResponse(
+        # Generate pre-signed URL for this prescription image
+        image_url = generate_presigned_url(record.s3_key, expiration=3600) if record.s3_key else None
+        response = PrescriptionPatientViewResponse(
             prescription_id=record.prescription_id,
             doctor_name=data.doctor_name or "Your doctor",
             patient_name=data.patient_name or "Patient",
@@ -255,6 +335,9 @@ async def get_patient_prescription_view(prescription_id: str):
             patient_insights=data.patient_insights,
             report_type=data.report_type or "prescription",
         )
+        result = response.model_dump()
+        result["image_url"] = image_url
+        return result
     except HTTPException:
         raise
     except Exception as exc:
@@ -269,7 +352,13 @@ async def get_doctor_prescription_view(prescription_id: str):
         record = await get_record(prescription_id)
         if record is None:
             raise HTTPException(status_code=404, detail="Prescription not found")
-        return record.model_dump()
+        result = record.model_dump()
+        # Include pre-signed image URL
+        if record.s3_key:
+            result["image_url"] = generate_presigned_url(record.s3_key, expiration=3600)
+        else:
+            result["image_url"] = None
+        return result
     except HTTPException:
         raise
     except Exception as exc:
@@ -277,8 +366,116 @@ async def get_doctor_prescription_view(prescription_id: str):
         raise HTTPException(status_code=500, detail="Failed to retrieve prescription")
 
 
+@router.get("/api/prescriptions/{prescription_id}/admin-view")
+async def get_admin_prescription_view(prescription_id: str):
+    """Return full AdminPanelPayload with risk flags, raw/processed toggle, and audit trail."""
+    try:
+        record = await get_record(prescription_id)
+        if record is None:
+            raise HTTPException(status_code=404, detail="Prescription not found")
+        from db.audit_db import get_audit_log
+        from services.payload_transformer import build_admin_panel_payload
+        audit_entries = await get_audit_log(prescription_id)
+        payload = build_admin_panel_payload(record, audit_entries)
+        return payload.model_dump()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error fetching admin view for {prescription_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve prescription")
+
+
+@router.get("/api/patients/{patient_id}/chunks")
+async def get_patient_chunks(patient_id: str):
+    """Return all data chunks for a patient."""
+    try:
+        from db.patient_chunks_db import get_chunks_by_patient
+        chunks = await get_chunks_by_patient(patient_id)
+        return {"count": len(chunks), "items": chunks}
+    except Exception as exc:
+        logger.error(f"Error fetching chunks for patient {patient_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch patient chunks")
+
+
+@router.get("/api/patients/{patient_id}/chunks/{chunk_type}")
+async def get_patient_chunks_by_type(patient_id: str, chunk_type: str):
+    """Return patient chunks filtered by type (medication|routine|explanation|faq_context)."""
+    try:
+        from db.patient_chunks_db import get_chunks_by_type
+        chunks = await get_chunks_by_type(patient_id, chunk_type)
+        return {"count": len(chunks), "items": chunks}
+    except Exception as exc:
+        logger.error(f"Error fetching {chunk_type} chunks for patient {patient_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch patient chunks")
+
+
+@router.get("/api/patients/{patient_id}/chatbot-context")
+async def get_chatbot_context(patient_id: str):
+    """Return RAG-ready chatbot context for a patient."""
+    try:
+        from services.chatbot_context_service import get_patient_context
+        context = await get_patient_context(patient_id)
+        return context.model_dump()
+    except Exception as exc:
+        logger.error(f"Error fetching chatbot context for patient [redacted]: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch chatbot context")
+
+
+@router.get("/api/chatbot/context/{patient_id}")
+async def get_chatbot_context_alias(patient_id: str):
+    """Compatibility alias: return RAG-ready chatbot context for a patient."""
+    try:
+        from services.chatbot_context_service import get_patient_context
+        context = await get_patient_context(patient_id)
+        return context.model_dump()
+    except Exception as exc:
+        logger.error(f"Error fetching chatbot context for patient [redacted]: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch chatbot context")
+
+
+@router.get("/api/patients/{patient_id}/faq-suggestions")
+async def get_faq_suggestions(patient_id: str):
+    """Return pre-built FAQ question/answer pairs from stored chunks."""
+    try:
+        from services.chatbot_context_service import get_faq_suggestions as _get_faqs
+        faqs = await _get_faqs(patient_id)
+        return {"count": len(faqs), "items": faqs}
+    except Exception as exc:
+        logger.error(f"Error fetching FAQ suggestions for patient [redacted]: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch FAQ suggestions")
+
+
+@router.post("/api/patients/{patient_id}/chatbot-query")
+async def chatbot_query(patient_id: str, request: dict):
+    """Answer a patient question using stored chunks only — no hallucination."""
+    try:
+        question = request.get("question", "")
+        if not question:
+            raise HTTPException(status_code=400, detail="Question is required")
+        from services.chatbot_context_service import answer_from_context
+        result = await answer_from_context(patient_id, question)
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error answering chatbot query for patient {patient_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to process chatbot query")
+
+
+@router.get("/api/prescriptions/{prescription_id}/audit-log")
+async def get_prescription_audit_log(prescription_id: str):
+    """Return the full audit trail for a prescription."""
+    try:
+        from db.audit_db import get_audit_log
+        entries = await get_audit_log(prescription_id)
+        return {"count": len(entries), "items": entries}
+    except Exception as exc:
+        logger.error(f"Error fetching audit log for {prescription_id}: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to fetch audit log")
+
+
 @router.get("/api/rate-limit-status")
 async def get_rate_limit_status():
-    """Return current Gemini API rate limit usage."""
-    from services.rate_limiter_service import gemini_rate_limiter
-    return gemini_rate_limiter.get_usage()
+    """Return current LLM API rate limit usage."""
+    from services.rate_limiter_service import llm_rate_limiter
+    return llm_rate_limiter.get_usage()

@@ -109,7 +109,11 @@ const apiRequest = async (endpoint, options = {}) => {
     }
 
     if (error.message === 'Failed to fetch') {
-      throw new APIError(ERROR_MESSAGES.NETWORK_ERROR, 0);
+      throw new APIError(
+        `Cannot reach backend at ${API_BASE_URL}. Check that the backend server is running and retry.`,
+        0,
+        { url, baseUrl: API_BASE_URL }
+      );
     }
 
     throw new APIError(ERROR_MESSAGES.UNKNOWN_ERROR, 500, { originalError: error.message });
@@ -132,6 +136,39 @@ const api = {
    */
   login: async (data) => {
     return await apiRequest(API_ENDPOINTS.AUTH_LOGIN, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Verify the current JWT session with the backend.
+   * Used on page load to confirm the stored token is still valid.
+   * @returns {Promise<Object>} { success, user } if valid
+   */
+  verifySession: async () => {
+    return await apiRequest(API_ENDPOINTS.AUTH_ME, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Request an OTP for password reset
+   * @param {Object} data - Includes { email, phone }
+   */
+  requestPasswordResetOTP: async (data) => {
+    return await apiRequest(API_ENDPOINTS.AUTH_FORGOT_PASSWORD, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Reset password with the provided OTP
+   * @param {Object} data - Includes { phone, code, new_password }
+   */
+  resetPasswordWithOTP: async (data) => {
+    return await apiRequest(API_ENDPOINTS.AUTH_RESET_PASSWORD, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -355,10 +392,10 @@ const api = {
    * @param {string} code - OTP code
    * @returns {Promise<Object>} Verification result
    */
-  verifyOtp: async (phone, code) => {
+  verifyOtp: async (phone, code, options = {}) => {
     return await apiRequest(API_ENDPOINTS.AUTH_VERIFY_OTP, {
       method: 'POST',
-      body: JSON.stringify({ phone, code }),
+      body: JSON.stringify({ phone, code, ...options }),
     });
   },
 
@@ -425,6 +462,134 @@ const api = {
    */
   getRateLimitStatus: async () => {
     return await apiRequest(API_ENDPOINTS.RATE_LIMIT_STATUS, {
+      method: 'GET',
+    });
+  },
+
+  // -------------------------------------------------------------------------
+  // Data Pipeline — Patient Chunks & Chatbot
+  // -------------------------------------------------------------------------
+
+  /**
+   * Get all data chunks for a patient.
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Object>} { count, items }
+   */
+  getPatientChunks: async (patientId) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_CHUNKS(patientId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get all past discharge sessions for a patient.
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Object>} { results }
+   */
+  getPatientHistory: async (patientId) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_HISTORY(patientId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get patient chunks filtered by type.
+   * @param {string} patientId - Patient ID
+   * @param {string} type - Chunk type (medication|routine|explanation|faq_context)
+   * @returns {Promise<Object>} { count, items }
+   */
+  getPatientChunksByType: async (patientId, type) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_CHUNKS_BY_TYPE(patientId, type), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get RAG-ready chatbot context for a patient.
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Object>} ChatbotContextPayload
+   */
+  getChatbotContext: async (patientId) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_CHATBOT_CONTEXT(patientId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get pre-built FAQ question/answer pairs.
+   * @param {string} patientId - Patient ID
+   * @returns {Promise<Object>} { count, items }
+   */
+  getFaqSuggestions: async (patientId) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_FAQ_SUGGESTIONS(patientId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get full admin view with risk flags, raw/processed toggle, audit trail.
+   * @param {string} prescriptionId - UUID
+   * @returns {Promise<Object>} AdminPanelPayload
+   */
+  getAdminFullView: async (prescriptionId) => {
+    return await apiRequest(API_ENDPOINTS.PRESCRIPTION_ADMIN_VIEW(prescriptionId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Get the full audit trail for a prescription.
+   * @param {string} prescriptionId - UUID
+   * @returns {Promise<Object>} { count, items }
+   */
+  getAuditLog: async (prescriptionId) => {
+    return await apiRequest(API_ENDPOINTS.PRESCRIPTION_AUDIT_LOG(prescriptionId), {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Ask a question to the chatbot using stored patient data only.
+   * @param {string} patientId - Patient ID
+   * @param {string} question - The question to ask
+   * @returns {Promise<Object>} { answer, source, confidence }
+   */
+  askChatbot: async (patientId, question) => {
+    return await apiRequest(API_ENDPOINTS.PATIENT_CHATBOT_QUERY(patientId), {
+      method: 'POST',
+      body: JSON.stringify({ question }),
+    });
+  },
+
+  /**
+   * Get daily summary of doctor's activity.
+   * @param {string} doctorId - Doctor ID
+   * @returns {Promise<Object>} Summary data
+   */
+  getDailySummary: async (doctorId) => {
+    return await apiRequest(`/api/doctor/daily-summary?doctor_id=${doctorId}`, {
+      method: 'GET',
+    });
+  },
+
+  /**
+   * Link a system-generated PID to the current patient profile.
+   * @param {string} pid - PID-XXXXXX code
+   * @returns {Promise<Object>} Result message
+   */
+  linkPatientPid: async (pid) => {
+    return await apiRequest('/api/patient/link-pid', {
+      method: 'POST',
+      body: JSON.stringify({ pid }),
+    });
+  },
+
+  /**
+   * Get the logged-in patient's profile (including linked PID).
+   * @returns {Promise<Object>} Patient profile
+   */
+  getPatientProfile: async () => {
+    return await apiRequest('/api/patient/profile', {
       method: 'GET',
     });
   },

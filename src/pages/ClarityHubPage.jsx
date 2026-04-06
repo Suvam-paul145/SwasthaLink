@@ -1,13 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getGroqChatbotAnswer } from "../services/groq";
-import api from "../services/api";
+import { getGroqChatbotReply } from "../services/groq";
 
 function ClarityHubPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const patientName = user?.name || "Patient";
+  const patientId = user?.user_id || user?.id || user?.email || "";
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isAssistantTyping, setIsAssistantTyping] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -19,8 +18,6 @@ function ClarityHubPage() {
       subtext: "হাই, আমি ওষুধ, খাবার, বিপদের লক্ষণ এবং ফলো-আপ বুঝিয়ে দিতে পারি। প্রেসক্রিপশন নিয়ে যেকোনো কিছু জিজ্ঞাসা করুন।"
     },
   ]);
-  const [prescriptionContext, setPrescriptionContext] = useState("");
-
   const quickActions = useMemo(
     () => [
       { icon: "medication", label: "Medication plan" },
@@ -61,38 +58,14 @@ function ClarityHubPage() {
     [user?.role]
   );
 
-  // Fetch prescription context for the patient (on mount)
-  React.useEffect(() => {
-    async function fetchPrescription() {
-      if (user?.id) {
-        try {
-          // Get the latest prescription for this patient
-          const prescriptions = await api.getPrescriptionsForPatient(user.id);
-          if (prescriptions?.items?.length) {
-            const latest = prescriptions.items[0];
-            // Fetch patient-readable prescription view
-            const view = await api.getPatientPrescriptionView(latest.id);
-            setPrescriptionContext(view?.summary || JSON.stringify(view));
-          }
-        } catch (e) {
-          setPrescriptionContext("");
-        }
-      }
-    }
-    fetchPrescription();
-  }, [user?.id]);
-
   // Handles both quick actions and freeform questions
   const respondToPrompt = async (promptLabel, customText = null) => {
     setIsAssistantTyping(true);
     let question = customText || promptLabel;
     let answer = "";
     try {
-      if (prescriptionContext) {
-        answer = await getGroqChatbotAnswer(question, prescriptionContext);
-      } else {
-        answer = "Sorry, I could not find your prescription context.";
-      }
+      const result = await getGroqChatbotReply(patientId, question);
+      answer = result?.answer || "Sorry, I could not find an answer.";
     } catch (e) {
       answer = "Sorry, there was an error contacting the assistant.";
     }
