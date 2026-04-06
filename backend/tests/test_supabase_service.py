@@ -1,3 +1,5 @@
+import os
+
 from db import supabase_service
 
 
@@ -40,7 +42,7 @@ def test_check_supabase_health_marks_schema_setup_required(monkeypatch):
     assert health["status"] == "degraded"
     assert health["setup_required"] is True
     assert health["table_accessible"] is False
-    assert health["schema_file"].endswith("backend\\db\\supabase_schema.sql")
+    assert health["schema_file"].endswith(os.path.join("backend", "db", "supabase_schema.sql"))
 
 
 def test_followup_queries_return_empty_when_schema_missing(monkeypatch):
