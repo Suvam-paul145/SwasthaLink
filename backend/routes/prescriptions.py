@@ -162,7 +162,7 @@ async def extract_prescription(
                 )
                 logger.info("Prescription extraction completed with LlamaCloud")
             except LlamaCloudServiceError as exc:
-                if bool(os.getenv("GROQ_API_KEY")) or bool(os.getenv("QWEN_API_KEY")):
+                if bool(os.getenv("CEREBRAS_API_KEY")) or bool(os.getenv("GROQ_API_KEY")) or bool(os.getenv("QWEN_API_KEY")):
                     logger.warning("LlamaCloud extraction failed; falling back to LLM: %s", exc)
                 else:
                     raise

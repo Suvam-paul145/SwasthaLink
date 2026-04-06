@@ -1,6 +1,6 @@
 """
 LLM AI Service
-Handles interactions with Groq and Qwen Coder Cloud API (via OpenAI SDK)
+Handles interactions with Cerebras, Groq and Qwen Coder Cloud API (via OpenAI SDK)
 Includes JSON parsing, error handling, and prompt management
 """
 
@@ -41,17 +41,23 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configured Models
+CEREBRAS_MODEL_NAME = read_env("CEREBRAS_MODEL") or "llama3.1-8b"
 GROQ_MODEL_NAME = read_env("GROQ_MODEL") or "llama-3.3-70b-versatile"
 GROQ_FALLBACK_MODEL = read_env("GROQ_FALLBACK_MODEL") or "llama-3.1-8b-instant"
 GROQ_VISION_MODEL = read_env("GROQ_VISION_MODEL") or "meta-llama/llama-4-scout-17b-16e-instruct"
 QWEN_MODEL_NAME = read_env("QWEN_MODEL_NAME") or "qwen/qwen3.6-plus:free"
 
 # Clients
+cerebras_client: Optional[AsyncOpenAI] = None
 groq_client: Optional[AsyncOpenAI] = None
 qwen_client: Optional[AsyncOpenAI] = None
 
+_active_cerebras_key: Optional[str] = None
 _active_groq_key: Optional[str] = None
 _active_qwen_key: Optional[str] = None
+
+def get_configured_cerebras_api_key() -> Optional[str]:
+    return read_env("CEREBRAS_API_KEY")
 
 def get_configured_groq_api_key() -> Optional[str]:
     return read_env("GROQ_API_KEY")
@@ -61,18 +67,27 @@ def get_configured_qwen_api_key() -> Optional[str]:
 
 def is_llm_configured() -> bool:
     """Return True if at least one usable LLM API key is configured."""
-    return bool(get_configured_groq_api_key() or get_configured_qwen_api_key())
+    return bool(get_configured_cerebras_api_key() or get_configured_groq_api_key() or get_configured_qwen_api_key())
 
 if not is_llm_configured():
-    logger.warning("No LLM API keys found in environment variables (GROQ_API_KEY or QWEN_API_KEY)")
+    logger.warning("No LLM API keys found in environment variables (CEREBRAS_API_KEY, GROQ_API_KEY, or QWEN_API_KEY)")
 
 
 def _ensure_clients():
-    """Ensure OpenAI clients for Groq and Qwen are initialized."""
-    global groq_client, qwen_client, _active_groq_key, _active_qwen_key
+    """Ensure OpenAI clients for Cerebras, Groq and Qwen are initialized."""
+    global cerebras_client, groq_client, qwen_client
+    global _active_cerebras_key, _active_groq_key, _active_qwen_key
 
+    cerebras_key = get_configured_cerebras_api_key()
     groq_key = get_configured_groq_api_key()
     qwen_key = get_configured_qwen_api_key()
+
+    if cerebras_key and cerebras_key != _active_cerebras_key:
+        cerebras_client = AsyncOpenAI(
+            api_key=cerebras_key,
+            base_url="https://api.cerebras.ai/v1",
+        )
+        _active_cerebras_key = cerebras_key
 
     if groq_key and groq_key != _active_groq_key:
         groq_client = AsyncOpenAI(
@@ -101,7 +116,14 @@ async def _generate_text(
     _ensure_clients()
 
     use_qwen = use_qwen and bool(qwen_client)
-    api_key_to_check = _active_qwen_key if use_qwen else _active_groq_key
+
+    # Determine which key to rate-limit against
+    if use_qwen:
+        api_key_to_check = _active_qwen_key
+    elif cerebras_client:
+        api_key_to_check = _active_cerebras_key
+    else:
+        api_key_to_check = _active_groq_key
 
     if not api_key_to_check:
         raise LLMServiceError("Required LLM API key not configured")
@@ -126,6 +148,14 @@ async def _generate_text(
                 max_tokens=4096,
                 extra_body={"reasoning": {"effort": "none"}},
             )
+        elif cerebras_client:
+            # Cerebras is primary for text generation
+            response = await cerebras_client.chat.completions.create(
+                model=CEREBRAS_MODEL_NAME,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=4096,
+            )
         else:
             response = await groq_client.chat.completions.create(
                 model=GROQ_MODEL_NAME,
@@ -133,12 +163,39 @@ async def _generate_text(
                 temperature=temperature,
                 max_tokens=4096,
             )
-            
+
         return response.choices[0].message.content.strip()
     except Exception as e:
-        # Fallback chain: Qwen -> Groq primary -> Groq fallback model
-        if use_qwen and groq_client:
-            logger.warning(f"Qwen failed ({e}), falling back to Groq text model")
+        # Fallback chain: Qwen -> Cerebras -> Groq primary -> Groq fallback
+        if use_qwen and cerebras_client:
+            logger.warning(f"Qwen failed ({e}), falling back to Cerebras")
+            try:
+                response = await cerebras_client.chat.completions.create(
+                    model=CEREBRAS_MODEL_NAME,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=4096,
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as cerebras_e:
+                logger.warning(f"Cerebras also failed ({cerebras_e}), trying Groq")
+                if groq_client:
+                    try:
+                        response = await groq_client.chat.completions.create(
+                            model=GROQ_MODEL_NAME,
+                            messages=messages,
+                            temperature=temperature,
+                            max_tokens=4096,
+                        )
+                        return response.choices[0].message.content.strip()
+                    except Exception as groq_e:
+                        logger.error(f"All LLM fallbacks exhausted: {groq_e}")
+                        raise LLMServiceError(f"LLM failed: Qwen({e}), Cerebras({cerebras_e}), Groq({groq_e})")
+                raise LLMServiceError(f"LLM failed: Qwen({e}), Cerebras({cerebras_e})")
+
+        # Cerebras failed -> try Groq
+        if cerebras_client and groq_client:
+            logger.warning(f"Cerebras failed ({e}), falling back to Groq")
             try:
                 response = await groq_client.chat.completions.create(
                     model=GROQ_MODEL_NAME,
@@ -147,8 +204,8 @@ async def _generate_text(
                     max_tokens=4096,
                 )
                 return response.choices[0].message.content.strip()
-            except Exception as fallback_e:
-                logger.warning(f"Groq primary also failed ({fallback_e}), trying fallback model {GROQ_FALLBACK_MODEL}")
+            except Exception as groq_e:
+                logger.warning(f"Groq primary also failed ({groq_e}), trying fallback model")
                 try:
                     response = await groq_client.chat.completions.create(
                         model=GROQ_FALLBACK_MODEL,
@@ -157,12 +214,13 @@ async def _generate_text(
                         max_tokens=4096,
                     )
                     return response.choices[0].message.content.strip()
-                except Exception as fallback2_e:
-                    logger.error(f"All LLM fallbacks exhausted: {fallback2_e}")
-                    raise LLMServiceError(f"LLM text generation failed: {str(e)} (primary fallback: {str(fallback_e)}, secondary fallback: {str(fallback2_e)})")
-        # Non-Qwen path: try Groq fallback model
+                except Exception as fallback_e:
+                    logger.error(f"All LLM fallbacks exhausted: {fallback_e}")
+                    raise LLMServiceError(f"LLM failed: Cerebras({e}), Groq({groq_e}), Fallback({fallback_e})")
+
+        # Groq-only fallback path
         if groq_client:
-            logger.warning(f"Groq primary failed ({e}), trying fallback model {GROQ_FALLBACK_MODEL}")
+            logger.warning(f"Primary LLM failed ({e}), trying Groq fallback model {GROQ_FALLBACK_MODEL}")
             try:
                 response = await groq_client.chat.completions.create(
                     model=GROQ_FALLBACK_MODEL,
@@ -172,8 +230,8 @@ async def _generate_text(
                 )
                 return response.choices[0].message.content.strip()
             except Exception as fallback_e:
-                logger.error(f"Groq fallback model also failed: {fallback_e}")
-                raise LLMServiceError(f"LLM text generation failed: {str(e)} (fallback: {str(fallback_e)})")
+                logger.error(f"Groq fallback also failed: {fallback_e}")
+                raise LLMServiceError(f"LLM failed: Primary({e}), Fallback({fallback_e})")
         logger.error(f"LLM Generation Error: {e}")
         raise LLMServiceError(f"LLM text generation failed: {str(e)}")
 
@@ -335,10 +393,9 @@ async def process_discharge_summary(
             prompt = format_master_prompt(discharge_text=text, role=role)
             logger.info(f"Using master prompt for role: {role}")
 
-        logger.info("Calling Groq API (Conversational) ...")
+        logger.info("Calling LLM API (Cerebras primary, Groq fallback) ...")
 
-        # Groq might be better for general response processing, but Qwen coder excels at structured logic. 
-        # Using Groq here for speed and good instruction following. 
+        # Cerebras is primary for speed; Groq/Qwen as fallbacks.
         response_text = await _generate_text(
             prompt=prompt,
             system_instruction=SYSTEM_INSTRUCTION,

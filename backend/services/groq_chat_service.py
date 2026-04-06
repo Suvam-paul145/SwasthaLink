@@ -1,9 +1,9 @@
 """
-Groq chat service for grounded patient chatbot answers.
+Chat service for grounded patient chatbot answers.
 
-Uses Groq's OpenAI-compatible chat completions endpoint and keeps the
-API key on the backend so patient chat requests never expose secrets in
-the browser.
+Uses Cerebras (primary) or Groq (fallback) OpenAI-compatible chat completions
+endpoints and keeps the API key on the backend so patient chat requests never
+expose secrets in the browser.
 """
 
 import json
@@ -16,7 +16,9 @@ from core.config import read_env
 
 logger = logging.getLogger(__name__)
 
+CEREBRAS_CHAT_COMPLETIONS_URL = "https://api.cerebras.ai/v1/chat/completions"
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
+DEFAULT_CEREBRAS_CHAT_MODEL = "llama3.1-8b"
 DEFAULT_GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
 DEFAULT_NO_CONTEXT_ANSWER = (
     "I don't have enough information in your approved medical records to answer that. "
@@ -24,19 +26,41 @@ DEFAULT_NO_CONTEXT_ANSWER = (
 )
 
 
+def get_configured_cerebras_api_key() -> Optional[str]:
+    """Return the configured Cerebras API key, if available."""
+    return read_env("CEREBRAS_API_KEY")
+
+
 def get_configured_groq_api_key() -> Optional[str]:
     """Return the configured Groq API key, if available."""
     return read_env("GROQ_API_KEY")
 
 
-def get_configured_groq_model() -> str:
-    """Return the configured Groq model name with a production-safe default."""
+def get_configured_chat_model() -> str:
+    """Return the configured chat model name for the active provider."""
+    if get_configured_cerebras_api_key():
+        return read_env("CEREBRAS_CHAT_MODEL") or DEFAULT_CEREBRAS_CHAT_MODEL
     return read_env("GROQ_CHAT_MODEL") or DEFAULT_GROQ_CHAT_MODEL
 
 
+def _get_chat_provider() -> tuple[str, str, str]:
+    """Return (api_key, base_url, model) for the best available chat provider."""
+    cerebras_key = get_configured_cerebras_api_key()
+    if cerebras_key:
+        model = read_env("CEREBRAS_CHAT_MODEL") or DEFAULT_CEREBRAS_CHAT_MODEL
+        return cerebras_key, CEREBRAS_CHAT_COMPLETIONS_URL, model
+
+    groq_key = get_configured_groq_api_key()
+    if groq_key:
+        model = read_env("GROQ_CHAT_MODEL") or DEFAULT_GROQ_CHAT_MODEL
+        return groq_key, GROQ_CHAT_COMPLETIONS_URL, model
+
+    raise ValueError("No chat LLM API key configured (set CEREBRAS_API_KEY or GROQ_API_KEY)")
+
+
 def is_groq_configured() -> bool:
-    """Return True when a usable Groq API key is configured."""
-    return bool(get_configured_groq_api_key())
+    """Return True when a usable chat LLM API key is configured (Cerebras or Groq)."""
+    return bool(get_configured_cerebras_api_key() or get_configured_groq_api_key())
 
 
 def _format_faq_matches(faq_matches: List[Dict[str, str]]) -> str:
@@ -79,7 +103,7 @@ def build_grounded_chat_context(
     relevant_chunks: List[Dict[str, Any]],
     max_chars: int = 12000,
 ) -> str:
-    """Build a compact grounded context document for Groq."""
+    """Build a compact grounded context document for the LLM."""
     sections: List[str] = []
 
     faq_text = _format_faq_matches(faq_matches)
@@ -102,10 +126,8 @@ async def answer_with_groq(
     faq_matches: List[Dict[str, str]],
     relevant_chunks: List[Dict[str, Any]],
 ) -> str:
-    """Answer a patient question using Groq and only approved patient context."""
-    api_key = get_configured_groq_api_key()
-    if not api_key:
-        raise ValueError("Groq API key not configured")
+    """Answer a patient question using Cerebras/Groq and only approved patient context."""
+    api_key, base_url, model = _get_chat_provider()
 
     context_document = build_grounded_chat_context(faq_matches, relevant_chunks)
     if not context_document:
@@ -131,7 +153,7 @@ async def answer_with_groq(
     )
 
     payload = {
-        "model": get_configured_groq_model(),
+        "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -150,7 +172,7 @@ async def answer_with_groq(
     timeout = httpx.Timeout(30.0, connect=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(
-            GROQ_CHAT_COMPLETIONS_URL,
+            base_url,
             headers=headers,
             json=payload,
         )
@@ -159,8 +181,8 @@ async def answer_with_groq(
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         details = exc.response.text[:500] if exc.response is not None else str(exc)
-        logger.error("Groq chat request failed: %s", details)
-        raise ValueError(f"Groq chat request failed: {details}") from exc
+        logger.error("Chat request failed: %s", details)
+        raise ValueError(f"Chat request failed: {details}") from exc
 
     body = response.json()
     message = (
@@ -171,16 +193,14 @@ async def answer_with_groq(
     )
 
     if not message:
-        raise ValueError("Groq returned an empty chatbot response")
+        raise ValueError("LLM returned an empty chatbot response")
 
     return message
 
 
 async def answer_general_question(question: str) -> str:
-    """Answer a general health question using Groq when no patient records exist."""
-    api_key = get_configured_groq_api_key()
-    if not api_key:
-        raise ValueError("Groq API key not configured")
+    """Answer a general health question using Cerebras/Groq when no patient records exist."""
+    api_key, base_url, model = _get_chat_provider()
 
     system_prompt = (
         "You are SwasthaLink's patient assistant, a friendly and knowledgeable health helper. "
@@ -192,7 +212,7 @@ async def answer_general_question(question: str) -> str:
     )
 
     payload = {
-        "model": get_configured_groq_model(),
+        "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": question.strip()},
@@ -211,7 +231,7 @@ async def answer_general_question(question: str) -> str:
     timeout = httpx.Timeout(30.0, connect=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(
-            GROQ_CHAT_COMPLETIONS_URL,
+            base_url,
             headers=headers,
             json=payload,
         )
@@ -220,8 +240,8 @@ async def answer_general_question(question: str) -> str:
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         details = exc.response.text[:500] if exc.response is not None else str(exc)
-        logger.error("Groq general chat request failed: %s", details)
-        raise ValueError(f"Groq general chat request failed: {details}") from exc
+        logger.error("General chat request failed: %s", details)
+        raise ValueError(f"General chat request failed: {details}") from exc
 
     body = response.json()
     message = (
@@ -232,6 +252,6 @@ async def answer_general_question(question: str) -> str:
     )
 
     if not message:
-        raise ValueError("Groq returned an empty response")
+        raise ValueError("LLM returned an empty response")
 
     return message

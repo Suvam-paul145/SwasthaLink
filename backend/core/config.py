@@ -23,11 +23,16 @@ def read_env(*names: str) -> Optional[str]:
 
 
 # CORS / frontend
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://swastha-link-psi.vercel.app")
+FRONTEND_URL = (os.getenv("FRONTEND_URL") or "https://swastha-link-psi.vercel.app").rstrip("/")
 ALLOWED_ORIGINS = [
-    "http://localhost:5173",   # Vite dev server
-    "http://localhost:3000",   # Alternative dev server
+    # Local development
+    "http://localhost:5173",
+    "http://localhost:3000",
     "http://127.0.0.1:5173",
+    # Production Vercel domains (always allowed)
+    "https://swastha-link-psi.vercel.app",
+    "https://swastha-link-git-testing-suvam-paul145s-projects.vercel.app",
+    # From env var
     FRONTEND_URL,
 ]
 
