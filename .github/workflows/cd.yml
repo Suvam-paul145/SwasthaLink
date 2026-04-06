@@ -68,7 +68,6 @@ jobs:
     needs: gate
     environment:
       name: ${{ github.event.inputs.environment || 'production' }}
-      url: ${{ secrets.RENDER_BACKEND_URL }}
     steps:
       - name: Trigger Render deploy
         shell: bash
