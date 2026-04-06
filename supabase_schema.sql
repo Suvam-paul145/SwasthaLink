@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS public.prescriptions (
     reviewed_at TIMESTAMPTZ,
     rejection_reason TEXT,
     report_type TEXT DEFAULT 'prescription',
+    payload_version INTEGER DEFAULT 1,
+    raw_extraction_snapshot TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

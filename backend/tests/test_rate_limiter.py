@@ -1,10 +1,10 @@
-import pytest
+﻿import pytest
 
-from services.rate_limiter_service import GeminiRateLimiter, RateLimitExceeded
+from services.rate_limiter_service import LLMRateLimiter, RateLimitExceeded
 
 
 def test_blocks_before_hitting_limit_threshold():
-    limiter = GeminiRateLimiter(
+    limiter = LLMRateLimiter(
         {
             "requests_per_minute": 5,
             "requests_per_day": 100,
@@ -27,7 +27,7 @@ def test_blocks_before_hitting_limit_threshold():
 
 
 def test_key_rotation_resets_in_memory_counters():
-    limiter = GeminiRateLimiter(
+    limiter = LLMRateLimiter(
         {
             "requests_per_minute": 10,
             "requests_per_day": 100,

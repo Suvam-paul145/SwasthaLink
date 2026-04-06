@@ -42,6 +42,8 @@ logger = logging.getLogger(__name__)
 
 # Configured Models
 GROQ_MODEL_NAME = read_env("GROQ_MODEL") or "llama-3.3-70b-versatile"
+GROQ_FALLBACK_MODEL = read_env("GROQ_FALLBACK_MODEL") or "llama-3.1-8b-instant"
+GROQ_VISION_MODEL = read_env("GROQ_VISION_MODEL") or "meta-llama/llama-4-scout-17b-16e-instruct"
 QWEN_MODEL_NAME = read_env("QWEN_MODEL_NAME") or "qwen/qwen3.6-plus:free"
 
 # Clients
@@ -122,6 +124,7 @@ async def _generate_text(
                 messages=messages,
                 temperature=temperature,
                 max_tokens=4096,
+                extra_body={"reasoning": {"effort": "none"}},
             )
         else:
             response = await groq_client.chat.completions.create(
@@ -133,6 +136,44 @@ async def _generate_text(
             
         return response.choices[0].message.content.strip()
     except Exception as e:
+        # Fallback chain: Qwen -> Groq primary -> Groq fallback model
+        if use_qwen and groq_client:
+            logger.warning(f"Qwen failed ({e}), falling back to Groq text model")
+            try:
+                response = await groq_client.chat.completions.create(
+                    model=GROQ_MODEL_NAME,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=4096,
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as fallback_e:
+                logger.warning(f"Groq primary also failed ({fallback_e}), trying fallback model {GROQ_FALLBACK_MODEL}")
+                try:
+                    response = await groq_client.chat.completions.create(
+                        model=GROQ_FALLBACK_MODEL,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=4096,
+                    )
+                    return response.choices[0].message.content.strip()
+                except Exception as fallback2_e:
+                    logger.error(f"All LLM fallbacks exhausted: {fallback2_e}")
+                    raise LLMServiceError(f"LLM text generation failed: {str(e)} (primary fallback: {str(fallback_e)}, secondary fallback: {str(fallback2_e)})")
+        # Non-Qwen path: try Groq fallback model
+        if groq_client:
+            logger.warning(f"Groq primary failed ({e}), trying fallback model {GROQ_FALLBACK_MODEL}")
+            try:
+                response = await groq_client.chat.completions.create(
+                    model=GROQ_FALLBACK_MODEL,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=4096,
+                )
+                return response.choices[0].message.content.strip()
+            except Exception as fallback_e:
+                logger.error(f"Groq fallback model also failed: {fallback_e}")
+                raise LLMServiceError(f"LLM text generation failed: {str(e)} (fallback: {str(fallback_e)})")
         logger.error(f"LLM Generation Error: {e}")
         raise LLMServiceError(f"LLM text generation failed: {str(e)}")
 
@@ -176,7 +217,7 @@ async def _generate_multimodal_text(
     try:
         # Use Groq's specialized Vision model
         response = await groq_client.chat.completions.create(
-            model="llama-3.2-90b-vision-preview",
+            model=GROQ_VISION_MODEL,
             messages=messages,
             temperature=temperature,
             max_tokens=4096,
