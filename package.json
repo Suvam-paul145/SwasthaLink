@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
-    "@mermaid-js/mermaid-cli": "^11.12.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.27",
@@ -38,7 +37,6 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "globals": "^15.15.0",
     "postcss": "^8.5.8",
-    "puppeteer": "^24.40.0",
     "tailwindcss": "^4.2.2",
     "vite": "^5.4.19",
     "vite-plugin-pwa": "^1.2.0"
