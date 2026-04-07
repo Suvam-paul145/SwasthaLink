@@ -81,13 +81,14 @@ const handleResponse = async (response) => {
  */
 const apiRequest = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
+  const { timeout = REQUEST_TIMEOUT, ...requestOptions } = options;
   const requestHeaders = {
     ...DEFAULT_HEADERS,
-    ...(options.headers || {}),
+    ...(requestOptions.headers || {}),
   };
 
   // FormData must not send a JSON content type.
-  if (options.body instanceof FormData) {
+  if (requestOptions.body instanceof FormData) {
     delete requestHeaders['Content-Type'];
   }
 
@@ -95,11 +96,11 @@ const apiRequest = async (endpoint, options = {}) => {
     headers: requestHeaders,
   };
 
-  try {
-    const response = await fetchWithTimeout(url, {
-      ...defaultOptions,
-      ...options,
-    });
+    try {
+      const response = await fetchWithTimeout(url, {
+        ...defaultOptions,
+        ...requestOptions,
+      }, timeout);
 
     return await handleResponse(response);
   } catch (error) {
@@ -126,6 +127,8 @@ const apiRequest = async (endpoint, options = {}) => {
  * API Service Methods
  */
 const api = {
+  // Auth endpoints can hit cold-start latency right after deployment on free-tier hosting.
+  AUTH_REQUEST_TIMEOUT: 180000, // 3 minutes
   /**
    * Login with role, email and password.
    * @param {Object} data - Login request data
@@ -138,6 +141,7 @@ const api = {
     return await apiRequest(API_ENDPOINTS.AUTH_LOGIN, {
       method: 'POST',
       body: JSON.stringify(data),
+      timeout: api.AUTH_REQUEST_TIMEOUT,
     });
   },
 
@@ -149,6 +153,7 @@ const api = {
   verifySession: async () => {
     return await apiRequest(API_ENDPOINTS.AUTH_ME, {
       method: 'GET',
+      timeout: api.AUTH_REQUEST_TIMEOUT,
     });
   },
 
@@ -160,6 +165,7 @@ const api = {
     return await apiRequest(API_ENDPOINTS.AUTH_FORGOT_PASSWORD, {
       method: 'POST',
       body: JSON.stringify(data),
+      timeout: api.AUTH_REQUEST_TIMEOUT,
     });
   },
 
@@ -171,6 +177,7 @@ const api = {
     return await apiRequest(API_ENDPOINTS.AUTH_RESET_PASSWORD, {
       method: 'POST',
       body: JSON.stringify(data),
+      timeout: api.AUTH_REQUEST_TIMEOUT,
     });
   },
 
@@ -370,6 +377,7 @@ const api = {
     return await apiRequest(API_ENDPOINTS.AUTH_SIGNUP, {
       method: 'POST',
       body: JSON.stringify(data),
+      timeout: api.AUTH_REQUEST_TIMEOUT,
     });
   },
 
@@ -383,6 +391,7 @@ const api = {
     return await apiRequest(API_ENDPOINTS.AUTH_SEND_OTP, {
       method: 'POST',
       body: JSON.stringify({ phone, channel }),
+      timeout: api.AUTH_REQUEST_TIMEOUT,
     });
   },
 
@@ -396,6 +405,7 @@ const api = {
     return await apiRequest(API_ENDPOINTS.AUTH_VERIFY_OTP, {
       method: 'POST',
       body: JSON.stringify({ phone, code, ...options }),
+      timeout: api.AUTH_REQUEST_TIMEOUT,
     });
   },
 
