@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import api, { validators } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_OPTIONS } from "../utils/auth";
+import { isDemoDoctor, getMockDoctorPatientList, getMockDoctorHistory, getMockDoctorPendingReviews, getMockPrescriptions } from '../utils/mockData';
 import CameraCapture from "../components/CameraCapture";
 import ProcessingSteps from "../components/ProcessingSteps";
 import ToastContainer, { useToasts } from "../components/ToastNotification";
@@ -80,6 +81,11 @@ function DoctorPanelPage() {
 
   // Fetch registered patients for the selector
   useEffect(() => {
+    if (isDemoDoctor(user?.email)) {
+      setPatientList(getMockDoctorPatientList());
+      setPatientsLoading(false);
+      return;
+    }
     (async () => {
       setPatientsLoading(true);
       try {
@@ -98,6 +104,12 @@ function DoctorPanelPage() {
   useEffect(() => {
     if (patientMode !== 'existing' || !selectedPatientPid) {
       setFollowUpHistory([]);
+      return;
+    }
+    if (isDemoDoctor(user?.email)) {
+      const demoRx = getMockPrescriptions().filter(rx => (rx.extracted_data?.patient_id || rx.patient_id) === selectedPatientPid);
+      setFollowUpHistory(demoRx.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
+      setFollowUpLoading(false);
       return;
     }
     (async () => {
@@ -121,6 +133,11 @@ function DoctorPanelPage() {
 
   // Fetch pending prescriptions
   useEffect(() => {
+    if (isDemoDoctor(user?.email)) {
+      setPendingReviews(getMockDoctorPendingReviews());
+      setPendingLoading(false);
+      return;
+    }
     (async () => {
       setPendingLoading(true);
       try {
@@ -148,6 +165,11 @@ function DoctorPanelPage() {
 
   // Fetch doctor's prescription history
   useEffect(() => {
+    if (isDemoDoctor(user?.email)) {
+      setPrescriptionHistory(getMockDoctorHistory());
+      setHistoryLoading(false);
+      return;
+    }
     (async () => {
       setHistoryLoading(true);
       try {
@@ -161,8 +183,9 @@ function DoctorPanelPage() {
     })();
   }, [doctorId, uploadStatus]);
 
-  // Poll for new prescriptions every 30s
+  // Poll for new prescriptions every 30s (skip for demo accounts)
   useEffect(() => {
+    if (isDemoDoctor(user?.email)) return;
     let prevCount = pendingReviews.length;
     const interval = setInterval(async () => {
       try {

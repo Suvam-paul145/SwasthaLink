@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
 import { getDashboardRouteForRole, ROLE_OPTIONS, ROLE_META } from "../utils/auth";
 import Logo from "./Logo";
 import RoleSwitcher from "./RoleSwitcher";
+import ScrollProgress from "./effects/ScrollProgress";
 
 const navItems = [
   { to: "/family-dashboard", icon: "personal_injury", label: "Family Dashboard", roles: ["patient"] },
@@ -82,10 +83,13 @@ function AppShell() {
       )}
 
       <aside
-        className={`fixed left-0 top-0 h-full flex flex-col z-40 bg-[#101c2e]/95 backdrop-blur-2xl shadow-2xl shadow-teal-900/40 font-headline font-medium text-lg w-72 transition-transform duration-300 border-r border-white/5 overflow-y-auto ${
+        className={`fixed left-0 top-0 h-full flex flex-col z-40 bg-[#0a1628]/95 backdrop-blur-2xl shadow-2xl shadow-teal-900/40 font-headline font-medium text-lg w-72 transition-transform duration-300 border-r border-white/[0.06] overflow-y-auto ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
+        {/* Top edge glow */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-teal-500/40 to-transparent" />
+
         <div className="p-8 flex flex-col gap-3 pt-8 lg:pt-8">
           <button
             type="button"
@@ -95,7 +99,7 @@ function AppShell() {
           >
             <Logo size="md" showText={true} />
           </button>
-          <div className="hidden lg:flex flex-col gap-1 mt-3 rounded-xl bg-white/[0.03] border border-white/10 p-3">
+          <div className="hidden lg:flex flex-col gap-1 mt-3 rounded-xl glass-card-enhanced p-3">
             <p className="text-xs text-slate-400 uppercase tracking-[0.16em]">Signed In</p>
             <p className="text-sm text-white font-semibold truncate">{user?.name || "User"}</p>
             <button
@@ -115,50 +119,66 @@ function AppShell() {
           )}
         </div>
 
-        <nav className="flex-1 mt-4 lg:mt-8">
+        <nav className="flex-1 mt-4 lg:mt-8 px-3 flex flex-col gap-1">
           {allowedNavItems.map((item, i) => (
             <NavLink
               key={item.to}
               to={item.to}
               onClick={() => setIsSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-4 py-4 px-6 transition-all duration-300 hover:translate-x-1 ${
+                `group flex items-center gap-4 py-3.5 px-4 rounded-xl transition-all duration-300 relative ${
                   isActive
-                    ? `bg-gradient-to-r ${roleMeta.gradient} text-white border-r-4 ${roleMeta.border} translate-x-1`
-                    : "text-slate-400 hover:text-slate-100 hover:bg-teal-500/5"
+                    ? `bg-gradient-to-r ${roleMeta.gradient} text-white shadow-lg shadow-teal-500/10`
+                    : "text-slate-400 hover:text-slate-100 hover:bg-white/[0.04]"
                 }`
               }
             >
-              <span
-                className="material-symbols-outlined"
-                style={{ fontVariationSettings: location.pathname === item.to ? "'FILL' 1" : "'FILL' 0" }}
-              >
-                {item.icon}
-              </span>
-              <span>{item.label}</span>
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <motion.div
+                      layoutId="nav-active"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full nav-active-indicator"
+                      transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                    />
+                  )}
+                  <span
+                    className={`material-symbols-outlined text-xl transition-transform duration-200 ${isActive ? "scale-110" : "group-hover:scale-105"}`}
+                    style={{ fontVariationSettings: isActive ? "'FILL' 1" : "'FILL' 0" }}
+                  >
+                    {item.icon}
+                  </span>
+                  <span className="text-sm font-medium">{item.label}</span>
+                  {isActive && (
+                    <div className="absolute inset-0 rounded-xl bg-white/[0.03] pointer-events-none" />
+                  )}
+                </>
+              )}
             </NavLink>
           ))}
         </nav>
 
-        <div className="p-8 mt-auto flex flex-col gap-6">
-          <button className="w-full bg-gradient-to-r from-primary to-primary-container text-on-primary py-4 px-6 rounded-full font-bold shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2">
-            <span className="material-symbols-outlined text-xl">chat</span>
+        <div className="p-6 mt-auto flex flex-col gap-4">
+          <button className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white py-3 px-5 rounded-xl font-semibold shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30 hover:brightness-110 active:scale-[0.97] transition-all flex items-center justify-center gap-2 text-sm">
+            <span className="material-symbols-outlined text-lg">chat</span>
             Send to WhatsApp
           </button>
           <button
             onClick={handleLogout}
-            className="flex items-center gap-4 text-slate-400 py-4 px-6 hover:text-slate-100 transition-all"
+            className="flex items-center gap-4 text-slate-500 py-3 px-4 hover:text-slate-200 rounded-xl hover:bg-white/[0.03] transition-all text-sm"
           >
-            <span className="material-symbols-outlined">logout</span>
+            <span className="material-symbols-outlined text-lg">logout</span>
             <span>Logout</span>
           </button>
         </div>
+
+        {/* Bottom edge glow */}
+        <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />
       </aside>
 
       <main className="flex-1 lg:ml-72 min-h-screen relative flex flex-col pt-16 lg:pt-0">
+        <ScrollProgress />
         <Outlet />
-        <div className="fixed -bottom-20 -right-20 w-[600px] h-[600px] bg-teal-500/5 rounded-full blur-[120px] pointer-events-none z-0"></div>
-        <div className="fixed top-1/2 -left-40 w-[400px] h-[400px] bg-primary/5 rounded-full blur-[100px] pointer-events-none z-0"></div>
       </main>
     </div>
   );

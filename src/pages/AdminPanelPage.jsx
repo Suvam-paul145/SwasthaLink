@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_OPTIONS } from '../utils/auth';
+import { isDemoAdmin, getMockAdminPending, getMockAdminAllRecords } from '../utils/mockData';
 import { AnimatedStatCard, LivePulseIndicator } from '../components/AnimatedStatCard';
 import { DashboardHero3D } from '../components/DashboardHero3D';
 import { pageTransition, dashboardStagger, tableRowIn } from '../utils/animations';
@@ -25,6 +26,12 @@ function PrescriptionQueuePanel({ onAction }) {
   const [auditLog, setAuditLog] = useState([]);
 
   const fetchPending = useCallback(async () => {
+    if (isDemoAdmin(user?.email)) {
+      setRecords(getMockAdminPending());
+      setIsDemoMode(true);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -358,6 +365,11 @@ function AdminPanelPage() {
   const [historyFilter, setHistoryFilter] = useState('all');
 
   const fetchHistory = useCallback(async () => {
+    if (isDemoAdmin(user?.email)) {
+      setAllRecords(getMockAdminAllRecords());
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

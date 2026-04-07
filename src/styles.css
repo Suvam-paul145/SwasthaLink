@@ -65,3 +65,141 @@
   flex-direction: column;
   gap: 0.125rem;
 }
+
+/* ─── Futuristic UI Keyframes ─── */
+
+@keyframes glow-btn-ripple {
+  from { transform: scale(0); opacity: 0.6; }
+  to { transform: scale(1); opacity: 0; }
+}
+
+@keyframes animate-gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes data-pulse {
+  0%, 100% { opacity: 0.3; transform: scaleX(0.8); }
+  50% { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes neon-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.8; }
+  94% { opacity: 1; }
+  96% { opacity: 0.9; }
+  97% { opacity: 1; }
+}
+
+@keyframes float-gentle {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes shimmer-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes border-glow-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ─── Utility Classes ─── */
+
+.animate-gradient-shift {
+  animation: animate-gradient-shift 4s ease infinite;
+}
+
+.animate-float {
+  animation: float-gentle 3s ease-in-out infinite;
+}
+
+.animate-scan-line {
+  animation: scan-line 4s linear infinite;
+}
+
+.animate-neon-flicker {
+  animation: neon-flicker 4s ease-in-out infinite;
+}
+
+.glass-card-enhanced {
+  background: rgb(255 255 255 / 0.04);
+  -webkit-backdrop-filter: blur(40px);
+  backdrop-filter: blur(40px);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass-card-enhanced:hover {
+  background: rgb(255 255 255 / 0.06);
+  border-color: rgb(79 219 200 / 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(79, 219, 200, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.neon-border {
+  position: relative;
+}
+
+.neon-border::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(79, 219, 200, 0.4), rgba(129, 140, 248, 0.2), rgba(79, 219, 200, 0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.text-glow-teal {
+  text-shadow: 0 0 20px rgba(79, 219, 200, 0.5), 0 0 40px rgba(79, 219, 200, 0.2);
+}
+
+.text-glow-purple {
+  text-shadow: 0 0 20px rgba(129, 140, 248, 0.5), 0 0 40px rgba(129, 140, 248, 0.2);
+}
+
+/* Hover glow for GlassCard children */
+.glass-card-enhanced:hover .hover-parent-glow,
+div:hover > .hover-parent-glow {
+  opacity: 1 !important;
+}
+
+/* Nav active indicator */
+.nav-active-indicator {
+  background: linear-gradient(180deg, #4fdbc8, transparent);
+  box-shadow: 0 0 12px #4fdbc880;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(79 219 200 / 0.2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(79 219 200 / 0.4);
+}

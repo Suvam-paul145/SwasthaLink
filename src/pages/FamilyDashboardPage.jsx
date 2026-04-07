@@ -5,6 +5,7 @@ import ChatbotPanel from '../components/ChatbotPanel';
 import RiskGauge from '../components/RiskGauge';
 import ShareQRModal from '../components/ShareQRModal';
 import EmergencyQRCard from '../components/EmergencyQRCard';
+import { isDemoPatient, getMockPrescriptions, getMockDischargeHistory, getMockAllChunks } from '../utils/mockData';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -54,6 +55,18 @@ function FamilyDashboardPage() {
     (async () => {
       setRxLoading(true);
       setDischargeLoading(true);
+
+      // Demo mode: inject hardcoded mock data for patient@gmail.com
+      if (isDemoPatient(user?.email)) {
+        setPrescriptions(getMockPrescriptions());
+        setDischargeHistory(getMockDischargeHistory());
+        setChunks(getMockAllChunks());
+        setLinkedPid('PID-DEMO01');
+        setRxLoading(false);
+        setDischargeLoading(false);
+        return;
+      }
+
       try {
         // Use linkedPid from auth session (already fetched during login/verify)
         let currentPid = linkedPid;
@@ -129,7 +142,7 @@ function FamilyDashboardPage() {
 
   // Fetch chunks when tab changes
   useEffect(() => {
-    if (!patientId) return;
+    if (!patientId || isDemoPatient(user?.email)) return;
     const typeMap = { medications: 'medication', routine: 'routine', explanations: 'explanation', recovery: 'medication' };
     const chunkType = typeMap[activeTab];
     if (!chunkType || chunks[chunkType]) return;
@@ -308,25 +321,45 @@ function FamilyDashboardPage() {
                 ) : <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>Waiting for clinical data.</p>}
               </div>
 
-              {/* Critical Instructions */}
+              {/* Do's & Don'ts (AI Suggestions) */}
               <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(255,255,255,.08)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <div>
-                    <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.2em', color: '#64748b' }}>Important</p>
-                    <h4 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Critical Instructions</h4>
+                    <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.2em', color: '#64748b' }}>AI Suggestions</p>
+                    <h4 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Do's & Don'ts</h4>
                   </div>
-                  <span className="material-symbols-outlined" style={{ color: '#f59e0b', background: 'rgba(245,158,11,.1)', padding: '10px', borderRadius: '14px' }}>priority_high</span>
+                  <span className="material-symbols_outlined" style={{ color: '#f59e0b', background: 'rgba(245,158,11,.1)', padding: '10px', borderRadius: '14px' }}>priority_high</span>
                 </div>
-                {rxLoading ? (<SkeletonBlock />) : insights?.critical_instructions?.length > 0 ? (
-                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                    {insights.critical_instructions.map((inst, i) => (
-                      <li key={i} style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                        <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(245,158,11,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(245,158,11,.2)', color: '#f59e0b', fontWeight: 700, fontSize: '11px', flexShrink: 0 }}>{i + 1}</div>
-                        <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5 }}>{inst}</p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>No critical instructions.</p>}
+                {rxLoading ? (<SkeletonBlock />) : (insights?.dos_and_donts?.do?.length > 0 || insights?.dos_and_donts?.dont?.length > 0) ? (
+                  <div>
+                    {insights.dos_and_donts.do?.length > 0 && (
+                      <div style={{ marginBottom: '14px' }}>
+                        <p style={{ fontSize: '11px', color: '#4ade80', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.15em', marginBottom: '8px' }}>✅ Do</p>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                          {insights.dos_and_donts.do.map((item, i) => (
+                            <li key={i} style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+                              <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'rgba(34,197,94,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(34,197,94,.2)', color: '#4ade80', fontWeight: 700, fontSize: '10px', flexShrink: 0 }}>{i + 1}</div>
+                              <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5 }}>{item}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {insights.dos_and_donts.dont?.length > 0 && (
+                      <div>
+                        <p style={{ fontSize: '11px', color: '#f87171', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.15em', marginBottom: '8px' }}>❌ Don't</p>
+                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                          {insights.dos_and_donts.dont.map((item, i) => (
+                            <li key={i} style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+                              <div style={{ width: '24px', height: '24px', borderRadius: '6px', background: 'rgba(239,68,68,.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(239,68,68,.2)', color: '#f87171', fontWeight: 700, fontSize: '10px', flexShrink: 0 }}>{i + 1}</div>
+                              <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5 }}>{item}</p>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>AI suggestions will appear after your doctor uploads and admin approves your prescription.</p>}
               </div>
 
               {/* Doctor Info */}
@@ -343,20 +376,22 @@ function FamilyDashboardPage() {
                 </div>
               </div>
 
-              {/* Readmission Risk */}
-              <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(255,255,255,.08)', gridColumn: 'span 1' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
-                  <div>
-                    <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.2em', color: '#64748b' }}>Risk Assessment</p>
-                    <h4 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Readmission Risk</h4>
+              {/* Readmission Risk — only visible when patient has been admitted/discharged */}
+              {dischargeHistory.length > 0 && (
+                <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(255,255,255,.08)', gridColumn: 'span 1' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
+                    <div>
+                      <p style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '.2em', color: '#64748b' }}>Risk Assessment</p>
+                      <h4 style={{ fontSize: '20px', fontWeight: 800, margin: '8px 0 0' }}>Readmission Risk</h4>
+                    </div>
                   </div>
+                  {dischargeLoading ? <SkeletonBlock /> : dischargeHistory[0].risk_score !== undefined ? (
+                    <RiskGauge score={dischargeHistory[0].risk_score} level={dischargeHistory[0].risk_level} />
+                  ) : (
+                    <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic', textAlign: 'center', marginTop: '20px' }}>Risk score not computed yet.</p>
+                  )}
                 </div>
-                {dischargeLoading ? <SkeletonBlock /> : dischargeHistory.length > 0 && dischargeHistory[0].risk_score !== undefined ? (
-                  <RiskGauge score={dischargeHistory[0].risk_score} level={dischargeHistory[0].risk_level} />
-                ) : (
-                  <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic', textAlign: 'center', marginTop: '20px' }}>Risk score not computed yet. Ask Doctor to process discharge summary.</p>
-                )}
-              </div>
+              )}
 
               {/* Clarity Center Link */}
               <div style={{ background: 'linear-gradient(135deg, rgba(13,148,136,.08), transparent)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(13,148,136,.2)' }}>
@@ -547,6 +582,26 @@ function FamilyDashboardPage() {
 
       {/* Chatbot Panel */}
       <ChatbotPanel />
+
+      {/* Share QR Modal */}
+      {showShareQR && (
+        <ShareQRModal
+          patientId={linkedPid || patientId}
+          patientName={patientName}
+          onClose={() => setShowShareQR(false)}
+        />
+      )}
+      {/* Emergency Card Modal */}
+      {showEmergencyCard && (
+        <EmergencyQRCard
+          patientName={patientName}
+          bloodGroup={prescriptions[0]?.extracted_data?.blood_group}
+          allergies={prescriptions[0]?.extracted_data?.allergies || []}
+          emergencyContact={user?.phone}
+          patientId={linkedPid || patientId}
+          onClose={() => setShowEmergencyCard(false)}
+        />
+      )}
     </div>
   );
 }
@@ -651,23 +706,6 @@ function PrescriptionImageViewer({ imageUrl, prescriptionId }) {
         </div>
       )}
 
-      {showShareQR && (
-        <ShareQRModal
-          patientId={linkedPid || patientId}
-          patientName={patientName}
-          onClose={() => setShowShareQR(false)}
-        />
-      )}
-      {showEmergencyCard && (
-        <EmergencyQRCard
-          patientName={patientName}
-          bloodGroup={prescriptions[0]?.extracted_data?.blood_group}
-          allergies={prescriptions[0]?.extracted_data?.allergies || []}
-          emergencyContact={user?.phone}
-          patientId={linkedPid || patientId}
-          onClose={() => setShowEmergencyCard(false)}
-        />
-      )}
     </div>
   );
 }
