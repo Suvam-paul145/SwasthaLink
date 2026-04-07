@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import api, { setAuthToken } from '../services/api';
+import { isDemoAccount, DEMO_EMAILS } from '../utils/mockData';
 import {
   AUTH_STORAGE_KEY,
   generateAdminId,
@@ -46,6 +47,12 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (!session?.accessToken) return;
+
+    // Demo sessions don't need backend verification
+    if (session.isDemo || isDemoAccount(session.user?.email)) {
+      setIsVerifying(false);
+      return;
+    }
 
     let cancelled = false;
     setIsVerifying(true);
@@ -97,6 +104,44 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async ({ role, email, password }) => {
+    // Demo accounts bypass the backend entirely
+    if (isDemoAccount(email)) {
+      const lowerEmail = email.toLowerCase();
+      const demoRole = lowerEmail === DEMO_EMAILS.patient ? 'patient'
+        : lowerEmail === DEMO_EMAILS.doctor ? 'doctor'
+        : 'admin';
+      const effectiveRole = role || demoRole;
+
+      let systemId;
+      if (effectiveRole === 'admin') systemId = generateAdminId();
+      else if (effectiveRole === 'doctor') systemId = generateDoctorId();
+      else systemId = 'PID-DEMO01';
+
+      const nextSession = {
+        user: {
+          email: lowerEmail,
+          role: effectiveRole,
+          name: lowerEmail === DEMO_EMAILS.patient ? 'Suvam Paul'
+            : lowerEmail === DEMO_EMAILS.doctor ? 'Dr. Anirban Mukherjee'
+            : 'Admin User',
+          systemId,
+          linkedPid: effectiveRole === 'patient' ? 'PID-DEMO01' : null,
+        },
+        accessToken: 'demo-token',
+        isDemo: true,
+        loggedInAt: new Date().toISOString(),
+      };
+
+      const mergedRoles = [...new Set([...getUserRoles(), effectiveRole])];
+      setUserRoles(mergedRoles);
+
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextSession));
+      }
+      setSession(nextSession);
+      return nextSession;
+    }
+
     const response = await api.login({ role, email, password });
 
     if (response.access_token) {
