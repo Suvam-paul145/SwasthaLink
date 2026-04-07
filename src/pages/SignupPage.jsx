@@ -155,7 +155,7 @@ export default function SignupPage() {
         setTimeout(() => {
           navigate(getDashboardRouteForRole(authSession.user.role), { replace: true });
         }, 1200);
-      } catch (loginErr) {
+      } catch {
         setInfo('Account verified. Redirecting to login...');
         setTimeout(() => {
           navigate('/login', { replace: true, state: { preferredRole: role } });

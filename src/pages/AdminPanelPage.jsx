@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, useEffect, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const AmbientMolecule = lazy(() => import('../components/effects/AmbientMolecule'));
 import api from '../services/api';
@@ -20,7 +20,6 @@ function PrescriptionQueuePanel({ onAction }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isDemoMode, setIsDemoMode] = useState(false);
   const [selected, setSelected] = useState(null);
   const [actionStatus, setActionStatus] = useState({}); // { [id]: 'approving'|'rejecting'|'done' }
   const [rejectReason, setRejectReason] = useState('');
@@ -30,7 +29,6 @@ function PrescriptionQueuePanel({ onAction }) {
   const fetchPending = useCallback(async () => {
     if (isDemoAdmin(user?.email)) {
       setRecords(getMockAdminPending());
-      setIsDemoMode(true);
       setLoading(false);
       return;
     }
@@ -39,14 +37,12 @@ function PrescriptionQueuePanel({ onAction }) {
     try {
       const data = await api.getPendingPrescriptions();
       setRecords(data.items || []);
-      setIsDemoMode(Boolean(data.demo_mode));
     } catch (err) {
       setError(err.message || 'Failed to load pending prescriptions');
-      setIsDemoMode(false);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.email]);
 
   useEffect(() => {
     fetchPending();
@@ -55,8 +51,7 @@ function PrescriptionQueuePanel({ onAction }) {
   const handleApprove = async (id) => {
     setActionStatus((s) => ({ ...s, [id]: 'approving' }));
     try {
-      const response = await api.approvePrescription(id, adminId);
-      if (response?.demo_mode) setIsDemoMode(true);
+      await api.approvePrescription(id, adminId);
       setRecords((prev) => prev.filter((r) => r.prescription_id !== id));
       if (selected?.prescription_id === id) setSelected(null);
       if (onAction) onAction();
@@ -74,8 +69,7 @@ function PrescriptionQueuePanel({ onAction }) {
     }
     setActionStatus((s) => ({ ...s, [id]: 'rejecting' }));
     try {
-      const response = await api.rejectPrescription(id, adminId, rejectReason.trim());
-      if (response?.demo_mode) setIsDemoMode(true);
+      await api.rejectPrescription(id, adminId, rejectReason.trim());
       setRecords((prev) => prev.filter((r) => r.prescription_id !== id));
       if (selected?.prescription_id === id) setSelected(null);
       setRejectReason('');
@@ -93,7 +87,7 @@ function PrescriptionQueuePanel({ onAction }) {
     const id = selected.prescription_id;
     api.getAdminFullView(id).then(v => setAdminView(v)).catch(() => setAdminView(null));
     api.getAuditLog(id).then(r => setAuditLog(r.items || [])).catch(() => setAuditLog([]));
-  }, [selected?.prescription_id]);
+  }, [selected]);
 
   return (
     <div className="glass-card rounded-xl overflow-hidden border border-white/5 flex flex-col h-full">
@@ -372,13 +366,12 @@ function AdminPanelPage() {
     try {
       const data = await api.getAllPrescriptions();
       setAllRecords(data.items || []);
-    } catch (err) {
+    } catch {
       setError('Failed to load prescription history');
-      console.error(err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.email]);
 
   useEffect(() => {
     fetchHistory();
