@@ -4,9 +4,6 @@
 // Patient scenario: Severe Diabetes + Hypertension (emergency BP 200/120) + Migraine
 // ============================================================================
 
-// Env flag — set VITE_ENABLE_DEMO=false in production to turn off demo data entirely
-const DEMO_ENABLED = (import.meta.env.VITE_ENABLE_DEMO ?? 'true') !== 'false';
-
 export const DEMO_EMAILS = {
   patient: 'patient@gmail.com',
   admin: 'admin@gmail.com',
@@ -14,20 +11,17 @@ export const DEMO_EMAILS = {
 };
 
 export function isDemoAccount(email) {
-  if (!DEMO_ENABLED || !email) return false;
+  if (!email) return false;
   return Object.values(DEMO_EMAILS).includes(email.toLowerCase());
 }
 
 export function isDemoPatient(email) {
-  if (!DEMO_ENABLED) return false;
   return email?.toLowerCase() === DEMO_EMAILS.patient;
 }
 export function isDemoDoctor(email) {
-  if (!DEMO_ENABLED) return false;
   return email?.toLowerCase() === DEMO_EMAILS.doctor;
 }
 export function isDemoAdmin(email) {
-  if (!DEMO_ENABLED) return false;
   return email?.toLowerCase() === DEMO_EMAILS.admin;
 }
 
