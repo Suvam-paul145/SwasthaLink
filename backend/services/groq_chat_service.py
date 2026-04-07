@@ -43,19 +43,30 @@ def get_configured_chat_model() -> str:
     return read_env("GROQ_CHAT_MODEL") or DEFAULT_GROQ_CHAT_MODEL
 
 
-def _get_chat_provider() -> tuple[str, str, str]:
-    """Return (api_key, base_url, model) for the best available chat provider."""
+def _get_chat_providers() -> list[tuple[str, str, str]]:
+    """Return a list of (api_key, base_url, model) for all available chat providers, ordered by priority."""
+    providers = []
+
     cerebras_key = get_configured_cerebras_api_key()
     if cerebras_key:
         model = read_env("CEREBRAS_CHAT_MODEL") or DEFAULT_CEREBRAS_CHAT_MODEL
-        return cerebras_key, CEREBRAS_CHAT_COMPLETIONS_URL, model
+        providers.append((cerebras_key, CEREBRAS_CHAT_COMPLETIONS_URL, model))
 
     groq_key = get_configured_groq_api_key()
     if groq_key:
         model = read_env("GROQ_CHAT_MODEL") or DEFAULT_GROQ_CHAT_MODEL
-        return groq_key, GROQ_CHAT_COMPLETIONS_URL, model
+        providers.append((groq_key, GROQ_CHAT_COMPLETIONS_URL, model))
 
-    raise ValueError("No chat LLM API key configured (set CEREBRAS_API_KEY or GROQ_API_KEY)")
+    if not providers:
+        raise ValueError("No chat LLM API key configured (set CEREBRAS_API_KEY or GROQ_API_KEY)")
+
+    return providers
+
+
+def _get_chat_provider() -> tuple[str, str, str]:
+    """Return (api_key, base_url, model) for the best available chat provider."""
+    providers = _get_chat_providers()
+    return providers[0]
 
 
 def is_groq_configured() -> bool:
@@ -127,7 +138,7 @@ async def answer_with_groq(
     relevant_chunks: List[Dict[str, Any]],
 ) -> str:
     """Answer a patient question using Cerebras/Groq and only approved patient context."""
-    api_key, base_url, model = _get_chat_provider()
+    providers = _get_chat_providers()
 
     context_document = build_grounded_chat_context(faq_matches, relevant_chunks)
     if not context_document:
@@ -152,55 +163,64 @@ async def answer_with_groq(
         f"{context_document}"
     )
 
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.1,
-        "top_p": 1,
-        "max_completion_tokens": 256,
-        "stream": False,
-    }
+    last_error = None
+    for api_key, base_url, model in providers:
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.1,
+            "top_p": 1,
+            "max_completion_tokens": 256,
+            "stream": False,
+        }
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
 
-    timeout = httpx.Timeout(30.0, connect=10.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(
-            base_url,
-            headers=headers,
-            json=payload,
+        timeout = httpx.Timeout(30.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                base_url,
+                headers=headers,
+                json=payload,
+            )
+
+        if response.status_code in (401, 403):
+            logger.warning("Chat provider %s returned %s, trying next provider...", base_url, response.status_code)
+            last_error = f"Auth failed ({response.status_code}) for {base_url}"
+            continue
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            details = exc.response.text[:500] if exc.response is not None else str(exc)
+            logger.error("Chat request failed: %s", details)
+            raise ValueError(f"Chat request failed: {details}") from exc
+
+        body = response.json()
+        message = (
+            body.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
         )
 
-    try:
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        details = exc.response.text[:500] if exc.response is not None else str(exc)
-        logger.error("Chat request failed: %s", details)
-        raise ValueError(f"Chat request failed: {details}") from exc
+        if not message:
+            raise ValueError("LLM returned an empty chatbot response")
 
-    body = response.json()
-    message = (
-        body.get("choices", [{}])[0]
-        .get("message", {})
-        .get("content", "")
-        .strip()
-    )
+        return message
 
-    if not message:
-        raise ValueError("LLM returned an empty chatbot response")
-
-    return message
+    raise ValueError(f"All chat providers failed: {last_error}")
 
 
 async def answer_general_question(question: str) -> str:
     """Answer a general health question using Cerebras/Groq when no patient records exist."""
-    api_key, base_url, model = _get_chat_provider()
+    providers = _get_chat_providers()
 
     system_prompt = (
         "You are SwasthaLink's patient assistant, a friendly and knowledgeable health helper. "
@@ -211,47 +231,56 @@ async def answer_general_question(question: str) -> str:
         "Keep answers concise and in plain language."
     )
 
-    payload = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": question.strip()},
-        ],
-        "temperature": 0.3,
-        "top_p": 1,
-        "max_completion_tokens": 300,
-        "stream": False,
-    }
+    last_error = None
+    for api_key, base_url, model in providers:
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question.strip()},
+            ],
+            "temperature": 0.3,
+            "top_p": 1,
+            "max_completion_tokens": 300,
+            "stream": False,
+        }
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
 
-    timeout = httpx.Timeout(30.0, connect=10.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(
-            base_url,
-            headers=headers,
-            json=payload,
+        timeout = httpx.Timeout(30.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                base_url,
+                headers=headers,
+                json=payload,
+            )
+
+        if response.status_code in (401, 403):
+            logger.warning("General chat provider %s returned %s, trying next provider...", base_url, response.status_code)
+            last_error = f"Auth failed ({response.status_code}) for {base_url}"
+            continue
+
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            details = exc.response.text[:500] if exc.response is not None else str(exc)
+            logger.error("General chat request failed: %s", details)
+            raise ValueError(f"General chat request failed: {details}") from exc
+
+        body = response.json()
+        message = (
+            body.get("choices", [{}])[0]
+            .get("message", {})
+            .get("content", "")
+            .strip()
         )
 
-    try:
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        details = exc.response.text[:500] if exc.response is not None else str(exc)
-        logger.error("General chat request failed: %s", details)
-        raise ValueError(f"General chat request failed: {details}") from exc
+        if not message:
+            raise ValueError("LLM returned an empty response")
 
-    body = response.json()
-    message = (
-        body.get("choices", [{}])[0]
-        .get("message", {})
-        .get("content", "")
-        .strip()
-    )
+        return message
 
-    if not message:
-        raise ValueError("LLM returned an empty response")
-
-    return message
+    raise ValueError(f"All chat providers failed: {last_error}")

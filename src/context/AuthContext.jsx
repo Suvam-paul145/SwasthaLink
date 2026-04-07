@@ -51,12 +51,26 @@ export function AuthProvider({ children }) {
     setIsVerifying(true);
 
     api.verifySession()
-      .then((result) => {
+      .then(async (result) => {
         if (cancelled) return;
         if (result?.success && result?.user) {
+          // For patients, restore linkedPid from stored session or re-fetch
+          let linkedPid = session.user?.linkedPid || null;
+          if (!linkedPid && result.user.role === 'patient') {
+            try {
+              const profile = await api.getPatientProfile();
+              linkedPid = profile?.linked_pid || null;
+            } catch {
+              // Silently continue — PID fetch is non-critical during verify
+            }
+          }
+
           const updatedSession = {
             ...session,
-            user: result.user,
+            user: {
+              ...result.user,
+              linkedPid,
+            },
           };
           setSession(updatedSession);
           if (typeof window !== 'undefined') {
@@ -96,10 +110,23 @@ export function AuthProvider({ children }) {
       else if (role === 'doctor') systemId = generateDoctorId();
     }
 
+    // For patients, fetch their linked PID from the backend profile
+    let linkedPid = null;
+    if (role === 'patient') {
+      try {
+        const profile = await api.getPatientProfile();
+        linkedPid = profile?.linked_pid || null;
+      } catch (err) {
+        // Profile fetch may fail for new users — not critical
+        console.warn('Could not fetch patient profile during login:', err.message);
+      }
+    }
+
     const nextSession = {
       user: {
         ...response.user,
         systemId,
+        linkedPid,
       },
       accessToken: response.access_token || null,
       isDemo: Boolean(response.is_demo),

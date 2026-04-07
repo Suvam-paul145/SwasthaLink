@@ -377,7 +377,7 @@ function AdminPanelPage() {
 
   const stats = useMemo(() => {
     const total = allRecords.length;
-    const pending = allRecords.filter((r) => r.status === 'pending').length;
+    const pending = allRecords.filter((r) => r.status === 'pending_admin_review').length;
     const approved = allRecords.filter((r) => r.status === 'approved').length;
     const rejected = allRecords.filter((r) => r.status === 'rejected').length;
     return { total, pending, approved, rejected };
@@ -489,17 +489,17 @@ function AdminPanelPage() {
             </div>
             <div className="flex items-center gap-3">
               {/* Status filter pills */}
-              {['all', 'pending', 'approved', 'rejected'].map((f) => (
+              {[{ value: 'all', label: 'All' }, { value: 'pending_admin_review', label: 'Pending' }, { value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }].map((f) => (
                 <button
-                  key={f}
-                  onClick={() => setHistoryFilter(f)}
+                  key={f.value}
+                  onClick={() => setHistoryFilter(f.value)}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                    historyFilter === f
+                    historyFilter === f.value
                       ? 'bg-teal-400/20 text-teal-300 border border-teal-400/30'
                       : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
                   }`}
                 >
-                  {f}
+                  {f.label}
                 </button>
               ))}
               <button
@@ -574,7 +574,7 @@ function AdminPanelPage() {
                             <span className="material-symbols-outlined text-[10px]">
                               {rec.status === 'approved' ? 'check_circle' : rec.status === 'rejected' ? 'cancel' : 'hourglass_top'}
                             </span>
-                            {rec.status}
+                            {rec.status === 'pending_admin_review' ? 'Pending' : rec.status}
                           </span>
                         </td>
                         <td className="p-4">

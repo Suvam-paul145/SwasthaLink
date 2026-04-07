@@ -16,7 +16,7 @@ const TABS = [
 ];
 
 function FamilyDashboardPage() {
-  const { user } = useAuth();
+  const { user, updateUserProfile } = useAuth();
   const patientName = user?.name || 'Patient';
   const patientId = user?.user_id || user?.id || user?.email || '';
 
@@ -27,23 +27,44 @@ function FamilyDashboardPage() {
   const [chunksLoading, setChunksLoading] = useState(false);
   const [dischargeHistory, setDischargeHistory] = useState([]);
   const [dischargeLoading, setDischargeLoading] = useState(false);
-  const [linkedPid, setLinkedPid] = useState(null);
+  const [linkedPid, setLinkedPid] = useState(user?.linkedPid || null);
   const [linkInput, setLinkInput] = useState('');
   const [linking, setLinking] = useState(false);
   const [linkStatus, setLinkStatus] = useState({ type: '', message: '' });
   const [showShareQR, setShowShareQR] = useState(false);
   const [showEmergencyCard, setShowEmergencyCard] = useState(false);
 
-  // Fetch prescriptions and history
+  // Derive all unique PIDs from prescriptions for the "Your Medical IDs" section
+  const patientPids = prescriptions.reduce((acc, rx) => {
+    const pid = rx.extracted_data?.patient_id || rx.patient_id;
+    if (!pid || acc.find(p => p.pid === pid)) return acc;
+    acc.push({
+      pid,
+      patientName: rx.extracted_data?.patient_name || rx.patient_name || patientName,
+      doctorName: rx.extracted_data?.doctor_name || 'Unknown Doctor',
+      reportType: rx.report_type || 'prescription',
+      createdAt: rx.created_at,
+      status: rx.status,
+    });
+    return acc;
+  }, []);
+
+  // Fetch prescriptions and history — use linkedPid from AuthContext session
   useEffect(() => {
     (async () => {
       setRxLoading(true);
       setDischargeLoading(true);
       try {
-        // First get profile for linked PID
-        const profile = await api.getPatientProfile().catch(() => ({}));
-        const currentPid = profile.linked_pid;
-        setLinkedPid(currentPid);
+        // Use linkedPid from auth session (already fetched during login/verify)
+        let currentPid = linkedPid;
+        if (!currentPid) {
+          const profile = await api.getPatientProfile().catch(() => ({}));
+          currentPid = profile.linked_pid || null;
+          if (currentPid) {
+            setLinkedPid(currentPid);
+            updateUserProfile({ linkedPid: currentPid });
+          }
+        }
 
         const idsToFetch = [patientId];
         if (currentPid) idsToFetch.push(currentPid);
@@ -56,9 +77,20 @@ function FamilyDashboardPage() {
           ])
         ));
 
-        // Merge results
-        const allRx = fetchResults.flatMap(r => r[0].items || []);
-        const allDischarge = fetchResults.flatMap(r => r[1].results || []);
+        // Merge and deduplicate results
+        const seenRx = new Set();
+        const allRx = fetchResults.flatMap(r => r[0].items || []).filter(rx => {
+          if (seenRx.has(rx.prescription_id)) return false;
+          seenRx.add(rx.prescription_id);
+          return true;
+        });
+        const seenDis = new Set();
+        const allDischarge = fetchResults.flatMap(r => r[1].results || []).filter(d => {
+          const key = d.id || d.created_at;
+          if (seenDis.has(key)) return false;
+          seenDis.add(key);
+          return true;
+        });
 
         // Sort by date
         allRx.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -84,6 +116,7 @@ function FamilyDashboardPage() {
       const res = await api.linkPatientPid(linkInput);
       setLinkStatus({ type: 'success', message: res.message });
       setLinkedPid(linkInput);
+      updateUserProfile({ linkedPid: linkInput });
       setLinkInput('');
       // Trigger refresh
       window.location.reload(); 
@@ -187,6 +220,46 @@ function FamilyDashboardPage() {
                 {linkStatus.message}
               </p>
             )}
+          </div>
+        )}
+
+        {/* Your Medical IDs — all PIDs from prescriptions */}
+        {patientPids.length > 0 && (
+          <div style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(255,255,255,.06)', borderRadius: '20px', padding: '24px', marginBottom: '32px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '22px', color: '#5eead4' }}>badge</span>
+              <h4 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: '#e2e8f0' }}>Your Medical IDs</h4>
+              <span style={{ fontSize: '11px', color: '#64748b', background: 'rgba(255,255,255,.05)', padding: '2px 8px', borderRadius: '6px' }}>{patientPids.length} record{patientPids.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+              {patientPids.map((p) => {
+                const date = p.createdAt ? new Date(p.createdAt) : null;
+                return (
+                  <div key={p.pid} style={{ background: 'rgba(13,148,136,.06)', border: '1px solid rgba(13,148,136,.15)', borderRadius: '14px', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '14px', color: '#5eead4' }}>{p.pid}</span>
+                        {p.pid === linkedPid && <span style={{ fontSize: '9px', background: 'rgba(94,234,212,.15)', color: '#5eead4', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>LINKED</span>}
+                        <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 600, background: p.status === 'approved' ? 'rgba(34,197,94,.12)' : p.status === 'pending_admin_review' ? 'rgba(234,179,8,.12)' : 'rgba(255,255,255,.06)', color: p.status === 'approved' ? '#4ade80' : p.status === 'pending_admin_review' ? '#facc15' : '#94a3b8' }}>
+                          {p.status === 'approved' ? 'Approved' : p.status === 'pending_admin_review' ? 'Pending' : p.status || 'N/A'}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
+                        {p.doctorName} &middot; {p.reportType}
+                      </p>
+                      {date && (
+                        <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>
+                          {date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      )}
+                    </div>
+                    <button onClick={() => { navigator.clipboard.writeText(p.pid); }} title="Copy PID" style={{ background: 'rgba(255,255,255,.06)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
