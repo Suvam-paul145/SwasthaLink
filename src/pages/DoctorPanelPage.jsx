@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "framer-motion";
 import api, { validators } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_OPTIONS } from "../utils/auth";
 import CameraCapture from "../components/CameraCapture";
 import ProcessingSteps from "../components/ProcessingSteps";
 import ToastContainer, { useToasts } from "../components/ToastNotification";
+import { AnimatedStatCard, LivePulseIndicator } from "../components/AnimatedStatCard";
+import { DashboardHero3D } from "../components/DashboardHero3D";
+import { pageTransition, dashboardStagger } from "../utils/animations";
 
 /**
  * Generate a unique patient ID in format PID-XXXXXX
@@ -237,16 +241,33 @@ function DoctorPanelPage() {
   };
 
   return (
-    <div className="p-6 lg:p-10 relative z-10">
+    <motion.div className="p-6 lg:p-10 relative z-10" {...pageTransition}>
+      {/* 3D Hero Background */}
+      <div className="absolute inset-0 h-64 pointer-events-none overflow-hidden -z-10">
+        <DashboardHero3D variant="doctor" height="260px" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#070e17]/60 to-[#070e17]" />
+      </div>
+
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <header className="mb-8 lg:mb-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-3">
-          <span className="text-primary font-bold tracking-[0.24em] uppercase text-xs">{roleLabel} Panel</span>
+        <motion.div
+          className="space-y-3"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-primary font-bold tracking-[0.24em] uppercase text-xs">{roleLabel} Panel</span>
+            <LivePulseIndicator status="active" label="Online" />
+          </div>
           <h2 className="text-4xl lg:text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">
             Clinical Review Command Desk
           </h2>
           <p className="text-sm text-teal-200">
             Signed in as: <span className="font-semibold text-white">{user?.name || "Doctor"}</span>
+            {user?.systemId && (
+              <span className="ml-2 text-[10px] font-mono text-cyan-300/70 bg-cyan-400/10 px-2 py-0.5 rounded border border-cyan-400/20">{user.systemId}</span>
+            )}
           </p>
           <p className="text-slate-300 max-w-3xl">
             Upload prescriptions &amp; medical reports, track extraction results, and manage your patient communication pipeline.
@@ -261,22 +282,34 @@ function DoctorPanelPage() {
               {exporting ? "Preparing Report..." : "Export Daily Summary (CSV)"}
             </button>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-3 gap-3 w-full lg:w-auto">
-          <div className="glass-card rounded-2xl px-4 py-3 border border-white/10 text-center">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Pending</p>
-            <p className="text-2xl font-extrabold text-amber-300 mt-1">{stats.pending}</p>
-          </div>
-          <div className="glass-card rounded-2xl px-4 py-3 border border-white/10 text-center">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Approved</p>
-            <p className="text-2xl font-extrabold text-emerald-300 mt-1">{stats.approved}</p>
-          </div>
-          <div className="glass-card rounded-2xl px-4 py-3 border border-white/10 text-center">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Total</p>
-            <p className="text-2xl font-extrabold text-cyan-300 mt-1">{prescriptionHistory.length}</p>
-          </div>
-        </div>
+        <motion.div
+          className="grid grid-cols-3 gap-3 w-full lg:w-auto"
+          {...dashboardStagger}
+        >
+          <AnimatedStatCard
+            title="Pending"
+            value={stats.pending}
+            icon="hourglass_top"
+            gradient="from-amber-400 to-orange-500"
+            delay={0}
+          />
+          <AnimatedStatCard
+            title="Approved"
+            value={stats.approved}
+            icon="check_circle"
+            gradient="from-emerald-400 to-teal-500"
+            delay={0.07}
+          />
+          <AnimatedStatCard
+            title="Total"
+            value={prescriptionHistory.length}
+            icon="monitoring"
+            gradient="from-cyan-400 to-blue-500"
+            delay={0.14}
+          />
+        </motion.div>
       </header>
 
       <div className="grid grid-cols-12 gap-6 lg:gap-7">
@@ -676,7 +709,7 @@ function DoctorPanelPage() {
           onClose={() => setShowCamera(false)}
         />
       )}
-    </div>
+    </motion.div>
   );
 }
 

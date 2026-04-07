@@ -113,3 +113,74 @@ export const progressBar = {
     }
   })
 };
+
+// Page transition for dashboard route changes
+export const pageTransition = {
+  initial: { opacity: 0, y: 16, filter: 'blur(6px)' },
+  animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
+  exit: { opacity: 0, y: -12, filter: 'blur(4px)' },
+  transition: { duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }
+};
+
+// Dashboard section entrance
+export const sectionReveal = {
+  initial: { opacity: 0, y: 30 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.6, ease: [0.25, 0.46, 0.45, 0.94] }
+};
+
+// Table row entrance
+export const tableRowIn = {
+  initial: { opacity: 0, x: -10 },
+  animate: { opacity: 1, x: 0 },
+  transition: { duration: 0.25 }
+};
+
+// Stat number counter pop
+export const numberPop = {
+  initial: { opacity: 0, scale: 0.5, y: 10 },
+  animate: { opacity: 1, scale: 1, y: 0 },
+  transition: { duration: 0.4, type: 'spring', stiffness: 260, damping: 20 }
+};
+
+// Sidebar link hover
+export const navLinkHover = {
+  rest: { x: 0, backgroundColor: 'rgba(255,255,255,0)' },
+  hover: {
+    x: 4,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    transition: { duration: 0.2 }
+  }
+};
+
+// Dashboard card stagger (faster)
+export const dashboardStagger = {
+  initial: {},
+  animate: {
+    transition: {
+      staggerChildren: 0.07,
+      delayChildren: 0.1
+    }
+  }
+};
+
+// Shimmer loading placeholder
+export const shimmer = {
+  initial: { backgroundPosition: '-200% 0' },
+  animate: {
+    backgroundPosition: '200% 0',
+    transition: { duration: 1.5, repeat: Infinity, ease: 'linear' }
+  }
+};
+
+// Glow pulse for active elements
+export const glowPulse = {
+  animate: {
+    boxShadow: [
+      '0 0 0px rgba(79, 219, 200, 0)',
+      '0 0 20px rgba(79, 219, 200, 0.3)',
+      '0 0 0px rgba(79, 219, 200, 0)'
+    ],
+    transition: { duration: 2, repeat: Infinity, ease: 'easeInOut' }
+  }
+};

@@ -1,6 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import api, { setAuthToken } from '../services/api';
-import { AUTH_STORAGE_KEY } from '../utils/auth';
+import {
+  AUTH_STORAGE_KEY,
+  generateAdminId,
+  generateDoctorId,
+  getUserRoles,
+  setUserRoles,
+  ROLES_STORAGE_KEY,
+} from '../utils/auth';
 
 const AuthContext = createContext(null);
 
@@ -82,12 +89,28 @@ export function AuthProvider({ children }) {
       setAuthToken(response.access_token);
     }
 
+    // Auto-generate system IDs based on role
+    let systemId = response.user?.system_id;
+    if (!systemId) {
+      if (role === 'admin') systemId = generateAdminId();
+      else if (role === 'doctor') systemId = generateDoctorId();
+    }
+
     const nextSession = {
-      user: response.user,
+      user: {
+        ...response.user,
+        systemId,
+      },
       accessToken: response.access_token || null,
       isDemo: Boolean(response.is_demo),
       loggedInAt: new Date().toISOString(),
     };
+
+    // Store available roles for multi-role switching
+    const existingRoles = getUserRoles();
+    const availableRoles = response.user?.available_roles || [role];
+    const mergedRoles = [...new Set([...existingRoles, ...availableRoles])];
+    setUserRoles(mergedRoles);
 
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextSession));
@@ -96,6 +119,33 @@ export function AuthProvider({ children }) {
     setSession(nextSession);
     return nextSession;
   }, []);
+
+  const switchRole = useCallback(async (newRole) => {
+    if (!session?.user) return null;
+    
+    // Generate new system ID for new role
+    let systemId = session.user.systemId;
+    if (newRole === 'admin') systemId = generateAdminId();
+    else if (newRole === 'doctor') systemId = generateDoctorId();
+    else systemId = session.user.systemId;
+
+    const nextSession = {
+      ...session,
+      user: {
+        ...session.user,
+        role: newRole,
+        systemId,
+      },
+      switchedAt: new Date().toISOString(),
+    };
+
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(nextSession));
+    }
+
+    setSession(nextSession);
+    return nextSession;
+  }, [session]);
 
   const updateUserProfile = useCallback((updates) => {
     setSession((currentSession) => {
@@ -121,10 +171,13 @@ export function AuthProvider({ children }) {
   const logout = useCallback(() => {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem(AUTH_STORAGE_KEY);
+      window.localStorage.removeItem(ROLES_STORAGE_KEY);
     }
     setAuthToken(null);
     setSession(null);
   }, []);
+
+  const availableRoles = useMemo(() => getUserRoles(), [session]);
 
   const value = useMemo(
     () => ({
@@ -134,11 +187,13 @@ export function AuthProvider({ children }) {
       isDemoSession: Boolean(session?.isDemo),
       isAuthenticated: Boolean(session?.user),
       isVerifying,
+      availableRoles,
       login,
+      switchRole,
       updateUserProfile,
       logout,
     }),
-    [session, isVerifying, login, updateUserProfile, logout]
+    [session, isVerifying, availableRoles, login, switchRole, updateUserProfile, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

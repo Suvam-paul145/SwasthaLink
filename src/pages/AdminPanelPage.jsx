@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_OPTIONS } from '../utils/auth';
+import { AnimatedStatCard, LivePulseIndicator } from '../components/AnimatedStatCard';
+import { DashboardHero3D } from '../components/DashboardHero3D';
+import { pageTransition, dashboardStagger, tableRowIn } from '../utils/animations';
 
 // ---------------------------------------------------------------------------
 // Prescription queue panel (doctor → admin → patient pipeline)
 // ---------------------------------------------------------------------------
 
 function PrescriptionQueuePanel({ onAction }) {
+  const { user } = useAuth();
+  const adminId = user?.systemId || '';
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,7 +21,6 @@ function PrescriptionQueuePanel({ onAction }) {
   const [selected, setSelected] = useState(null);
   const [actionStatus, setActionStatus] = useState({}); // { [id]: 'approving'|'rejecting'|'done' }
   const [rejectReason, setRejectReason] = useState('');
-  const [adminId, setAdminId] = useState('');
   const [adminView, setAdminView] = useState(null);
   const [auditLog, setAuditLog] = useState([]);
 
@@ -39,13 +44,9 @@ function PrescriptionQueuePanel({ onAction }) {
   }, [fetchPending]);
 
   const handleApprove = async (id) => {
-    if (!adminId.trim()) {
-      alert('Please enter your Admin ID before approving.');
-      return;
-    }
     setActionStatus((s) => ({ ...s, [id]: 'approving' }));
     try {
-      const response = await api.approvePrescription(id, adminId.trim());
+      const response = await api.approvePrescription(id, adminId);
       if (response?.demo_mode) setIsDemoMode(true);
       setRecords((prev) => prev.filter((r) => r.prescription_id !== id));
       if (selected?.prescription_id === id) setSelected(null);
@@ -58,17 +59,13 @@ function PrescriptionQueuePanel({ onAction }) {
   };
 
   const handleReject = async (id) => {
-    if (!adminId.trim()) {
-      alert('Please enter your Admin ID before rejecting.');
-      return;
-    }
     if (!rejectReason.trim()) {
       alert('Please enter a rejection reason.');
       return;
     }
     setActionStatus((s) => ({ ...s, [id]: 'rejecting' }));
     try {
-      const response = await api.rejectPrescription(id, adminId.trim(), rejectReason.trim());
+      const response = await api.rejectPrescription(id, adminId, rejectReason.trim());
       if (response?.demo_mode) setIsDemoMode(true);
       setRecords((prev) => prev.filter((r) => r.prescription_id !== id));
       if (selected?.prescription_id === id) setSelected(null);
@@ -117,16 +114,14 @@ function PrescriptionQueuePanel({ onAction }) {
         </button>
       </div>
 
-      {/* Admin ID row */}
+      {/* Auto Admin ID badge */}
       <div className="px-6 py-3 border-b border-white/5 flex items-center gap-3 bg-white/[0.02]">
-        <span className="material-symbols-outlined text-sm text-slate-400">badge</span>
-        <input
-          type="text"
-          placeholder="Enter your Admin ID to enable actions…"
-          value={adminId}
-          onChange={(e) => setAdminId(e.target.value)}
-          className="flex-1 bg-transparent border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-500 focus:ring-2 focus:ring-primary outline-none"
-        />
+        <span className="material-symbols-outlined text-sm text-teal-400">verified_user</span>
+        <span className="text-xs text-slate-400">Reviewing as</span>
+        <span className="text-xs font-mono font-bold text-teal-300 bg-teal-400/10 px-2.5 py-1 rounded-lg border border-teal-400/20">
+          {adminId || 'No ID'}
+        </span>
+        <LivePulseIndicator status="active" label="Auto-assigned" />
       </div>
 
       {loading && (
@@ -350,23 +345,8 @@ function PrescriptionQueuePanel({ onAction }) {
 }
 
 // ---------------------------------------------------------------------------
-// Admin Panel Components
+// Admin Panel — Redesigned with 3D hero, animated stats, auto system IDs
 // ---------------------------------------------------------------------------
-
-function StatCard({ title, value, icon, colorClass, gradientClass }) {
-  return (
-    <div className={`glass-card p-6 rounded-xl flex items-center gap-5 border border-white/5 relative overflow-hidden group`}>
-      <div className={`absolute right-[-20px] top-[-20px] w-32 h-32 bg-gradient-to-br ${gradientClass} opacity-10 rounded-full blur-2xl group-hover:opacity-20 transition-all`}></div>
-      <div className={`w-14 h-14 rounded-full ${colorClass} flex items-center justify-center flex-shrink-0 relative z-10`}>
-        <span className="material-symbols-outlined text-2xl">{icon}</span>
-      </div>
-      <div className="relative z-10">
-        <span className="text-[10px] uppercase tracking-[0.1em] text-slate-400 font-bold block mb-1">{title}</span>
-        <h3 className="text-3xl font-headline font-extrabold text-white">{value}</h3>
-      </div>
-    </div>
-  );
-}
 
 function AdminPanelPage() {
   const { user } = useAuth();
@@ -375,6 +355,7 @@ function AdminPanelPage() {
   const [allRecords, setAllRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [historyFilter, setHistoryFilter] = useState('all');
 
   const fetchHistory = useCallback(async () => {
     setLoading(true);
@@ -402,66 +383,100 @@ function AdminPanelPage() {
     return { total, pending, approved, rejected };
   }, [allRecords]);
 
+  const filteredRecords = useMemo(() => {
+    if (historyFilter === 'all') return allRecords;
+    return allRecords.filter((r) => r.status === historyFilter);
+  }, [allRecords, historyFilter]);
+
   return (
-    <div className="relative min-h-screen pb-20">
+    <motion.div
+      className="relative min-h-screen pb-20"
+      {...pageTransition}
+    >
+      {/* 3D Hero Background */}
+      <div className="absolute inset-0 h-72 pointer-events-none overflow-hidden">
+        <DashboardHero3D variant="admin" height="280px" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#070e17]/60 to-[#070e17]" />
+      </div>
+
       {/* Topbar Navigation */}
-      <header className="fixed top-0 right-0 left-72 z-30 flex justify-between items-center px-8 h-20 bg-slate-950/40 backdrop-blur-xl border-b border-white/5 shadow-[0_20px_40px_-5px_rgba(31,42,61,0.06)]">
-        <div className="flex items-center gap-8">
+      <header className="fixed top-0 right-0 left-72 z-30 flex justify-between items-center px-8 h-20 bg-slate-950/60 backdrop-blur-2xl border-b border-white/5">
+        <div className="flex items-center gap-4">
           <h2 className="text-teal-400 font-bold tracking-tighter text-2xl font-headline">Admin Control</h2>
+          <LivePulseIndicator status="active" label="Live" />
         </div>
         <div className="flex items-center gap-4">
-          <div className="hidden md:block text-right">
+          <div className="hidden md:flex flex-col items-end">
             <p className="text-xs text-slate-400 uppercase tracking-[0.14em]">{roleLabel}</p>
             <p className="text-sm font-semibold text-white">{user?.name || 'Administrator'}</p>
           </div>
-          <div className="w-10 h-10 rounded-full border border-teal-400/30 bg-teal-500/20 flex items-center justify-center text-teal-300">
-            <span className="material-symbols-outlined">shield_person</span>
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="w-10 h-10 rounded-full border border-violet-400/30 bg-violet-500/20 flex items-center justify-center text-violet-300">
+              <span className="material-symbols-outlined">shield_person</span>
+            </div>
+            <span className="text-[8px] font-mono text-violet-300/60 tracking-wider">{user?.systemId || ''}</span>
           </div>
         </div>
       </header>
 
       {/* Main Content Area */}
-      <main className="p-8 pt-28 max-w-[1600px] mx-auto space-y-8">
+      <main className="p-8 pt-28 max-w-[1600px] mx-auto space-y-8 relative z-10">
         
-        {/* Section: Dynamic Stats Ribbon */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard 
+        {/* Section: Animated Stats Ribbon */}
+        <motion.div
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5"
+          {...dashboardStagger}
+        >
+          <AnimatedStatCard 
             title="Total Processed" 
             value={stats.total} 
             icon="monitoring" 
-            colorClass="bg-blue-500/20 text-blue-400" 
-            gradientClass="from-blue-500 to-indigo-500" 
+            gradient="from-blue-400 to-indigo-500" 
+            delay={0}
+            trend={12}
+            trendLabel="this month"
           />
-          <StatCard 
+          <AnimatedStatCard 
             title="Pending Approval" 
             value={stats.pending} 
             icon="hourglass_top" 
-            colorClass="bg-yellow-500/20 text-yellow-400" 
-            gradientClass="from-yellow-500 to-orange-500" 
+            gradient="from-amber-400 to-orange-500" 
+            delay={0.07}
+            sparkline={[4,6,8,5,10,7,stats.pending]}
           />
-          <StatCard 
+          <AnimatedStatCard 
             title="Approved" 
             value={stats.approved} 
             icon="check_circle" 
-            colorClass="bg-primary/20 text-primary" 
-            gradientClass="from-primary to-teal-500" 
+            gradient="from-teal-400 to-emerald-500" 
+            delay={0.14}
+            trend={8}
           />
-          <StatCard 
+          <AnimatedStatCard 
             title="Rejected" 
             value={stats.rejected} 
             icon="cancel" 
-            colorClass="bg-error/20 text-error" 
-            gradientClass="from-error to-rose-500" 
+            gradient="from-rose-400 to-red-500" 
+            delay={0.21}
           />
-        </div>
+        </motion.div>
 
         {/* Section: Active Queue */}
-        <div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
+        >
           <PrescriptionQueuePanel onAction={fetchHistory} />
-        </div>
+        </motion.div>
 
         {/* Section: Prescription History Table */}
-        <div className="glass-card rounded-xl border border-white/5 overflow-hidden flex flex-col min-h-[400px]">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="glass-card rounded-2xl border border-white/[0.06] overflow-hidden flex flex-col min-h-[400px]"
+        >
           <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
             <div>
               <h3 className="text-lg font-headline font-bold text-white flex items-center gap-2">
@@ -472,14 +487,29 @@ function AdminPanelPage() {
                 Complete record of all processed documents across the system
               </p>
             </div>
-            <button
-              onClick={fetchHistory}
-              className="p-2 flex items-center gap-2 hover:bg-white/5 rounded-full transition-all text-slate-400 text-sm font-semibold"
-              title="Refresh History"
-            >
-              <span className="material-symbols-outlined">refresh</span>
-              Refresh
-            </button>
+            <div className="flex items-center gap-3">
+              {/* Status filter pills */}
+              {['all', 'pending', 'approved', 'rejected'].map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setHistoryFilter(f)}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                    historyFilter === f
+                      ? 'bg-teal-400/20 text-teal-300 border border-teal-400/30'
+                      : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+              <button
+                onClick={fetchHistory}
+                className="p-2 flex items-center gap-2 hover:bg-white/5 rounded-full transition-all text-slate-400 text-sm font-semibold"
+                title="Refresh History"
+              >
+                <span className="material-symbols-outlined">refresh</span>
+              </button>
+            </div>
           </div>
           
           <div className="overflow-x-auto flex-1 h-[400px] overflow-y-auto">
@@ -493,10 +523,10 @@ function AdminPanelPage() {
                 <span className="material-symbols-outlined text-4xl mb-4">error</span>
                 <p>{error}</p>
               </div>
-            ) : allRecords.length === 0 ? (
+            ) : filteredRecords.length === 0 ? (
               <div className="p-12 text-center text-slate-500 text-sm">
                 <span className="material-symbols-outlined text-4xl mb-4 block text-slate-600">inbox</span>
-                No document history available.
+                {historyFilter === 'all' ? 'No document history available.' : `No ${historyFilter} documents.`}
               </div>
             ) : (
               <table className="w-full text-left border-collapse relative">
@@ -511,10 +541,16 @@ function AdminPanelPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {allRecords.map((rec) => {
+                  {filteredRecords.map((rec, index) => {
                     const d = rec.extracted_data || {};
                     return (
-                      <tr key={rec.prescription_id} className="hover:bg-white/[0.02] text-sm text-slate-300 transition-colors">
+                      <motion.tr
+                        key={rec.prescription_id}
+                        initial={tableRowIn.initial}
+                        animate={tableRowIn.animate}
+                        transition={{ ...tableRowIn.transition, delay: index * 0.03 }}
+                        className="hover:bg-white/[0.02] text-sm text-slate-300 transition-colors"
+                      >
                         <td className="p-4 whitespace-nowrap">
                           {new Date(rec.created_at).toLocaleDateString()}
                           <span className="block text-xs text-slate-500 mt-0.5">{new Date(rec.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -550,17 +586,17 @@ function AdminPanelPage() {
                             </div>
                           ) : '--'}
                         </td>
-                      </tr>
+                      </motion.tr>
                     );
                   })}
                 </tbody>
               </table>
             )}
           </div>
-        </div>
+        </motion.div>
 
       </main>
-    </div>
+    </motion.div>
   );
 }
 

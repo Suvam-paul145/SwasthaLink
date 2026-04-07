@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
-import { getDashboardRouteForRole, ROLE_OPTIONS } from "../utils/auth";
+import { getDashboardRouteForRole, ROLE_OPTIONS, ROLE_META } from "../utils/auth";
 import Logo from "./Logo";
+import RoleSwitcher from "./RoleSwitcher";
 
 const navItems = [
   { to: "/family-dashboard", icon: "personal_injury", label: "Family Dashboard", roles: ["patient"] },
@@ -15,10 +17,11 @@ const navItems = [
 function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, switchRole, availableRoles } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const roleLabel = ROLE_OPTIONS.find((item) => item.value === user?.role)?.label || "User";
+  const roleMeta = ROLE_META[user?.role] || ROLE_META.patient;
 
   const allowedNavItems = useMemo(
     () => navItems.filter((item) => !item.roles || item.roles.includes(user?.role)),
@@ -51,11 +54,14 @@ function AppShell() {
           </button>
           <button
             onClick={handleGoToRoleDashboard}
-            className="bg-[#0f2334] border border-white/15 text-xs text-slate-100 px-2 py-1 rounded-lg hover:bg-[#15314a] transition-colors"
+            className={`bg-[#0f2334] border text-xs text-slate-100 px-2 py-1 rounded-lg hover:bg-[#15314a] transition-colors ${roleMeta.border}`}
             aria-label="Go to role dashboard"
           >
             {roleLabel}
           </button>
+          {availableRoles.length > 1 && (
+            <RoleSwitcher mode="compact" />
+          )}
         </div>
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -98,11 +104,19 @@ function AppShell() {
             >
               {roleLabel} Dashboard
             </button>
+            {user?.systemId && (
+              <p className="text-[10px] text-slate-500 font-mono mt-1">{user.systemId}</p>
+            )}
           </div>
+          {availableRoles.length > 1 && (
+            <div className="hidden lg:block mt-2">
+              <RoleSwitcher mode="expanded" />
+            </div>
+          )}
         </div>
 
         <nav className="flex-1 mt-4 lg:mt-8">
-          {allowedNavItems.map((item) => (
+          {allowedNavItems.map((item, i) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -110,7 +124,7 @@ function AppShell() {
               className={({ isActive }) =>
                 `flex items-center gap-4 py-4 px-6 transition-all duration-300 hover:translate-x-1 ${
                   isActive
-                    ? "bg-gradient-to-r from-teal-500/20 to-transparent text-teal-300 border-r-4 border-teal-400 translate-x-1"
+                    ? `bg-gradient-to-r ${roleMeta.gradient} text-white border-r-4 ${roleMeta.border} translate-x-1`
                     : "text-slate-400 hover:text-slate-100 hover:bg-teal-500/5"
                 }`
               }
