@@ -2,8 +2,8 @@ import { useRef, useMemo, useCallback } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
-const PARTICLE_COUNT = 220;
-const CONNECTION_DISTANCE = 2.8;
+const PARTICLE_COUNT = 80;
+const CONNECTION_DISTANCE = 2.0;
 
 function NeuralParticles() {
   const meshRef = useRef();
@@ -77,7 +77,7 @@ function NeuralParticles() {
             linePositions[lineIdx * 6 + 4] = arr[j * 3 + 1];
             linePositions[lineIdx * 6 + 5] = arr[j * 3 + 2];
 
-            const c = alpha * 0.35;
+            const c = alpha * 0.12;
             lineColors[lineIdx * 6] = 0.18 * c;
             lineColors[lineIdx * 6 + 1] = 0.83 * c;
             lineColors[lineIdx * 6 + 2] = 0.75 * c;
@@ -104,10 +104,10 @@ function NeuralParticles() {
           <bufferAttribute attach="attributes-size" count={PARTICLE_COUNT} array={sizes} itemSize={1} />
         </bufferGeometry>
         <pointsMaterial
-          size={0.06}
+          size={0.05}
           color="#4fdbc8"
           transparent
-          opacity={0.7}
+          opacity={0.25}
           sizeAttenuation
           blending={THREE.AdditiveBlending}
           depthWrite={false}
@@ -129,7 +129,7 @@ function NeuralParticles() {
             itemSize={3}
           />
         </bufferGeometry>
-        <lineBasicMaterial vertexColors transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
+        <lineBasicMaterial vertexColors transparent opacity={0.15} blending={THREE.AdditiveBlending} depthWrite={false} />
       </lineSegments>
     </>
   );
@@ -146,7 +146,7 @@ function FloatingGrid() {
 
   return (
     <group ref={gridRef} position={[0, -3, -4]}>
-      <gridHelper args={[30, 30, "#0d9488", "#0d948820"]} />
+      <gridHelper args={[30, 30, "#0d948818", "#0d948808"]} />
     </group>
   );
 }
@@ -157,7 +157,7 @@ function GlowOrbs() {
     () =>
       Array.from({ length: 5 }, (_, i) => ({
         position: [(Math.random() - 0.5) * 10, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 4 - 2],
-        scale: Math.random() * 0.3 + 0.15,
+        scale: Math.random() * 0.12 + 0.06,
         speed: Math.random() * 0.3 + 0.1,
         offset: Math.random() * Math.PI * 2,
         color: i % 2 === 0 ? "#4fdbc8" : "#818cf8",

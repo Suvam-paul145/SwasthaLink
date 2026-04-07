@@ -1,6 +1,8 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
+const AmbientLungs = lazy(() => import('../components/effects/AmbientLungs'));
 import { speak, stop } from "../utils/tts";
 import { startListening } from "../utils/stt";
 import { LANGUAGE_LABELS } from "../utils/config";
@@ -144,6 +146,10 @@ function DetailedClarityHubPage() {
 
   return (
     <div className="p-12 relative z-10 max-w-7xl mx-auto">
+      <Suspense fallback={null}>
+        <AmbientLungs className="hidden lg:block absolute -left-4 bottom-32 w-48 h-48 opacity-20 z-0" />
+      </Suspense>
+
       {/* Header Section */}
       <header className="mb-12 flex justify-between items-start">
         <div className="space-y-4">

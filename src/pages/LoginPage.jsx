@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Logo from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
+
+const AmbientHeart = lazy(() => import('../components/effects/AmbientHeart'));
 import { getDashboardRouteForRole, ROLE_OPTIONS, ROLE_META } from '../utils/auth';
 import { pageTransition } from '../utils/animations';
 
@@ -60,6 +62,10 @@ function LoginPage() {
       <div className={`absolute -top-28 -right-20 w-72 h-72 rounded-full blur-[100px] transition-colors duration-700 ${roleMeta.bg}`} />
       <div className="absolute -bottom-32 -left-20 w-80 h-80 bg-cyan-400/10 rounded-full blur-[120px]" />
       <div className="absolute inset-0 opacity-[0.08] bg-[radial-gradient(circle_at_top_left,white,transparent_28%),radial-gradient(circle_at_bottom_right,rgba(45,212,191,0.8),transparent_34%)]" />
+
+      <Suspense fallback={null}>
+        <AmbientHeart className="hidden lg:block absolute right-4 top-1/4 w-44 h-44 opacity-30 z-0" />
+      </Suspense>
 
       <div className="relative z-10 w-full max-w-xl mx-auto">
         <section className="glass-card auth-card-glow rounded-[32px] border border-white/10 p-6 sm:p-8">

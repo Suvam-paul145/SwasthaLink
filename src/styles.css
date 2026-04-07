@@ -35,10 +35,10 @@
 }
 
 .glass-card {
-  background: rgb(255 255 255 / 0.05);
+  background: rgb(7 19 37 / 0.8);
   -webkit-backdrop-filter: blur(40px);
   backdrop-filter: blur(40px);
-  border: 1px solid rgb(255 255 255 / 0.05);
+  border: 1px solid rgb(255 255 255 / 0.08);
 }
 
 .auth-card-glow {
@@ -133,20 +133,20 @@
 }
 
 .glass-card-enhanced {
-  background: rgb(255 255 255 / 0.04);
+  background: rgb(7 19 37 / 0.85);
   -webkit-backdrop-filter: blur(40px);
   backdrop-filter: blur(40px);
-  border: 1px solid rgb(255 255 255 / 0.08);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .glass-card-enhanced:hover {
-  background: rgb(255 255 255 / 0.06);
-  border-color: rgb(79 219 200 / 0.15);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
-    0 0 20px rgba(79, 219, 200, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: rgb(10 22 40 / 0.9);
+  border-color: rgb(79 219 200 / 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4),
+    0 0 20px rgba(79, 219, 200, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .neon-border {

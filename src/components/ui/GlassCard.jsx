@@ -48,8 +48,8 @@ export default function GlassCard({
       ref={cardRef}
       className={`
         relative rounded-2xl overflow-hidden
-        bg-white/[0.04] backdrop-blur-xl
-        ${borderGradient ? "" : "border border-white/[0.08]"}
+        bg-[#071325]/85 backdrop-blur-xl
+        ${borderGradient ? "" : "border border-white/[0.1]"}
         transition-transform duration-200 ease-out
         ${onClick ? "cursor-pointer" : ""}
         ${className}

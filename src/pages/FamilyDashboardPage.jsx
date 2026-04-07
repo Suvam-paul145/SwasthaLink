@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+
+const AmbientLungs = lazy(() => import('../components/effects/AmbientLungs'));
+const AmbientHeart = lazy(() => import('../components/effects/AmbientHeart'));
 import api from '../services/api';
 import ChatbotPanel from '../components/ChatbotPanel';
 import RiskGauge from '../components/RiskGauge';
@@ -155,7 +158,7 @@ function FamilyDashboardPage() {
   }, [activeTab, patientId]);
 
   const latestRx = prescriptions[0];
-  const insights = latestRx?.patient_insights;
+  const insights = latestRx?.extracted_data?.patient_insights || latestRx?.patient_insights;
   const extracted = latestRx?.extracted_data || latestRx || {};
   const medicationChunks = chunks.medication || [];
   const routineChunks = chunks.routine || [];
@@ -175,6 +178,11 @@ function FamilyDashboardPage() {
       {/* Ambient glow */}
       <div style={{ position: 'absolute', top: '-100px', right: '-80px', width: '280px', height: '280px', background: 'rgba(13,148,136,.1)', borderRadius: '50%', filter: 'blur(100px)' }} />
       <div style={{ position: 'absolute', bottom: '-120px', left: '-80px', width: '300px', height: '300px', background: 'rgba(34,211,238,.08)', borderRadius: '50%', filter: 'blur(120px)' }} />
+
+      <Suspense fallback={null}>
+        <AmbientHeart className="hidden lg:block absolute right-8 top-20 w-44 h-44 opacity-25 z-0" />
+        <AmbientLungs className="hidden lg:block absolute -left-8 bottom-40 w-48 h-48 opacity-20 z-0" />
+      </Suspense>
 
       <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative', zIndex: 10 }}>
         {/* Header */}
@@ -441,15 +449,23 @@ function FamilyDashboardPage() {
                 <EmptyState message="No daily routine instructions available yet." />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {routineSteps.map((step, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,.03)', borderRadius: '14px', padding: '18px 22px', border: '1px solid rgba(255,255,255,.06)' }}>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'linear-gradient(135deg, #0d9488, #0f766e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '14px', flexShrink: 0 }}>{step.order || i + 1}</div>
-                      <div>
-                        <p style={{ fontSize: '14px', fontWeight: 600, color: '#e2e8f0' }}>{step.action}</p>
-                        <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{step.timing}{step.instructions ? ` — ${step.instructions}` : ''}</p>
+                  {routineSteps.map((step, i) => {
+                    const priorityColors = { critical: '#ef4444', high: '#f59e0b', moderate: '#3b82f6' };
+                    const borderColor = priorityColors[step.priority] || '#0d9488';
+                    return (
+                      <div key={i} style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,.03)', borderRadius: '14px', padding: '18px 22px', border: '1px solid rgba(255,255,255,.06)', borderLeft: `3px solid ${borderColor}` }}>
+                        <div style={{ minWidth: '64px', textAlign: 'center', flexShrink: 0 }}>
+                          <p style={{ fontSize: '13px', fontWeight: 700, color: '#5eead4', margin: 0 }}>{step.time || step.timing || ''}</p>
+                          {step.icon && <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#64748b', marginTop: '4px', display: 'block' }}>{step.icon}</span>}
+                        </div>
+                        <div>
+                          <p style={{ fontSize: '14px', fontWeight: 600, color: '#e2e8f0' }}>{step.activity || step.action}</p>
+                          {step.priority && <span style={{ fontSize: '10px', fontWeight: 600, color: borderColor, textTransform: 'uppercase', letterSpacing: '.1em', marginTop: '4px', display: 'inline-block' }}>{step.priority}</span>}
+                          {step.instructions && <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>{step.instructions}</p>}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -512,8 +528,8 @@ function FamilyDashboardPage() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   {explanations.map((exp, i) => (
                     <div key={i} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '14px', padding: '20px 24px', border: '1px solid rgba(255,255,255,.06)' }}>
-                      <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#5eead4', marginBottom: '8px' }}>{exp.medicine}</h4>
-                      <p style={{ fontSize: '13px', color: '#cbd5e1' }}>💡 {exp.reason}</p>
+                      <h4 style={{ fontSize: '15px', fontWeight: 700, color: '#5eead4', marginBottom: '8px' }}>{exp.topic || exp.medicine}</h4>
+                      <p style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.7 }}>💡 {exp.explanation || exp.reason}</p>
                       {exp.how_it_works && <p style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>🔬 {exp.how_it_works}</p>}
                       {exp.caution && <p style={{ fontSize: '12px', color: '#f59e0b', marginTop: '6px' }}>⚠️ {exp.caution}</p>}
                     </div>

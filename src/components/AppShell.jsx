@@ -176,7 +176,7 @@ function AppShell() {
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />
       </aside>
 
-      <main className="flex-1 lg:ml-72 min-h-screen relative flex flex-col pt-16 lg:pt-0">
+      <main className="flex-1 lg:ml-72 min-h-screen relative flex flex-col pt-16 lg:pt-0 bg-[#070e17]/90 backdrop-blur-sm">
         <ScrollProgress />
         <Outlet />
       </main>

@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
+
+const AmbientCells = lazy(() => import('../components/effects/AmbientCells'));
 import api, { validators } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_OPTIONS } from "../utils/auth";
@@ -318,6 +320,10 @@ function DoctorPanelPage() {
         <DashboardHero3D variant="doctor" height="260px" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#070e17]/60 to-[#070e17]" />
       </div>
+
+      <Suspense fallback={null}>
+        <AmbientCells className="hidden lg:block absolute right-4 bottom-32 w-44 h-44 opacity-25 z-0" />
+      </Suspense>
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />
       <header className="mb-8 lg:mb-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

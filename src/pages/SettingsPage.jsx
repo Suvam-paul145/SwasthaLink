@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+
+const AmbientCells = lazy(() => import('../components/effects/AmbientCells'));
 
 function SettingsPage() {
   const navigate = useNavigate();
@@ -70,6 +72,10 @@ function SettingsPage() {
     <div className="min-h-screen bg-[#070e17] text-white p-6 lg:p-10 relative overflow-hidden">
       <div className="absolute -top-40 -left-20 w-80 h-80 bg-teal-500/10 rounded-full blur-[120px]" />
       <div className="absolute top-1/2 -right-40 w-96 h-96 bg-cyan-500/10 rounded-full blur-[140px]" />
+
+      <Suspense fallback={null}>
+        <AmbientCells className="hidden lg:block absolute right-8 bottom-24 w-40 h-40 opacity-20 z-0" />
+      </Suspense>
 
       <div className="max-w-5xl mx-auto space-y-8 relative z-10">
         <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">

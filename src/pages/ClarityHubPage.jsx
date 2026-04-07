@@ -1,14 +1,166 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+
+const AmbientDNA = lazy(() => import('../components/effects/AmbientDNA'));
 import { getGroqChatbotReply } from "../services/groq";
 import { speak, stop } from "../utils/tts";
 import { LANGUAGE_LABELS } from "../utils/config";
+import { isDemoPatient, getMockPrescriptions, getMockAllChunks } from "../utils/mockData";
+
+// -- Bengali digit converter
+const toBn = (n) => String(n).replace(/[0-9]/g, (d) => '০১২৩৪৫৬৭৮৯'[d]);
+
+// -- Detect Bengali script
+const hasBengali = (text) => /[\u0980-\u09FF]/.test(text);
+
+// -- Medication time slots
+const SLOTS = [
+  { key: 'morning', label: 'Morning', bn: 'সকাল', icon: '🌅', hours: [6, 12] },
+  { key: 'evening', label: 'Evening', bn: 'সন্ধ্যা', icon: '🌆', hours: [16, 20] },
+  { key: 'night', label: 'Night', bn: 'রাত', icon: '🌙', hours: [20, 24] },
+];
+
+function getMedsBySlot(medications) {
+  const result = {};
+  for (const s of SLOTS) result[s.key] = medications.filter((m) => m.schedule?.[s.key]);
+  return result;
+}
+
+// -- Local chatbot answer builder for demo patients (works offline, bilingual)
+function buildDemoAnswer(question, chunks, prescriptions) {
+  const q = question.toLowerCase();
+  const bn = hasBengali(question);
+  const meds = chunks?.medication?.[0]?.data?.medications || [];
+  const routine = chunks?.routine?.[0]?.data?.steps || [];
+  const faqs = chunks?.faq_context?.[0]?.data?.faqs || [];
+  const explanations = chunks?.explanation?.[0]?.data?.explanations || [];
+  const insights = prescriptions?.[0]?.extracted_data?.patient_insights;
+
+  // 1. FAQ keyword match
+  for (const faq of faqs) {
+    const words = (faq.q || '').toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+    if (words.filter((w) => q.includes(w)).length >= 2) {
+      return { text: faq.a, subtext: bn ? `প্রশ্ন: ${faq.q}` : null };
+    }
+  }
+
+  // 2. Medication / ওষুধ
+  const medKw = ['medicine','medication','ওষুধ','মেডিসিন','ট্যাবলেট','drug','pill','dose','খেতে','ওষুধগুলো','medication plan'];
+  if (medKw.some((k) => q.includes(k))) {
+    const bySlot = getMedsBySlot(meds);
+    let text = '📋 Today\'s Medication Schedule:\n\n';
+    let sub = '📋 আজকের ওষুধের তালিকা:\n\n';
+    for (const s of SLOTS) {
+      const sm = bySlot[s.key];
+      if (!sm.length) continue;
+      text += `${s.icon} ${s.label}:\n`;
+      sub += `${s.icon} ${s.bn}:\n`;
+      for (const m of sm) {
+        text += `  • ${m.name} ${m.strength} — ${m.purpose}\n`;
+        sub += `  • ${m.name} ${m.strength} — ${m.purpose}\n`;
+      }
+      text += '\n'; sub += '\n';
+    }
+    const asNeeded = meds.filter((m) => !Object.values(m.schedule || {}).some(Boolean));
+    if (asNeeded.length) {
+      text += '💊 As needed:\n'; sub += '💊 প্রয়োজনে:\n';
+      for (const m of asNeeded) {
+        text += `  • ${m.name} ${m.strength} — ${m.purpose}\n`;
+        sub += `  • ${m.name} ${m.strength} — ${m.purpose}\n`;
+      }
+    }
+    return { text: text.trim(), subtext: sub.trim() };
+  }
+
+  // 3. Routine / schedule / কখন
+  const routKw = ['routine','schedule','কখন','সময়','timetable','when','daily','plan','দিন','রুটিন'];
+  if (routKw.some((k) => q.includes(k))) {
+    let text = '🕐 Your Daily Routine:\n\n';
+    for (const s of routine) {
+      const p = s.priority === 'critical' ? '🔴' : s.priority === 'high' ? '🟡' : '⚪';
+      text += `${p} ${s.time} — ${s.activity}\n`;
+    }
+    return { text: text.trim(), subtext: bn ? '🕐 আপনার দৈনিক রুটিন উপরে দেওয়া হলো।' : null };
+  }
+
+  // 4. Diet / খাবার
+  const dietKw = ['diet','food','eat','খাবার','ভাত','মিষ্টি','ডায়েট','rice','sugar','sweets','diet tips'];
+  if (dietKw.some((k) => q.includes(k))) {
+    const dd = insights?.dos_and_donts;
+    if (dd) {
+      let text = '🥗 Diet & Lifestyle Guidelines:\n\n✅ Do\'s:\n';
+      (dd.do || dd.dos || []).forEach((d, i) => { text += `${i + 1}. ${d}\n`; });
+      text += '\n❌ Don\'ts:\n';
+      (dd.dont || dd.donts || []).forEach((d, i) => { text += `${i + 1}. ${d}\n`; });
+      return { text: text.trim(), subtext: bn ? '🥗 আপনার খাবার ও জীবনযাত্রার নির্দেশনা উপরে দেওয়া হলো।' : null };
+    }
+  }
+
+  // 5. Danger / warning / বিপদ
+  const dangerKw = ['danger','warning','emergency','বিপদ','জরুরি','ইমার্জেন্সি','hospital','danger signs'];
+  if (dangerKw.some((k) => q.includes(k))) {
+    return {
+      text: '🚨 Emergency Warning Signs:\n\n• BP above 180/110 mmHg\n• Blood sugar above 400 mg/dL or below 60 mg/dL\n• Chest pain or tightness\n• Sudden severe headache\n• Weakness on one side of body\n• Difficulty speaking\n• Fainting or loss of consciousness\n\n⚠️ Go to the nearest ER immediately if any of these occur.',
+      subtext: '🚨 জরুরি সতর্কতা:\n\n• রক্তচাপ ১৮০/১১০ এর উপরে\n• সুগার ৪০০ এর উপরে বা ৬০ এর নিচে\n• বুকে ব্যথা\n• হঠাৎ তীব্র মাথাব্যথা\n• এক পাশে দুর্বলতা\n• কথা বলতে অসুবিধা\n• অজ্ঞান হওয়া\n\n⚠️ এর যেকোনো একটি হলে এখনই জরুরি বিভাগে যান।',
+    };
+  }
+
+  // 6. Follow-up
+  const fuKw = ['follow-up','followup','follow up','appointment','ফলো-আপ','চেকআপ','next visit','follow-up dates'];
+  if (fuKw.some((k) => q.includes(k))) {
+    return {
+      text: '📅 Follow-up Schedule:\n\n1. BP review — 1 week\n2. Blood Sugar (FBS + PPBS) — 1 week\n3. HbA1c recheck — 3 months\n4. Kidney function (Creatinine, eGFR) — 1 month\n5. Eye check-up (Fundoscopy) — within 1 month\n6. ECG repeat — 1 month\n\n⚠️ Immediate review if BP > 180/110 or sugar > 400.',
+      subtext: bn ? '📅 ফলো-আপ সূচি:\n\n১. রক্তচাপ — ১ সপ্তাহ\n২. রক্তে শর্করা — ১ সপ্তাহ\n৩. HbA1c — ৩ মাস\n৪. কিডনি পরীক্ষা — ১ মাস\n৫. চোখ পরীক্ষা — ১ মাস\n৬. ECG — ১ মাস' : null,
+    };
+  }
+
+  // 7. Explanation topic match
+  for (const exp of explanations) {
+    const tw = exp.topic.toLowerCase().split(/\s+/).filter((w) => w.length > 3);
+    if (tw.filter((w) => q.includes(w)).length >= 2) {
+      return { text: `📖 ${exp.topic}\n\n${exp.explanation}`, subtext: bn ? `📖 ${exp.topic}` : null };
+    }
+  }
+
+  // 8. Specific medication name lookup
+  for (const m of meds) {
+    if (q.includes(m.name.toLowerCase())) {
+      const guide = insights?.medication_guide?.find((g) => g.name?.toLowerCase().includes(m.name.toLowerCase()));
+      let text = `💊 ${m.name} ${m.strength} (${m.form})\n\nPurpose: ${m.purpose}\nFrequency: ${m.frequency}\nInstructions: ${m.instructions}\n⚠️ Warning: ${m.warnings}`;
+      if (guide) text += `\n\n📝 Simple guide:\n• What: ${guide.what}\n• Why: ${guide.why}\n• When: ${guide.when}\n• ⚠️ Caution: ${guide.caution}`;
+      return { text, subtext: bn ? `💊 ${m.name} — ${m.purpose}` : null };
+    }
+  }
+
+  // 9. Health summary
+  if (['health','summary','condition','diagnosis','স্বাস্থ্য','রোগ','অবস্থা'].some((k) => q.includes(k))) {
+    if (insights?.health_summary) return { text: insights.health_summary, subtext: bn ? 'আপনার স্বাস্থ্য সারসংক্ষেপ।' : null };
+  }
+
+  // 10. Fallback — overview + suggestions
+  const bySlot = getMedsBySlot(meds);
+  let text = 'I can help with your care plan! Here\'s a quick overview:\n\n';
+  for (const s of SLOTS) {
+    const sm = bySlot[s.key];
+    if (sm.length) text += `${s.icon} ${s.label}: ${sm.map((m) => `${m.name} ${m.strength}`).join(', ')}\n`;
+  }
+  text += '\n💡 Try asking:\n• "What medicine should I take?"\n• "Can I eat rice?"\n• "When should I go to ER?"\n• "Tell me about Metformin"';
+  return {
+    text,
+    subtext: bn
+      ? 'আমি আপনার চিকিৎসা বুঝতে সাহায্য করতে পারি! জিজ্ঞাসা করুন:\n• "আমার কি ওষুধ খেতে হবে?"\n• "ভাত খেতে পারব?"\n• "কখন হাসপাতালে যেতে হবে?"'
+      : null,
+  };
+}
 
 function ClarityHubPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const patientId = user?.user_id || user?.id || user?.email || "";
+  const isDemo = isDemoPatient(user?.email);
+  const mockChunks = useMemo(() => isDemo ? getMockAllChunks() : null, [isDemo]);
+  const mockRx = useMemo(() => isDemo ? getMockPrescriptions() : null, [isDemo]);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isAssistantTyping, setIsAssistantTyping] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -60,23 +212,30 @@ function ClarityHubPage() {
     [user?.role]
   );
 
-  // Handles both quick actions and freeform questions
+  // Handles both quick actions and freeform questions — uses local data for demo patients
   const respondToPrompt = async (promptLabel, customText = null) => {
     setIsAssistantTyping(true);
     const question = customText || promptLabel;
-    let answer = "";
-    try {
-      const result = await getGroqChatbotReply(patientId, question);
-      answer = result?.answer || "Sorry, I could not find an answer.";
-    } catch {
-      answer = "Sorry, there was an error contacting the assistant.";
+    let answer = { text: '', subtext: null };
+    if (isDemo && mockChunks) {
+      // Offline intelligent answer from mock data — natural typing delay
+      await new Promise((r) => setTimeout(r, 400 + Math.random() * 600));
+      answer = buildDemoAnswer(question, mockChunks, mockRx);
+    } else {
+      try {
+        const result = await getGroqChatbotReply(patientId, question);
+        answer = { text: result?.answer || 'Sorry, I could not find an answer.', subtext: null };
+      } catch {
+        answer = { text: 'Sorry, there was an error contacting the assistant.', subtext: null };
+      }
     }
     setChatMessages((prev) => [
       ...prev,
       {
         id: `${Date.now()}-assistant`,
         sender: "assistant",
-        text: answer,
+        text: answer.text,
+        ...(answer.subtext ? { subtext: answer.subtext } : {}),
       },
     ]);
     setIsAssistantTyping(false);
@@ -113,12 +272,68 @@ function ClarityHubPage() {
   const [isSpeakingState, setIsSpeakingState] = useState(false);
   const [selectedLang, setSelectedLang] = useState('bn');
 
+  // Build dynamic treatment items from mock medication data
+  const treatmentItems = useMemo(() => {
+    const meds = mockChunks?.medication?.[0]?.data?.medications;
+    if (!meds) return [];
+    const hour = new Date().getHours();
+    const items = [];
+    const bySlot = getMedsBySlot(meds);
+    for (const slot of SLOTS) {
+      const slotMeds = bySlot[slot.key];
+      if (!slotMeds.length) continue;
+      const [startH, endH] = slot.hours;
+      let status = 'pending', statusLabel = 'Pending', statusStyle = 'bg-primary-container/20 text-primary-fixed';
+      let timeNote = null;
+      if (hour >= endH) {
+        status = 'completed'; statusLabel = 'Completed';
+        statusStyle = 'bg-surface-container-highest text-outline';
+      } else if (hour >= startH) {
+        status = 'due'; statusLabel = 'Due now';
+        statusStyle = 'bg-tertiary-container/20 text-tertiary';
+        const minsLeft = (endH - hour) * 60 - new Date().getMinutes();
+        if (minsLeft > 30) timeNote = `within ${Math.floor(minsLeft / 60)}h ${minsLeft % 60}m`;
+        else if (minsLeft > 0) timeNote = `in ${minsLeft} minutes`;
+      }
+      for (const m of slotMeds) {
+        items.push({
+          id: `${slot.key}-${m.name}`, name: `${m.name} ${m.strength}`,
+          purpose: m.purpose, slot: slot.label, slotBn: slot.bn,
+          slotIcon: slot.icon, status, statusLabel, statusStyle, timeNote, form: m.form,
+        });
+      }
+    }
+    // As-needed meds
+    const asNeeded = meds.filter((m) => !Object.values(m.schedule || {}).some(Boolean));
+    for (const m of asNeeded) {
+      items.push({
+        id: `prn-${m.name}`, name: `${m.name} ${m.strength}`,
+        purpose: m.purpose, slot: 'As needed', slotBn: 'প্রয়োজনে',
+        slotIcon: '💊', status: 'prn', statusLabel: 'As needed',
+        statusStyle: 'bg-blue-500/20 text-blue-300', timeNote: m.instructions, form: m.form,
+      });
+    }
+    return items;
+  }, [mockChunks]);
+
   const handleSpeak = () => {
     if (isSpeakingState) {
       stop();
       setIsSpeakingState(false);
     } else {
-      const text = "সকালে ইনসুলিন ১০ ইউনিট নিন। রক্তচাপের ওষুধ রাতের খাবারের পর নিন। রক্তে শর্করা পরীক্ষা করুন।";
+      // Dynamic speech from actual treatment items
+      let text;
+      if (selectedLang === 'bn' || selectedLang === 'hi') {
+        text = treatmentItems
+          .filter((t) => t.status !== 'completed')
+          .map((t) => `${t.slotBn}: ${t.name}, ${t.purpose}`)
+          .join('। ') || 'আজকের সব ওষুধ সম্পন্ন হয়েছে।';
+      } else {
+        text = treatmentItems
+          .filter((t) => t.status !== 'completed')
+          .map((t) => `${t.slot}: ${t.name}, ${t.purpose}`)
+          .join('. ') || 'All medications for today are completed.';
+      }
       speak(text, selectedLang, () => setIsSpeakingState(false));
       setIsSpeakingState(true);
     }
@@ -126,6 +341,10 @@ function ClarityHubPage() {
 
   return (
     <div className="p-12 relative z-10">
+      <Suspense fallback={null}>
+        <AmbientDNA className="hidden lg:block absolute right-0 top-16 w-44 h-64 opacity-25 z-0" />
+      </Suspense>
+
       {/* Header Section */}
       <header className="mb-16 flex justify-between items-end">
         <div className="space-y-4">
@@ -197,45 +416,36 @@ function ClarityHubPage() {
               </button>
             </div>
 
-            <div className="space-y-6">
-              {/* Checklist Items */}
-              <div className="flex items-center gap-6 p-6 rounded-lg bg-white/5 hover:bg-white/10 transition-colors group/item cursor-pointer">
-                <div className="w-10 h-10 rounded-full border-2 border-primary/40 flex items-center justify-center group-hover/item:border-primary transition-colors">
-                  <span className="material-symbols-outlined text-primary scale-0 group-hover/item:scale-100 transition-transform">check</span>
+            <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+              {treatmentItems.length > 0 ? treatmentItems.map((item) => (
+                <div key={item.id} className={`flex items-center gap-5 p-5 rounded-lg bg-white/5 hover:bg-white/10 transition-all group/item cursor-pointer ${item.status === 'due' ? 'border-l-2 border-l-teal-400' : ''}`}>
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
+                    item.status === 'completed' ? 'bg-primary' : 'border-2 border-primary/40 group-hover/item:border-primary transition-colors'
+                  }`}>
+                    {item.status === 'completed' ? (
+                      <span className="material-symbols-outlined text-on-primary" style={{ fontVariationSettings: "'wght' 700" }}>check</span>
+                    ) : item.form === 'Injection' ? (
+                      <span className="material-symbols-outlined text-primary text-[18px]">vaccines</span>
+                    ) : (
+                      <span className="material-symbols-outlined text-primary scale-0 group-hover/item:scale-100 transition-transform">check</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs text-teal-300/70">{item.slotIcon} {item.slot}</span>
+                    <p className={`text-lg font-medium mt-0.5 ${item.status === 'completed' ? 'text-white/50 line-through' : 'text-white'}`}>{item.name}</p>
+                    <p className={`text-sm ${item.status === 'completed' ? 'text-outline/50' : 'text-outline'}`}>{item.purpose}</p>
+                  </div>
+                  <div className="text-right flex flex-col items-end shrink-0">
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${item.statusStyle}`}>{item.statusLabel}</span>
+                    {item.timeNote && <span className="text-[10px] text-outline opacity-60 mt-1">{item.timeNote}</span>}
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-xl font-medium text-white mb-1">Morning Insulin (10 Units)</p>
-                  <p className="text-sm text-outline">সকালের ইনসুলিন (১০ ইউনিট)</p>
+              )) : (
+                <div className="text-center py-12 text-outline">
+                  <span className="material-symbols-outlined text-4xl mb-2 block text-primary/40">medication</span>
+                  <p>No medication data available.</p>
                 </div>
-                <div className="text-right">
-                  <span className="px-3 py-1 rounded-full bg-primary-container/20 text-primary-fixed text-xs font-bold uppercase tracking-widest">Pending</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-6 p-6 rounded-lg bg-white/5 hover:bg-white/10 transition-colors group/item cursor-pointer">
-                <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-                  <span className="material-symbols-outlined text-on-primary" style={{ fontVariationSettings: "'wght' 700" }}>check</span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-xl font-medium text-white/50 line-through mb-1">Take BP Medication (Telmisartan 40mg)</p>
-                  <p className="text-sm text-outline/50 line-through">রক্তচাপের ওষুধ নিন (টেলমিসার্টন ৪০ মি.গ্রা.)</p>
-                </div>
-                <div className="text-right">
-                  <span className="px-3 py-1 rounded-full bg-surface-container-highest text-outline text-xs font-bold uppercase tracking-widest">Completed</span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-6 p-6 rounded-lg bg-white/5 hover:bg-white/10 transition-colors group/item cursor-pointer">
-                <div className="w-10 h-10 rounded-full border-2 border-primary/40 flex items-center justify-center"></div>
-                <div className="flex-1">
-                  <p className="text-xl font-medium text-white mb-1">Check Blood Sugar level</p>
-                  <p className="text-sm text-outline">রক্তে শর্করার মাত্রা পরীক্ষা করুন</p>
-                </div>
-                <div className="text-right flex flex-col items-end">
-                  <span className="px-3 py-1 rounded-full bg-tertiary-container/20 text-tertiary text-xs font-bold uppercase tracking-widest mb-1">Due soon</span>
-                  <span className="text-[10px] text-outline opacity-60">in 20 minutes</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </section>
@@ -355,8 +565,8 @@ function ClarityHubPage() {
                       : "bg-teal-500/85 text-slate-950 ml-auto"
                   }`}
                 >
-                  <p className="text-sm leading-relaxed">{message.text}</p>
-                  {message.subtext ? <p className="text-xs mt-1 text-teal-100/90">{message.subtext}</p> : null}
+                  <p className="text-sm leading-relaxed whitespace-pre-line">{message.text}</p>
+                  {message.subtext ? <p className="text-xs mt-1 text-teal-100/90 whitespace-pre-line">{message.subtext}</p> : null}
                 </div>
               ))}
 

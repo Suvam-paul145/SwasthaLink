@@ -9,6 +9,13 @@ import GradientText from '../components/ui/GradientText';
 import NeonBadge from '../components/ui/NeonBadge';
 import DataFlowIndicator from '../components/ui/DataFlowIndicator';
 import { heroStagger, tiltCardIn, gridReveal, neonReveal, scaleFadeIn, statSpring } from '../utils/animations';
+import { lazy, Suspense } from 'react';
+
+const AmbientDNA = lazy(() => import('../components/effects/AmbientDNA'));
+const AmbientHeart = lazy(() => import('../components/effects/AmbientHeart'));
+const AmbientCells = lazy(() => import('../components/effects/AmbientCells'));
+const AmbientMolecule = lazy(() => import('../components/effects/AmbientMolecule'));
+const AmbientLungs = lazy(() => import('../components/effects/AmbientLungs'));
 
 const coreFeatures = [
   {
@@ -196,7 +203,7 @@ function LandingPage() {
   const activeRole = roleJourneys[activeRoleIndex];
 
   return (
-    <div className="relative overflow-hidden bg-transparent text-white">
+    <div className="relative overflow-hidden bg-[#071325]/90 text-white">
       <style>{`
         .pulse-grid {
           background-image:
@@ -238,6 +245,10 @@ function LandingPage() {
 
       {/* ── HERO ───────────────────────────────────────────────── */}
       <section className="relative z-10 mx-auto w-full max-w-7xl px-6 py-12 lg:px-10 lg:py-20">
+        {/* Ambient DNA — top-right corner */}
+        <Suspense fallback={null}>
+          <AmbientDNA className="hidden lg:block absolute -top-10 -right-16 w-56 h-72 opacity-40 z-0" />
+        </Suspense>
         <div className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           {/* Left — copy */}
           <motion.div className="space-y-8" variants={heroStagger} initial="hidden" animate="show">
@@ -309,6 +320,10 @@ function LandingPage() {
 
       {/* ── WORKFLOW ────────────────────────────────────────────── */}
       <RevealSection className="relative z-10 mx-auto w-full max-w-7xl px-6 py-20 lg:px-10">
+        {/* Ambient Cells — floating blood cells */}
+        <Suspense fallback={null}>
+          <AmbientCells className="hidden lg:block absolute -left-20 top-10 w-48 h-48 opacity-35 z-0" />
+        </Suspense>
         <div className="space-y-14">
           <div className="text-center space-y-4 max-w-2xl mx-auto">
             <NeonBadge color="teal" icon={Zap} size="sm">Product flow</NeonBadge>
@@ -353,6 +368,10 @@ function LandingPage() {
 
       {/* ── FEATURES ───────────────────────────────────────────── */}
       <RevealSection className="relative z-10 mx-auto w-full max-w-7xl px-6 py-20 lg:px-10">
+        {/* Ambient Heart — pulsing in corner */}
+        <Suspense fallback={null}>
+          <AmbientHeart className="hidden lg:block absolute -right-12 bottom-10 w-44 h-44 opacity-30 z-0" />
+        </Suspense>
         <div className="space-y-14">
           <div className="text-center space-y-4 max-w-2xl mx-auto">
             <NeonBadge color="cyan" icon={Sparkles} size="sm">Core features</NeonBadge>
@@ -391,6 +410,10 @@ function LandingPage() {
 
       {/* ── ROLE JOURNEYS ──────────────────────────────────────── */}
       <RevealSection className="relative z-10 mx-auto w-full max-w-7xl px-6 py-20 lg:px-10">
+        {/* Ambient Lungs — breathing wireframe */}
+        <Suspense fallback={null}>
+          <AmbientLungs className="hidden lg:block absolute right-0 top-20 w-52 h-52 opacity-25 z-0" />
+        </Suspense>
         <div className="space-y-14">
           <div className="text-center space-y-4 max-w-2xl mx-auto">
             <NeonBadge color="emerald" size="sm">Role journeys</NeonBadge>
@@ -489,6 +512,10 @@ function LandingPage() {
 
       {/* ── CTA ────────────────────────────────────────────────── */}
       <RevealSection className="relative z-10 mx-auto w-full max-w-7xl px-6 py-20 lg:px-10">
+        {/* Ambient Molecule — floating structure */}
+        <Suspense fallback={null}>
+          <AmbientMolecule className="hidden lg:block absolute -left-16 top-4 w-40 h-40 opacity-35 z-0" />
+        </Suspense>
         <GlassCard className="relative overflow-hidden p-12 lg:p-20" glow glowColor="45, 212, 191" borderGradient>
           {/* glow blobs */}
           <div className="absolute -top-20 -left-20 h-60 w-60 rounded-full bg-teal-400/10 blur-3xl pointer-events-none" />

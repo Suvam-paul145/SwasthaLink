@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
+
+const AmbientDNA = lazy(() => import('../components/effects/AmbientDNA'));
 import { getDashboardRouteForRole, ROLE_OPTIONS } from '../utils/auth';
 import api from '../services/api';
 
@@ -185,6 +187,10 @@ export default function SignupPage() {
       <div className="absolute -top-28 -right-20 w-72 h-72 bg-teal-400/10 rounded-full blur-[100px]" />
       <div className="absolute -bottom-32 -left-20 w-80 h-80 bg-cyan-400/10 rounded-full blur-[120px]" />
       <div className="absolute inset-0 opacity-[0.08] bg-[radial-gradient(circle_at_top_left,white,transparent_28%),radial-gradient(circle_at_bottom_right,rgba(45,212,191,0.8),transparent_34%)]" />
+
+      <Suspense fallback={null}>
+        <AmbientDNA className="hidden lg:block absolute -left-10 top-1/3 w-40 h-64 opacity-30 z-0" />
+      </Suspense>
 
       <div className="relative z-10 w-full max-w-xl mx-auto">
         <section className="glass-card auth-card-glow rounded-[32px] border border-white/10 p-6 sm:p-8">

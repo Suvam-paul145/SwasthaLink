@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+const AmbientMolecule = lazy(() => import('../components/effects/AmbientMolecule'));
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_OPTIONS } from '../utils/auth';
@@ -410,6 +412,10 @@ function AdminPanelPage() {
         <DashboardHero3D variant="admin" height="280px" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#070e17]/60 to-[#070e17]" />
       </div>
+
+      <Suspense fallback={null}>
+        <AmbientMolecule className="hidden lg:block absolute -left-8 bottom-40 w-40 h-40 opacity-25 z-0" />
+      </Suspense>
 
       {/* Topbar Navigation */}
       <header className="fixed top-0 right-0 left-72 z-30 flex justify-between items-center px-8 h-20 bg-slate-950/60 backdrop-blur-2xl border-b border-white/5">
