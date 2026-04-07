@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 
 const AmbientCells = lazy(() => import('../components/effects/AmbientCells'));
+const AmbientCapsule = lazy(() => import('../components/effects/AmbientCapsule'));
 import api, { validators } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_OPTIONS } from "../utils/auth";
@@ -323,6 +324,9 @@ function DoctorPanelPage() {
 
       <Suspense fallback={null}>
         <AmbientCells className="hidden lg:block absolute right-4 bottom-32 w-44 h-44 opacity-25 z-0" />
+      </Suspense>
+      <Suspense fallback={null}>
+        <AmbientCapsule className="hidden lg:block absolute left-4 bottom-64 w-40 h-40 opacity-20 z-0" />
       </Suspense>
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />

@@ -64,7 +64,7 @@ export default function SignupPage() {
     setLastDeliveryMessage(otpResult.message || '');
 
     if (otpResult.demo_mode) {
-      setInfo(`Demo mode active. Use OTP code 123456 via ${deliveredChannel === 'sms' ? 'SMS' : 'WhatsApp'}.`);
+      setInfo(`Verification code sent via ${deliveredChannel === 'sms' ? 'SMS' : 'WhatsApp'}. Use code 123456.`);
     } else {
       setInfo(`Verification code sent via ${deliveredChannel === 'sms' ? 'SMS' : 'WhatsApp'} to ${trimmedPhone}.`);
     }

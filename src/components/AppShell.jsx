@@ -159,9 +159,15 @@ function AppShell() {
         </nav>
 
         <div className="p-6 mt-auto flex flex-col gap-4">
-          <button className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white py-3 px-5 rounded-xl font-semibold shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30 hover:brightness-110 active:scale-[0.97] transition-all flex items-center justify-center gap-2 text-sm">
-            <span className="material-symbols-outlined text-lg">chat</span>
-            Send to WhatsApp
+          <button
+            onClick={() => {
+              navigate('/family-dashboard?tab=reports');
+              setIsSidebarOpen(false);
+            }}
+            className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white py-3 px-5 rounded-xl font-semibold shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30 hover:brightness-110 active:scale-[0.97] transition-all flex items-center justify-center gap-2 text-sm"
+          >
+            <span className="material-symbols-outlined text-lg">description</span>
+            Health Reports
           </button>
           <button
             onClick={handleLogout}

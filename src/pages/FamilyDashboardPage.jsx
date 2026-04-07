@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const AmbientLungs = lazy(() => import('../components/effects/AmbientLungs'));
@@ -8,7 +9,9 @@ import ChatbotPanel from '../components/ChatbotPanel';
 import RiskGauge from '../components/RiskGauge';
 import ShareQRModal from '../components/ShareQRModal';
 import EmergencyQRCard from '../components/EmergencyQRCard';
-import { isDemoPatient, getMockPrescriptions, getMockDischargeHistory, getMockAllChunks } from '../utils/mockData';
+import { isDemoPatient, getMockPrescriptions, getMockDischargeHistory, getMockAllChunks, MOCK_DOCTOR_PATIENT_LIST } from '../utils/mockData';
+import { generateHealthReport } from '../utils/healthReportPdf';
+import { saveReport, getReports, deleteReport, downloadReportPdf } from '../services/reportStore';
 
 const TABS = [
   { id: 'overview', label: 'Overview', icon: 'dashboard' },
@@ -17,6 +20,7 @@ const TABS = [
   { id: 'recovery', label: 'Recovery', icon: 'trending_up' },
   { id: 'explanations', label: 'Explanations', icon: 'help_outline' },
   { id: 'documents', label: 'Documents', icon: 'folder_supervised' },
+  { id: 'reports', label: 'Reports', icon: 'description' },
 ];
 
 function FamilyDashboardPage() {
@@ -37,6 +41,18 @@ function FamilyDashboardPage() {
   const [linkStatus, setLinkStatus] = useState({ type: '', message: '' });
   const [showShareQR, setShowShareQR] = useState(false);
   const [showEmergencyCard, setShowEmergencyCard] = useState(false);
+  const [savedReports, setSavedReports] = useState(() => getReports());
+  const [reportGenerating, setReportGenerating] = useState(false);
+  const [reportToast, setReportToast] = useState(null);
+
+  // Support ?tab=reports from sidebar button
+  const [searchParams] = useSearchParams();
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && TABS.some(t => t.id === tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   // Derive all unique PIDs from prescriptions for the "Your Medical IDs" section
   const patientPids = prescriptions.reduce((acc, rx) => {
@@ -141,6 +157,87 @@ function FamilyDashboardPage() {
     } finally {
       setLinking(false);
     }
+  };
+
+  // Generate health report PDF, save to localStorage, optionally send WhatsApp summary
+  const handleGenerateReport = async (rx, sendWhatsApp = false) => {
+    if (reportGenerating) return;
+    setReportGenerating(true);
+    setReportToast(null);
+    try {
+      const ed = rx?.extracted_data || rx || {};
+      const reportData = {
+        patientName: ed.patient_name || patientName,
+        patientId: ed.patient_id || linkedPid || patientId,
+        diagnosis: ed.diagnosis,
+        medications: ed.medications || [],
+        tests: ed.tests || [],
+        insights: ed.patient_insights,
+        dischargeHistory,
+        doctorName: ed.doctor_name,
+      };
+
+      const { pdfBlob, textSummary, fileName, pdfDataUri } = generateHealthReport(reportData);
+
+      // Save report to localStorage
+      const saved = saveReport({
+        patientId: reportData.patientId,
+        patientName: reportData.patientName,
+        diagnosis: reportData.diagnosis,
+        summary: textSummary,
+        fileName,
+        pdfDataUri,
+        prescriptionId: rx?.prescription_id,
+      });
+      setSavedReports(getReports());
+
+      // Download the PDF
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(pdfBlob);
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+
+      // Send WhatsApp summary if requested
+      if (sendWhatsApp) {
+        let phone = user?.phone;
+        // Demo mode — use mock phone
+        if (!phone && isDemoPatient(user?.email)) {
+          const demoPatient = MOCK_DOCTOR_PATIENT_LIST.find(p => p.email === user.email);
+          phone = demoPatient?.phone?.replace(/-/g, '') || '+919876543210';
+        }
+        if (phone) {
+          try {
+            await api.sendWhatsApp({ phone_number: phone.replace(/-/g, ''), message: textSummary });
+            setReportToast({ type: 'success', message: `Report generated & WhatsApp summary sent to ${phone}` });
+          } catch (whatsErr) {
+            console.warn('WhatsApp send failed:', whatsErr.message);
+            setReportToast({ type: 'warning', message: 'PDF downloaded & saved! WhatsApp delivery failed (check Twilio config).' });
+          }
+        } else {
+          setReportToast({ type: 'success', message: 'PDF downloaded & saved! No phone number found for WhatsApp.' });
+        }
+      } else {
+        setReportToast({ type: 'success', message: 'Health report generated, downloaded & saved!' });
+      }
+
+      // Auto-dismiss toast
+      setTimeout(() => setReportToast(null), 6000);
+    } catch (err) {
+      console.error('Report generation failed:', err);
+      setReportToast({ type: 'error', message: 'Failed to generate report. Please try again.' });
+      setTimeout(() => setReportToast(null), 5000);
+    } finally {
+      setReportGenerating(false);
+    }
+  };
+
+  // Delete a saved report
+  const handleDeleteReport = (reportId) => {
+    deleteReport(reportId);
+    setSavedReports(getReports());
   };
 
   // Fetch chunks when tab changes
@@ -276,6 +373,18 @@ function FamilyDashboardPage() {
                     </div>
                     <button onClick={() => { navigator.clipboard.writeText(p.pid); }} title="Copy PID" style={{ background: 'rgba(255,255,255,.06)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
                       <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        const rx = prescriptions.find(r => (r.extracted_data?.patient_id || r.patient_id) === p.pid);
+                        if (rx) handleGenerateReport(rx, true);
+                      }}
+                      disabled={reportGenerating}
+                      title="Generate Health Report & Send to WhatsApp"
+                      style={{ background: reportGenerating ? 'rgba(13,148,136,.1)' : 'rgba(13,148,136,.15)', border: '1px solid rgba(13,148,136,.3)', borderRadius: '8px', padding: '6px 10px', cursor: reportGenerating ? 'wait' : 'pointer', color: '#5eead4', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, transition: 'all .2s' }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{reportGenerating ? 'progress_activity' : 'picture_as_pdf'}</span>
+                      Report
                     </button>
                   </div>
                 );
@@ -582,6 +691,21 @@ function FamilyDashboardPage() {
                             {meds.length > 3 && <p style={{ fontSize: '10px', color: '#475569', marginLeft: '14px' }}>+ {meds.length - 3} more</p>}
                           </div>
                         )}
+                        {/* Generate Report Button on Document Card */}
+                        <button
+                          onClick={() => handleGenerateReport(rx, true)}
+                          disabled={reportGenerating}
+                          style={{
+                            marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,.06)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                            background: 'rgba(13,148,136,.1)', border: '1px solid rgba(13,148,136,.25)',
+                            borderRadius: '10px', padding: '10px 16px', cursor: reportGenerating ? 'wait' : 'pointer',
+                            color: '#5eead4', fontSize: '12px', fontWeight: 600, width: '100%', transition: 'all .2s',
+                          }}
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>{reportGenerating ? 'progress_activity' : 'picture_as_pdf'}</span>
+                          {reportGenerating ? 'Generating...' : 'Generate Report & Send WhatsApp'}
+                        </button>
                         {/* Prescription Image from S3 */}
                         {imageUrl && (
                           <PrescriptionImageViewer imageUrl={imageUrl} prescriptionId={rx.prescription_id} />
@@ -593,8 +717,117 @@ function FamilyDashboardPage() {
               )}
             </div>
           )}
+
+          {/* REPORTS TAB */}
+          {activeTab === 'reports' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+                <h3 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>📄 Health Reports</h3>
+                {prescriptions.length > 0 && (
+                  <button
+                    onClick={() => handleGenerateReport(prescriptions[0], false)}
+                    disabled={reportGenerating}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      background: 'linear-gradient(135deg, #0d9488, #0f766e)',
+                      border: 'none', borderRadius: '12px', padding: '10px 20px',
+                      color: '#fff', fontSize: '13px', fontWeight: 700, cursor: reportGenerating ? 'wait' : 'pointer',
+                      boxShadow: '0 4px 15px rgba(13,148,136,.3)', transition: 'all .2s',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{reportGenerating ? 'progress_activity' : 'add_circle'}</span>
+                    {reportGenerating ? 'Generating...' : 'Generate New Report'}
+                  </button>
+                )}
+              </div>
+
+              {savedReports.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 0' }}>
+                  <span className="material-symbols-outlined" style={{ fontSize: '56px', color: '#334155', display: 'block', marginBottom: '16px' }}>description</span>
+                  <h4 style={{ fontWeight: 700, fontSize: '16px', marginBottom: '8px' }}>No Reports Generated Yet</h4>
+                  <p style={{ fontSize: '13px', color: '#475569', maxWidth: '400px', margin: '0 auto', lineHeight: 1.6 }}>
+                    Click "Generate New Report" above, or go to the Documents tab and click a prescription to create a comprehensive health report PDF.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {savedReports.map(report => {
+                    const date = new Date(report.timestamp);
+                    return (
+                      <div key={report.id} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '16px', padding: '20px 24px', border: '1px solid rgba(255,255,255,.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: '200px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                            <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#0d9488' }}>picture_as_pdf</span>
+                            <h4 style={{ fontSize: '14px', fontWeight: 700, margin: 0, color: '#e2e8f0' }}>{report.patientName || 'Health Report'}</h4>
+                            <span style={{ fontSize: '9px', background: 'rgba(13,148,136,.1)', color: '#5eead4', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>{report.patientId}</span>
+                          </div>
+                          <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 4px' }}>{report.diagnosis || 'General health report'}</p>
+                          <p style={{ fontSize: '11px', color: '#64748b' }}>
+                            {date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                          <button
+                            onClick={() => downloadReportPdf(report)}
+                            title="Download PDF"
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(13,148,136,.15)', border: '1px solid rgba(13,148,136,.3)', borderRadius: '10px', padding: '8px 14px', color: '#5eead4', fontSize: '12px', fontWeight: 600, cursor: 'pointer', transition: 'all .2s' }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>download</span>
+                            Download
+                          </button>
+                          <button
+                            onClick={() => {
+                              // View in new tab
+                              if (report.pdfDataUri) {
+                                const win = window.open();
+                                if (win) {
+                                  win.document.write(`<iframe src="${report.pdfDataUri}" style="width:100%;height:100%;border:none;" />`);
+                                  win.document.title = report.fileName || 'Health Report';
+                                }
+                              }
+                            }}
+                            title="View Report"
+                            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,.05)', border: '1px solid rgba(255,255,255,.1)', borderRadius: '10px', padding: '8px 14px', color: '#94a3b8', fontSize: '12px', fontWeight: 600, cursor: 'pointer', transition: 'all .2s' }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>visibility</span>
+                            View
+                          </button>
+                          <button
+                            onClick={() => handleDeleteReport(report.id)}
+                            title="Delete Report"
+                            style={{ display: 'flex', alignItems: 'center', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.2)', borderRadius: '10px', padding: '8px', color: '#f87171', cursor: 'pointer', transition: 'all .2s' }}
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>delete</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Report Toast Notification */}
+      {reportToast && (
+        <div style={{
+          position: 'fixed', bottom: '100px', right: '24px', zIndex: 9999,
+          background: reportToast.type === 'success' ? 'rgba(13,148,136,.95)' : reportToast.type === 'warning' ? 'rgba(245,158,11,.95)' : 'rgba(239,68,68,.95)',
+          color: '#fff', padding: '14px 22px', borderRadius: '14px', maxWidth: '420px',
+          fontSize: '13px', fontWeight: 600, boxShadow: '0 8px 32px rgba(0,0,0,.4)',
+          display: 'flex', alignItems: 'center', gap: '10px', animation: 'slideUp .3s ease',
+        }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+            {reportToast.type === 'success' ? 'check_circle' : reportToast.type === 'warning' ? 'warning' : 'error'}
+          </span>
+          {reportToast.message}
+          <button onClick={() => setReportToast(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', marginLeft: '8px', padding: '2px', display: 'flex' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>close</span>
+          </button>
+        </div>
+      )}
 
       {/* Chatbot Panel */}
       <ChatbotPanel />

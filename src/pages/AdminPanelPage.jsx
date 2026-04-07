@@ -107,12 +107,7 @@ function PrescriptionQueuePanel({ onAction }) {
           <p className="text-sm text-slate-400 mt-1">
             Handwritten prescriptions extracted via RAG — approve or reject before patient delivery
           </p>
-          {isDemoMode ? (
-            <p className="inline-flex items-center gap-1 mt-2 px-2 py-1 rounded-full bg-amber-500/20 text-amber-200 text-[11px] font-semibold uppercase tracking-wider">
-              <span className="material-symbols-outlined text-[14px]">science</span>
-              Demo Mode Active
-            </p>
-          ) : null}
+
         </div>
         <button
           onClick={fetchPending}

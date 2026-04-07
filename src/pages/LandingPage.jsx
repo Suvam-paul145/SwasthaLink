@@ -16,6 +16,7 @@ const AmbientHeart = lazy(() => import('../components/effects/AmbientHeart'));
 const AmbientCells = lazy(() => import('../components/effects/AmbientCells'));
 const AmbientMolecule = lazy(() => import('../components/effects/AmbientMolecule'));
 const AmbientLungs = lazy(() => import('../components/effects/AmbientLungs'));
+const AmbientCapsule = lazy(() => import('../components/effects/AmbientCapsule'));
 
 const coreFeatures = [
   {
@@ -248,6 +249,10 @@ function LandingPage() {
         {/* Ambient DNA — top-right corner */}
         <Suspense fallback={null}>
           <AmbientDNA className="hidden lg:block absolute -top-10 -right-16 w-56 h-72 opacity-40 z-0" />
+        </Suspense>
+        {/* Ambient Capsule — bottom-left of hero */}
+        <Suspense fallback={null}>
+          <AmbientCapsule className="hidden lg:block absolute -bottom-8 -left-12 w-44 h-44 opacity-25 z-0" />
         </Suspense>
         <div className="grid gap-12 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           {/* Left — copy */}

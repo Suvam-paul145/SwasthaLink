@@ -6,7 +6,7 @@ const AmbientCells = lazy(() => import('../components/effects/AmbientCells'));
 
 function SettingsPage() {
   const navigate = useNavigate();
-  const { user, session, isDemoSession, updateUserProfile, logout } = useAuth();
+  const { user, session, updateUserProfile, logout } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -27,10 +27,10 @@ function SettingsPage() {
     () => [
       { label: 'Role', value: user?.role ? user.role.toUpperCase() : 'PATIENT' },
       { label: 'Phone', value: user?.phone || 'Not linked' },
-      { label: 'Session', value: isDemoSession ? 'Demo mode' : 'Live session' },
+      { label: 'Session', value: 'Active' },
       { label: 'Status', value: user?.phone_verified ? 'Verified' : 'Pending verification' },
     ],
-    [isDemoSession, user]
+    [user]
   );
 
   const handleChange = (event) => {
@@ -233,17 +233,7 @@ function SettingsPage() {
               </div>
             </article>
 
-            {isDemoSession ? (
-              <article className="glass-card p-6 rounded-3xl border border-amber-500/10 bg-amber-500/5">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-amber-300">science</span>
-                  <div>
-                    <h3 className="text-base font-bold text-amber-200">Demo session</h3>
-                    <p className="text-sm text-amber-100/70">Edits are stored locally for this browser only.</p>
-                  </div>
-                </div>
-              </article>
-            ) : null}
+
           </aside>
         </div>
       </div>

@@ -3,6 +3,10 @@ import { lazy, Suspense } from 'react';
 const MedicalHeart3D = lazy(() => import('../components/MedicalHeart3D'));
 const DNA3DHelix = lazy(() => import('../components/DNA3DHelix'));
 const FloatingMedicalCube = lazy(() => import('../components/FloatingMedicalCube'));
+const CapsuleFloat3D = lazy(() => import('../components/CapsuleFloat3D'));
+const VitalPulseRing3D = lazy(() => import('../components/VitalPulseRing3D'));
+const CareShield3D = lazy(() => import('../components/CareShield3D'));
+const MedicalParticles3D = lazy(() => import('../components/MedicalParticles3D'));
 import VitalSignsChart from '../components/VitalSignsChart';
 import ComprehensionScoreChart from '../components/ComprehensionScoreChart';
 import ProcessingStatusDoughnut from '../components/ProcessingStatusDoughnut';
@@ -71,6 +75,49 @@ function ComponentShowcasePage() {
               </div>
               <Suspense fallback={<Lazy3DFallback />}>
                 <DNA3DHelix className="h-80" />
+              </Suspense>
+            </div>
+            {/* Capsule Float */}
+            <div className="glass-card rounded-xl overflow-hidden border border-white/5">
+              <div className="p-4 bg-white/5 border-b border-white/5">
+                <h3 className="font-bold text-white">Capsule Float 3D</h3>
+                <p className="text-xs text-slate-400 mt-1">Floating medication pill</p>
+              </div>
+              <Suspense fallback={<Lazy3DFallback />}>
+                <CapsuleFloat3D label="Medication" className="h-80" />
+              </Suspense>
+            </div>
+
+            {/* Vital Pulse Ring */}
+            <div className="glass-card rounded-xl overflow-hidden border border-white/5">
+              <div className="p-4 bg-white/5 border-b border-white/5">
+                <h3 className="font-bold text-white">Vital Pulse Ring</h3>
+                <p className="text-xs text-slate-400 mt-1">ECG pulse visualization</p>
+              </div>
+              <Suspense fallback={<Lazy3DFallback />}>
+                <VitalPulseRing3D bpm={72} className="h-80" />
+              </Suspense>
+            </div>
+
+            {/* Care Shield */}
+            <div className="glass-card rounded-xl overflow-hidden border border-white/5">
+              <div className="p-4 bg-white/5 border-b border-white/5">
+                <h3 className="font-bold text-white">Care Shield 3D</h3>
+                <p className="text-xs text-slate-400 mt-1">Medical protection icon</p>
+              </div>
+              <Suspense fallback={<Lazy3DFallback />}>
+                <CareShield3D label="Protected" className="h-80" />
+              </Suspense>
+            </div>
+
+            {/* Medical Particles */}
+            <div className="glass-card rounded-xl overflow-hidden border border-white/5">
+              <div className="p-4 bg-white/5 border-b border-white/5">
+                <h3 className="font-bold text-white">Medical Particles</h3>
+                <p className="text-xs text-slate-400 mt-1">Ambient health data nodes</p>
+              </div>
+              <Suspense fallback={<Lazy3DFallback />}>
+                <MedicalParticles3D count={40} className="h-80" />
               </Suspense>
             </div>
           </div>
