@@ -1,5 +1,7 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { applyPlugin } from 'jspdf-autotable';
+
+applyPlugin(jsPDF);
 
 /**
  * Generate a comprehensive health report PDF from patient prescription data.
