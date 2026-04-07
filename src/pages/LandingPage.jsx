@@ -139,6 +139,174 @@ function LandingPage() {
           border-color: rgba(45, 212, 191, 0.6);
         }
 
+        .flow-card {
+          position: relative;
+          overflow: hidden;
+          animation: flow-card-in 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both;
+        }
+
+        .flow-card::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          border: 1px solid rgba(120, 255, 232, 0.22);
+          animation: border-breathe 3.8s ease-in-out infinite;
+          pointer-events: none;
+        }
+
+        .aurora-sweep {
+          position: absolute;
+          top: -20%;
+          left: -45%;
+          height: 140%;
+          width: 55%;
+          background: linear-gradient(120deg, transparent, rgba(98, 255, 233, 0.14), transparent);
+          transform: rotate(8deg);
+          animation: aurora-sweep 5.4s ease-in-out infinite;
+          pointer-events: none;
+        }
+
+        .flow-line {
+          opacity: 0;
+          transform: translateY(14px) scale(0.985);
+          animation: item-slide-in 0.6s ease forwards;
+          animation-delay: var(--d, 0s);
+        }
+
+        .plus-pulse {
+          animation: plus-pulse 2.4s ease-in-out infinite;
+        }
+
+        .section-title-panel {
+          position: relative;
+          width: 100%;
+          border-radius: 1.35rem;
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          background: linear-gradient(140deg, rgba(7, 22, 44, 0.84), rgba(4, 16, 36, 0.68));
+          box-shadow: 0 22px 44px rgba(2, 10, 25, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+          transform-style: preserve-3d;
+          perspective: 900px;
+          overflow: hidden;
+          padding: 1.8rem 1rem;
+        }
+
+        .section-title-grid {
+          position: absolute;
+          inset: 0;
+          background-image:
+            linear-gradient(to right, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+          background-size: 24px 24px;
+          opacity: 0.3;
+        }
+
+        .section-title-panel::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: radial-gradient(circle at 50% 20%, rgba(var(--accent-rgb), 0.16), transparent 52%);
+          pointer-events: none;
+        }
+
+        .section-title-orbit {
+          position: absolute;
+          border-radius: 999px;
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          animation: tilt-orbit 5.4s ease-in-out infinite;
+        }
+
+        .section-title-orbit.one {
+          top: 0.8rem;
+          left: 8%;
+          height: 3.8rem;
+          width: 84%;
+          transform: translateZ(14px) rotateX(62deg) rotateZ(-7deg);
+        }
+
+        .section-title-orbit.two {
+          top: 1.15rem;
+          left: 13%;
+          height: 3.1rem;
+          width: 74%;
+          opacity: 0.75;
+          animation-delay: 0.45s;
+          transform: translateZ(6px) rotateX(62deg) rotateZ(9deg);
+        }
+
+        .section-title-node {
+          position: absolute;
+          height: 0.42rem;
+          width: 0.42rem;
+          border-radius: 999px;
+          box-shadow: 0 0 12px currentColor;
+          animation: node-blink 2.8s ease-in-out infinite;
+        }
+
+        .section-title-beam {
+          position: absolute;
+          top: -30%;
+          left: -25%;
+          height: 160%;
+          width: 28%;
+          transform: rotate(14deg);
+          background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+          animation: beam-scan 3.9s ease-in-out infinite;
+          opacity: 0.5;
+        }
+
+        .section-title-content {
+          position: relative;
+          z-index: 1;
+        }
+
+        .section-title-panel-flow {
+          --accent-rgb: 74, 222, 128;
+        }
+
+        .section-title-panel-core {
+          --accent-rgb: 34, 211, 238;
+        }
+
+        .section-title-panel-role {
+          --accent-rgb: 45, 212, 191;
+        }
+
+        .section-title-panel-flow .section-title-orbit,
+        .section-title-panel-flow .section-title-node {
+          color: rgba(74, 222, 128, 0.95);
+          border-color: rgba(74, 222, 128, 0.45);
+        }
+
+        .section-title-panel-core .section-title-orbit,
+        .section-title-panel-core .section-title-node {
+          color: rgba(34, 211, 238, 0.95);
+          border-color: rgba(34, 211, 238, 0.45);
+        }
+
+        .section-title-panel-role .section-title-orbit,
+        .section-title-panel-role .section-title-node {
+          color: rgba(45, 212, 191, 0.95);
+          border-color: rgba(45, 212, 191, 0.45);
+        }
+
+        @media (max-width: 640px) {
+          .section-title-panel {
+            padding: 1.35rem 0.85rem;
+            border-radius: 1.1rem;
+          }
+
+          .section-title-orbit.one {
+            width: 92%;
+            left: 4%;
+          }
+
+          .section-title-orbit.two {
+            width: 82%;
+            left: 9%;
+          }
+        }
+
         @keyframes rise-up {
           to {
             opacity: 1;
@@ -154,6 +322,65 @@ function LandingPage() {
         @keyframes orb-glow {
           0%, 100% { filter: blur(88px) saturate(95%); opacity: 0.5; }
           50% { filter: blur(120px) saturate(140%); opacity: 0.8; }
+        }
+
+        @keyframes flow-card-in {
+          0% {
+            opacity: 0;
+            transform: translateY(18px) scale(0.98);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes border-breathe {
+          0%, 100% {
+            box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.12), inset 0 0 0 0 rgba(255, 255, 255, 0.05);
+          }
+          50% {
+            box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.08), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+          }
+        }
+
+        @keyframes aurora-sweep {
+          0%, 100% { transform: translateX(-8%) rotate(8deg); opacity: 0; }
+          15%, 70% { opacity: 1; }
+          85% { opacity: 0; }
+          100% { transform: translateX(225%) rotate(8deg); }
+        }
+
+        @keyframes item-slide-in {
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+
+        @keyframes plus-pulse {
+          0%, 100% { transform: scale(1); text-shadow: 0 0 0 rgba(45, 212, 191, 0); }
+          50% { transform: scale(1.14); text-shadow: 0 0 16px rgba(45, 212, 191, 0.5); }
+        }
+
+        @keyframes tilt-orbit {
+          0%, 100% {
+            transform: translateZ(12px) rotateX(58deg) rotateZ(-8deg);
+          }
+          50% {
+            transform: translateZ(12px) rotateX(58deg) rotateZ(8deg) translateY(-1px);
+          }
+        }
+
+        @keyframes node-blink {
+          0%, 100% { opacity: 0.42; transform: scale(0.9); }
+          50% { opacity: 1; transform: scale(1.25); }
+        }
+
+        @keyframes beam-scan {
+          0% { transform: translateX(-20%) rotate(14deg); opacity: 0; }
+          20%, 70% { opacity: 0.55; }
+          100% { transform: translateX(320%) rotate(14deg); opacity: 0; }
         }
       `}</style>
 
@@ -229,8 +456,9 @@ function LandingPage() {
           </div>
 
           <div className="rise-up delay-2 relative">
-            <div className="relative overflow-hidden rounded-[2.5rem] border border-white/15 bg-[#071b34]/70 p-8 shadow-[0_32px_80px_rgba(2,10,25,0.6)] backdrop-blur-2xl">
+            <div className="flow-card relative overflow-hidden rounded-[2.5rem] border border-white/15 bg-[#071b34]/70 p-8 shadow-[0_32px_80px_rgba(2,10,25,0.6)] backdrop-blur-2xl">
               <div className="absolute inset-0 bg-gradient-to-br from-teal-200/5 via-transparent to-cyan-200/5" />
+              <div className="aurora-sweep" />
               <div className="relative space-y-6">
                 <div className="flex items-center gap-4">
                   <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-300/30 via-teal-300/20 to-cyan-300/10">
@@ -242,16 +470,26 @@ function LandingPage() {
                   </div>
                 </div>
 
+                <div className="flex flex-wrap gap-2 pt-1">
+                  <span className="rounded-full border border-emerald-300/35 bg-emerald-300/10 px-3 py-1 text-[11px] font-semibold tracking-[0.12em] uppercase text-emerald-100">Auth links live</span>
+                  <span className="rounded-full border border-cyan-300/35 bg-cyan-300/10 px-3 py-1 text-[11px] font-semibold tracking-[0.12em] uppercase text-cyan-100">Route guards on</span>
+                </div>
+
                 <div className="space-y-3 pt-4">
                   {[
                     'Landing page at the root path',
                     'Login and signup linked from every auth screen',
                     'Forgot password remains reachable from login',
                     'Protected routes still redirect unauthenticated users to login',
-                  ].map((item) => (
-                    <div key={item} className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.05] px-4 py-3">
-                      <span className="text-lg text-emerald-300">+</span>
+                  ].map((item, index) => (
+                    <div
+                      key={item}
+                      className="flow-line group flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.05] px-4 py-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-200/25 hover:bg-white/[0.08]"
+                      style={{ '--d': `${0.22 + index * 0.1}s` }}
+                    >
+                      <span className="plus-pulse text-lg text-emerald-300">+</span>
                       <span className="text-sm font-semibold text-slate-100">{item}</span>
+                      <span className="ml-auto text-xs text-cyan-200/0 transition-all duration-300 group-hover:text-cyan-200/90">active</span>
                     </div>
                   ))}
                 </div>
@@ -263,14 +501,24 @@ function LandingPage() {
 
       <section className="relative z-10 mx-auto w-full max-w-7xl px-6 py-16 lg:px-10">
         <div className="space-y-12">
-          <div className="rise-up text-center space-y-4 max-w-2xl mx-auto">
-            <div className="inline-flex items-center gap-2 rounded-full border border-teal-100/20 bg-teal-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-teal-100">
-              <span className="material-symbols-outlined text-base">workflow</span>
-              Product flow
+          <div className="rise-up text-center space-y-4 max-w-4xl mx-auto">
+            <div className="section-title-panel section-title-panel-flow">
+              <span className="section-title-grid" />
+              <span className="section-title-beam" />
+              <span className="section-title-orbit one" />
+              <span className="section-title-orbit two" />
+              <span className="section-title-node" style={{ top: '1rem', left: '12%', animationDelay: '0.2s' }} />
+              <span className="section-title-node" style={{ top: '1.7rem', right: '14%', animationDelay: '0.9s' }} />
+              <div className="section-title-content space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-teal-100/20 bg-teal-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-teal-100">
+                <span className="material-symbols-outlined text-base">workflow</span>
+                Product flow
+              </div>
+                <h2 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
+                  A clear route from first visit to the right dashboard
+                </h2>
+              </div>
             </div>
-            <h2 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
-              A clear route from first visit to the right dashboard
-            </h2>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-4">
@@ -291,14 +539,24 @@ function LandingPage() {
 
       <section className="relative z-10 mx-auto w-full max-w-7xl px-6 py-16 lg:px-10">
         <div className="space-y-12">
-          <div className="rise-up text-center space-y-4 max-w-2xl mx-auto">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-100/20 bg-cyan-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">
-              <span className="material-symbols-outlined text-base">star</span>
-              Core features
+          <div className="rise-up text-center space-y-4 max-w-4xl mx-auto">
+            <div className="section-title-panel section-title-panel-core">
+              <span className="section-title-grid" />
+              <span className="section-title-beam" />
+              <span className="section-title-orbit one" />
+              <span className="section-title-orbit two" />
+              <span className="section-title-node" style={{ top: '1.1rem', left: '16%', animationDelay: '0.35s' }} />
+              <span className="section-title-node" style={{ top: '1.55rem', right: '11%', animationDelay: '1.05s' }} />
+              <div className="section-title-content space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-100/20 bg-cyan-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-cyan-100">
+                <span className="material-symbols-outlined text-base">star</span>
+                Core features
+              </div>
+                <h2 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
+                  UX updates pulled into the public entry experience
+                </h2>
+              </div>
             </div>
-            <h2 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
-              UX updates pulled into the public entry experience
-            </h2>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-3">
@@ -323,17 +581,27 @@ function LandingPage() {
 
       <section className="relative z-10 mx-auto w-full max-w-7xl px-6 py-16 lg:px-10">
         <div className="space-y-12">
-          <div className="rise-up text-center space-y-4 max-w-2xl mx-auto">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-100/20 bg-emerald-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-emerald-100">
-              <span className="material-symbols-outlined text-base">groups</span>
-              Role journeys
+          <div className="rise-up text-center space-y-4 max-w-4xl mx-auto">
+            <div className="section-title-panel section-title-panel-role">
+              <span className="section-title-grid" />
+              <span className="section-title-beam" />
+              <span className="section-title-orbit one" />
+              <span className="section-title-orbit two" />
+              <span className="section-title-node" style={{ top: '1rem', left: '10%', animationDelay: '0.25s' }} />
+              <span className="section-title-node" style={{ top: '1.75rem', right: '16%', animationDelay: '1.2s' }} />
+              <div className="section-title-content space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-100/20 bg-emerald-200/10 px-4 py-2 text-xs font-bold uppercase tracking-[0.22em] text-emerald-100">
+                <span className="material-symbols-outlined text-base">groups</span>
+                Role journeys
+              </div>
+                <h2 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
+                  Each role can start from the same public page
+                </h2>
+                <p className="text-lg text-slate-300">
+                  The landing page can pre-select the intended role before users continue into login or signup.
+                </p>
+              </div>
             </div>
-            <h2 className="text-4xl lg:text-5xl font-black text-white tracking-tight">
-              Each role can start from the same public page
-            </h2>
-            <p className="text-lg text-slate-300">
-              The landing page can pre-select the intended role before users continue into login or signup.
-            </p>
           </div>
 
           <div className="flex gap-3 flex-wrap justify-center mb-12">
