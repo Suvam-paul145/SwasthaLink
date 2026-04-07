@@ -1,0 +1,58 @@
+graph TD
+    subgraph Auth["Auth Layer"]
+        direction LR
+        LP["/login"]
+        SP["/signup"]
+        FP["/forgot-password"]
+    end
+
+    AC["AuthContext"] --> Auth
+
+    subgraph Pages["Protected Pages"]
+        direction LR
+        OV["/overview"]
+        FD["/family-dashboard"]
+        CH["/clarity-hub"]
+        AP["/admin-panel"]
+        DP["/doctor-panel"]
+        SC["/showcase"]
+        ST["/settings"]
+    end
+
+    AS["AppShell Layout"] --> Pages
+
+    subgraph Visual["Visual Components"]
+        direction LR
+        H3D["MedicalHeart3D"]
+        DNA["DNA3DHelix"]
+        CUBE["FloatingCube"]
+        VC["VitalSigns"]
+        CC["Comprehension"]
+        PD["Processing"]
+        RR["ReadmissionRisk"]
+    end
+
+    subgraph Shared["Shared Components"]
+        direction LR
+        CB["ChatbotPanel"]
+        QR["EmergencyQR"]
+        CAM["CameraCapture"]
+        EB["ErrorBoundary"]
+    end
+
+    subgraph Utils["Utils + Services"]
+        direction LR
+        API["api.js"]
+        GRQ["groq.js"]
+        TTS["tts.js"]
+        STTU["stt.js"]
+        ANIM["animations.js"]
+    end
+
+    SC --> Visual
+    FD --> CB
+    FD --> QR
+    DP --> CAM
+    CH --> TTS
+    CH --> STTU
+    Pages --> Utils

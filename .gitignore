@@ -1,82 +1,185 @@
-# Environment variables - CRITICAL: Never commit!
-.env
-.env.local
-.env.production
-**/.env
-**/.env.local
+# =============================================================================
+# SwasthaLink .gitignore
+# Stack: Vite + React (frontend) | FastAPI + Python (backend) | Docker | Supabase
+# =============================================================================
 
-# Dependencies
+# -----------------------------------------------------------------------------
+# SECRETS & ENVIRONMENT VARIABLES — NEVER COMMIT
+# -----------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+reference-file/security-credential/
+
+# -----------------------------------------------------------------------------
+# NODE / FRONTEND
+# -----------------------------------------------------------------------------
 node_modules/
 */node_modules/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-venv/
-ENV/
-env/
-.venv
-*.egg-info/
-
-# Build outputs
 dist/
-build/
-*.egg
+.vite/
+vite.config.js.timestamp-*
 
-# IDEs and editors
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Logs
-*.log
-logs/
+# npm / yarn / pnpm logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
 
-# OS files
-Thumbs.db
-.DS_Store
+# Parcel cache
+.cache/
+.parcel-cache/
 
-# Testing
+# -----------------------------------------------------------------------------
+# PYTHON / BACKEND
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+.env/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Distribution / packaging
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+MANIFEST
+
+# mypy / pyright type cache
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+pyrightconfig.json
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# -----------------------------------------------------------------------------
+# TESTING
+# -----------------------------------------------------------------------------
+.pytest_cache/
+.tox/
+.nox/
 coverage/
 .nyc_output/
-.pytest_cache/
+test-results/
+junit.xml
 
-# Production builds
-/frontend/dist
-/backend/dist
-
-# Temporary files
-*.tmp
-tmp/
-temp/
-
-# Reference files (keep local only)
-reference-file/
-
-# Uploads (if testing locally - but allow sample data)
-uploads/
-*.pdf
-*.jpg
-*.png
-!sample_data/*.pdf
-!sample_data/*.txt
-
-backend\.env.example
-backend\.env
-.env
-.env.example
-.claude
-
-# Database files
+# -----------------------------------------------------------------------------
+# DATABASE FILES
+# -----------------------------------------------------------------------------
 *.db
 *.sqlite
 *.sqlite3
 SwasthaLink.db
 backend/SwasthaLink.db
+
+# -----------------------------------------------------------------------------
+# DOCKER
+# -----------------------------------------------------------------------------
+.dockerignore.local
+
+# -----------------------------------------------------------------------------
+# LOGS
+# -----------------------------------------------------------------------------
+logs/
+*.log
+backend/logs/
+
+# -----------------------------------------------------------------------------
+# UPLOADS / MEDIA (local test files only — allow tracked sample data)
+# -----------------------------------------------------------------------------
+uploads/
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+!sample_data/*.pdf
+!sample_data/*.txt
+!sample-data/*.md
+
+# -----------------------------------------------------------------------------
+# OS & EDITOR ARTIFACTS
+# -----------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code (keep shared settings if desired; ignore personal/local overrides)
+.vscode/launch.json
+.vscode/*.local.*
+
+# Vim / Emacs
+*.swp
+*.swo
+*.bak
+\#*\#
+.#*
+
+# -----------------------------------------------------------------------------
+# TEMPORARY & MISC
+# -----------------------------------------------------------------------------
+*.tmp
+*.temp
+tmp/
+temp/
+.cache/
+.claude
+.aider*
+*.orig
+
+# Reference files — local only
+reference-file/
+

@@ -1,0 +1,69 @@
+graph TB
+    subgraph Client["Frontend — React 18 + Vite"]
+        direction LR
+        UI["Patient / Doctor / Admin UI"]
+        Chat["CareGuide Chatbot"]
+        VIZ["Three.js 3D Visuals"]
+        CHARTS["Chart.js Analytics"]
+        VOICE["Speech STT + TTS"]
+    end
+
+    subgraph Backend["Backend — FastAPI + Python"]
+        direction LR
+        API["REST API — 43+ Endpoints"]
+        LLM["LLM Service"]
+        GROQC["Groq Chat Service"]
+        LLAMA["LlamaCloud Service"]
+        TS["Twilio Service"]
+        SS["Supabase Service"]
+        S3S["S3 Service"]
+        CHUNK["Data Chunker"]
+        RAG["Prescription RAG"]
+        IMGP["Image Preprocessor"]
+        RAS["Rate Limiter"]
+        SCHED["APScheduler"]
+    end
+
+    subgraph AI["AI Layer — Multi-LLM"]
+        direction LR
+        CEREBRAS["Cerebras llama3.1-8b — Primary"]
+        GROQ["Groq llama-3.3-70b — Fallback"]
+        QWEN["Qwen OpenRouter — Vision"]
+        LLAMAC["LlamaCloud — OCR"]
+    end
+
+    subgraph Storage["Data Layer"]
+        direction LR
+        SUPA[("Supabase PostgreSQL")]
+        SQLITE[("SQLite Chunks + Audit")]
+        S3[("AWS S3 24hr Auto-Delete")]
+    end
+
+    subgraph Delivery["Delivery"]
+        direction LR
+        WA["WhatsApp"]
+        OTP["OTP Verify"]
+    end
+
+    UI --> API
+    Chat --> API
+    VOICE --> Chat
+    VOICE --> UI
+
+    API --> LLM
+    LLM --> CEREBRAS
+    LLM --> GROQ
+    API --> GROQC --> CEREBRAS
+    API --> LLAMA --> LLAMAC
+    IMGP --> QWEN
+
+    API --> TS --> WA
+    TS --> OTP
+    SCHED --> TS
+
+    API --> SS --> SUPA
+    API --> S3S --> S3
+    CHUNK --> SQLITE
+    RAG --> SQLITE
+
+    API --> RAS

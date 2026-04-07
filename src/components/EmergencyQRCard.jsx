@@ -43,7 +43,7 @@ function EmergencyQRCard({ patientName, bloodGroup, allergies = [], emergencyCon
         <div class="qr"><canvas id="qr"></canvas></div>
         <div class="footer">Scan QR for full medical record • SwasthaLink</div>
       </div>
-      <script>window.onload = () => { window.print(); window.close(); }<\/script>
+      <script>window.onload = () => { window.print(); window.close(); }<${"/"}script>
       </body></html>
     `);
     printWindow.document.close();

@@ -60,7 +60,7 @@ class DrugInteractionsRequest(BaseModel):
 
 
 def _load_runtime_dependencies():
-    load_dotenv()
+    load_dotenv(os.path.join(BACKEND_DIR, ".env"))
 
     from ai.prompts import format_drug_interactions_prompt
     from core.config import ALLOWED_ORIGINS, FRONTEND_URL
@@ -288,7 +288,7 @@ if __name__ != "__main__":
 if __name__ == "__main__":
     import uvicorn
 
-    load_dotenv()
+    load_dotenv(os.path.join(BACKEND_DIR, ".env"))
 
     uvicorn.run(
         "main:create_app",

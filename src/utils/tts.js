@@ -12,7 +12,7 @@ const LANG_TAGS = {
   mr: 'mr-IN',
 };
 
-let currentUtterance = null;
+let _currentUtterance = null;
 
 /**
  * Speak text in the specified language.
@@ -29,8 +29,8 @@ export function speak(text, language = 'bn', onEnd = null) {
   utterance.rate = 0.9;
   utterance.pitch = 1.0;
   if (onEnd) utterance.onend = onEnd;
-  utterance.onerror = () => { currentUtterance = null; };
-  currentUtterance = utterance;
+  utterance.onerror = () => { _currentUtterance = null; };
+  _currentUtterance = utterance;
   window.speechSynthesis.speak(utterance);
   return utterance;
 }
@@ -40,7 +40,7 @@ export function speak(text, language = 'bn', onEnd = null) {
  */
 export function stop() {
   window.speechSynthesis.cancel();
-  currentUtterance = null;
+  _currentUtterance = null;
 }
 
 /**

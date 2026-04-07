@@ -1,0 +1,12 @@
+graph TD
+    D["Doctor"] -->|Upload prescription image| F["Frontend"]
+    F -->|"POST /api/prescriptions/extract"| B["Backend"]
+    B -->|OCR + extraction| LC["LlamaCloud"]
+    LC -->|Medications + instructions| B
+    B -->|Store pending| DB[("Supabase")]
+    A["Admin"] -->|"GET /prescriptions/pending"| B
+    B -->|Review queue| A
+    A -->|"POST /prescriptions/:id/approve"| B
+    B -->|"Chunk: medication, routine, FAQ, explanation"| SQLITE[("SQLite")]
+    PT["Patient"] -->|"GET /prescriptions/:id/patient-view"| B
+    B -->|Patient-friendly prescription| PT

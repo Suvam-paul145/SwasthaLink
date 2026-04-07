@@ -1,15 +1,14 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { speak, stop, isSpeaking as isTTSSpeaking, isTTSSupported } from "../utils/tts";
-import { startListening, isSTTSupported } from "../utils/stt";
+import { speak, stop } from "../utils/tts";
+import { startListening } from "../utils/stt";
 import { LANGUAGE_LABELS } from "../utils/config";
 
 function DetailedClarityHubPage() {
   const { user } = useAuth();
   const patientName = user?.name || "Patient";
-  const [isChatPanelOpen, setIsChatPanelOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('chat');
+
   const [chatMessages, setChatMessages] = useState([
     {
       id: "welcome",

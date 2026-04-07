@@ -1,0 +1,8 @@
+graph LR
+    P["Patient"] -->|Paste discharge text| F["Frontend"]
+    F -->|"POST /api/process"| B["Backend — RAM Only"]
+    B -->|Send text| AI["Cerebras / Groq LLM"]
+    AI -->|Simplified result| B
+    B -->|Return response| F
+    F -->|Show summary| P
+    B -.->|"Log: session_id, role, timestamp, quiz_score ONLY"| DB[("Supabase DB")]

@@ -30,7 +30,6 @@ function ProcessingSteps({ isActive }) {
       {STEPS.map((step, i) => {
         const isComplete = i < currentStep;
         const isCurrent = i === currentStep;
-        const isPending = i > currentStep;
 
         return (
           <div

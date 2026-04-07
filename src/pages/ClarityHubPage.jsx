@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getGroqChatbotReply } from "../services/groq";
-import { speak, stop, isSpeaking, isTTSSupported } from "../utils/tts";
+import { speak, stop } from "../utils/tts";
 import { LANGUAGE_LABELS } from "../utils/config";
 
 function ClarityHubPage() {
@@ -63,12 +63,12 @@ function ClarityHubPage() {
   // Handles both quick actions and freeform questions
   const respondToPrompt = async (promptLabel, customText = null) => {
     setIsAssistantTyping(true);
-    let question = customText || promptLabel;
+    const question = customText || promptLabel;
     let answer = "";
     try {
       const result = await getGroqChatbotReply(patientId, question);
       answer = result?.answer || "Sorry, I could not find an answer.";
-    } catch (e) {
+    } catch {
       answer = "Sorry, there was an error contacting the assistant.";
     }
     setChatMessages((prev) => [
