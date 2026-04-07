@@ -6,6 +6,8 @@ All auth is handled via the `profiles` table + bcrypt + our own JWT.
 """
 
 import logging
+import random
+import string
 import uuid
 from typing import Any, Dict, Optional
 
@@ -20,6 +22,13 @@ from auth.jwt_utils import create_access_token
 logger = logging.getLogger(__name__)
 
 SUPPORTED_ROLES = {"patient", "doctor", "admin"}
+
+
+def _generate_patient_id() -> str:
+    """Generate a unique patient ID in format PID-XXXXXX."""
+    chars = string.ascii_uppercase + string.digits
+    code = ''.join(random.choices(chars, k=6))
+    return f"PID-{code}"
 
 
 def _normalize_role(value: Optional[str]) -> Optional[str]:
@@ -66,7 +75,7 @@ def _fetch_profile_by_email(email: str) -> Optional[Dict[str, Any]]:
         result = (
             supabase_client
             .table("profiles")
-            .select("id, user_id, email, role, full_name, name, phone, phone_verified, password_hash")
+            .select("id, user_id, email, role, full_name, name, phone, phone_verified, password_hash, pid")
             .eq("email", email.strip().lower())
             .limit(1)
             .execute()
@@ -121,6 +130,7 @@ def login_user(email: str, password: str, role: str) -> Dict[str, Any]:
             "role": profile_role,
             "phone": profile.get("phone"),
             "phone_verified": bool(profile.get("phone_verified", False)),
+            "pid": profile.get("pid"),
         },
         "access_token": access_token,
         "is_demo": False,
@@ -149,6 +159,9 @@ def signup_user(name: str, email: str, password: str, phone: str, role: str = "p
     user_id = str(uuid.uuid4())
     hashed_pw = _hash_password(password)
 
+    # Auto-generate a PID for patient accounts so doctors can search by ID
+    patient_pid = _generate_patient_id() if validated_role == "patient" else None
+
     payload = {
         "id": user_id,
         "user_id": user_id,
@@ -160,6 +173,8 @@ def signup_user(name: str, email: str, password: str, phone: str, role: str = "p
         "phone_verified": False,
         "password_hash": hashed_pw,
     }
+    if patient_pid:
+        payload["pid"] = patient_pid
 
     try:
         supabase_client.table("profiles").insert(payload).execute()
@@ -186,6 +201,7 @@ def signup_user(name: str, email: str, password: str, phone: str, role: str = "p
             "role": validated_role,
             "phone": phone,
             "phone_verified": False,
+            "pid": patient_pid,
         },
         "access_token": access_token,
         "is_demo": False,

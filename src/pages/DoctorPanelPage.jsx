@@ -84,7 +84,7 @@ function DoctorPanelPage() {
       setPatientsLoading(true);
       try {
         const result = await api.getPatients();
-        setPatientList(result.patients || []);
+        setPatientList(result.items || []);
       } catch (err) {
         console.warn('Patient list fetch:', err.message);
       } finally {
@@ -94,15 +94,16 @@ function DoctorPanelPage() {
   }, []);
 
   // Fetch follow-up history when an existing patient is selected
+  const selectedPatientPid = selectedPatient?.pid || null;
   useEffect(() => {
-    if (patientMode !== 'existing' || !selectedPatient?.pid) {
+    if (patientMode !== 'existing' || !selectedPatientPid) {
       setFollowUpHistory([]);
       return;
     }
     (async () => {
       setFollowUpLoading(true);
       try {
-        const result = await api.getPatientPrescriptions(selectedPatient.pid);
+        const result = await api.getPatientPrescriptions(selectedPatientPid);
         setFollowUpHistory((result.items || []).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
       } catch (err) {
         console.warn('Follow-up history fetch:', err.message);
@@ -110,7 +111,7 @@ function DoctorPanelPage() {
         setFollowUpLoading(false);
       }
     })();
-  }, [patientMode, selectedPatient?.pid]);
+  }, [patientMode, selectedPatientPid]);
 
   // Filtered patient list for search
   const filteredPatients = patientList.filter(p => {

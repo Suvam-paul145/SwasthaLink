@@ -57,7 +57,7 @@ async def list_patients():
         result = (
             supabase_client
             .table("profiles")
-            .select("*")
+            .select("user_id, email, full_name, name, phone, pid, created_at")
             .eq("role", "patient")
             .execute()
         )
