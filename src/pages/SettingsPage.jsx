@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
 
 const AmbientCells = lazy(() => import('../components/effects/AmbientCells'));
@@ -8,6 +9,7 @@ const AmbientCells = lazy(() => import('../components/effects/AmbientCells'));
 function SettingsPage() {
   const navigate = useNavigate();
   const { user, session, updateUserProfile, logout } = useAuth();
+  const { t, language } = useLanguage();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -36,12 +38,12 @@ function SettingsPage() {
 
   const profileStats = useMemo(
     () => [
-      { label: 'Role', value: user?.role ? user.role.toUpperCase() : 'PATIENT' },
-      { label: 'Phone', value: user?.phone || 'Not linked' },
-      { label: 'Session', value: 'Active' },
-      { label: 'Status', value: user?.phone_verified ? 'Verified' : 'Pending verification' },
+      { label: t('settings.role'), value: user?.role ? user.role.toUpperCase() : 'PATIENT' },
+      { label: t('settings.phone'), value: user?.phone || t('settings.not_linked') },
+      { label: t('settings.session_label'), value: t('settings.active') },
+      { label: 'Status', value: user?.phone_verified ? t('settings.verified') : t('settings.pending_verify') },
     ],
-    [user]
+    [user, language]
   );
 
   const handleChange = (event) => {
@@ -157,18 +159,18 @@ function SettingsPage() {
           <div className="space-y-3 max-w-2xl">
             <div className="flex items-center gap-3">
               <span className="bg-teal-500/20 text-teal-300 px-3 py-1 rounded-full text-[10px] font-bold tracking-[0.2em] uppercase border border-teal-500/20">
-                Profile
+                {t('settings.profile')}
               </span>
               <div className="flex items-center gap-2 text-teal-400/80 text-xs font-medium uppercase tracking-wider">
                 <span className="w-2 h-2 rounded-full bg-teal-400 animate-pulse"></span>
-                Manage your account
+                {t('settings.manage')}
               </div>
             </div>
             <h1 className="text-4xl lg:text-5xl font-headline font-extrabold tracking-tight text-white">
-              Profile Info
+              {t('settings.title')}
             </h1>
             <p className="text-slate-400 text-lg font-light">
-              Update the details shown across SwasthaLink and keep your session in sync.
+              {t('settings.subtitle')}
             </p>
           </div>
 
@@ -179,7 +181,7 @@ function SettingsPage() {
               className="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-white/10 text-slate-100 font-semibold hover:bg-white/5 transition-all"
             >
               <span className="material-symbols-outlined text-[20px]">logout</span>
-              Logout
+              {t('settings.logout')}
             </button>
           </div>
         </header>
@@ -191,9 +193,9 @@ function SettingsPage() {
                 <span className="material-symbols-outlined text-teal-400 text-[28px]">person</span>
               </div>
               <div>
-                <h2 className="text-2xl font-headline font-bold text-white">Edit profile</h2>
+                <h2 className="text-2xl font-headline font-bold text-white">{t('settings.edit')}</h2>
                 <p className="text-sm text-slate-400 mt-1">
-                  Change your display name and contact number. Email and role stay tied to the signed-in account.
+                  {t('settings.edit_desc')}
                 </p>
               </div>
             </div>
@@ -201,18 +203,18 @@ function SettingsPage() {
             <form onSubmit={handleSave} className="space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-400">Display name</span>
+                  <span className="text-sm font-medium text-slate-400">{t('settings.display_name')}</span>
                   <input
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
-                    placeholder="Your full name"
+                    placeholder={t('settings.full_name')}
                     className="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-white placeholder:text-slate-500 outline-none focus:border-teal-400/60 focus:ring-2 focus:ring-teal-400/10 transition-all"
                   />
                 </label>
 
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-400">Phone number</span>
+                  <span className="text-sm font-medium text-slate-400">{t('settings.phone')}</span>
                   <input
                     name="phone"
                     value={formData.phone}
@@ -222,7 +224,7 @@ function SettingsPage() {
                   />
                   {phoneChanged && !showOtpInput && (
                     <p className="text-xs text-amber-400/80 mt-1">
-                      Phone changed — OTP verification will be required after saving.
+                      {t('settings.phone_changed')}
                     </p>
                   )}
                 </label>
@@ -230,7 +232,7 @@ function SettingsPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-400">Email address</span>
+                  <span className="text-sm font-medium text-slate-400">{t('settings.email_address')}</span>
                   <input
                     value={formData.email}
                     readOnly
@@ -239,7 +241,7 @@ function SettingsPage() {
                 </label>
 
                 <label className="space-y-2">
-                  <span className="text-sm font-medium text-slate-400">Role</span>
+                  <span className="text-sm font-medium text-slate-400">{t('settings.role')}</span>
                   <input
                     value={(user?.role || 'patient').toUpperCase()}
                     readOnly
@@ -255,14 +257,14 @@ function SettingsPage() {
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 text-[#041115] font-bold hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <span className="material-symbols-outlined text-[20px]">save</span>
-                  {isSaving ? 'Saving...' : 'Save changes'}
+                  {isSaving ? t('settings.saving') : t('settings.save')}
                 </button>
                 <button
                   type="button"
                   onClick={handleReset}
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-white/10 text-slate-100 font-semibold hover:bg-white/5 transition-all"
                 >
-                  Reset
+                  {t('settings.reset')}
                 </button>
               </div>
 
@@ -271,17 +273,17 @@ function SettingsPage() {
                 <div className="bg-white/[0.03] border border-teal-400/20 rounded-2xl p-5 space-y-4">
                   <div className="flex items-center gap-3">
                     <span className="material-symbols-outlined text-teal-400">verified</span>
-                    <h3 className="text-base font-bold text-white">Verify Phone Number</h3>
+                    <h3 className="text-base font-bold text-white">{t('settings.verify_phone')}</h3>
                   </div>
                   <p className="text-sm text-slate-400">
-                    Enter the OTP sent to <span className="text-teal-300 font-semibold">{otpPhone}</span> via WhatsApp.
+                    {t('settings.otp_sent_to')} <span className="text-teal-300 font-semibold">{otpPhone}</span> {t('settings.via_whatsapp')}
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <input
                       type="text"
                       value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder="Enter OTP code"
+                      placeholder={t('settings.enter_otp')}
                       maxLength={6}
                       className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-white text-center text-lg font-mono tracking-[0.5em] placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-sm outline-none focus:border-teal-400/60 focus:ring-2 focus:ring-teal-400/10 transition-all"
                     />
@@ -292,7 +294,7 @@ function SettingsPage() {
                       className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 text-[#041115] font-bold hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <span className="material-symbols-outlined text-[20px]">{otpVerifying ? 'progress_activity' : 'check_circle'}</span>
-                      {otpVerifying ? 'Verifying...' : 'Verify'}
+                      {otpVerifying ? t('settings.verifying') : t('settings.verify')}
                     </button>
                   </div>
                   <button
@@ -301,7 +303,7 @@ function SettingsPage() {
                     disabled={otpSending}
                     className="text-sm text-teal-400 hover:text-teal-300 transition-colors disabled:opacity-50"
                   >
-                    {otpSending ? 'Sending...' : 'Resend OTP'}
+                    {otpSending ? t('settings.sending') : t('settings.resend_otp')}
                   </button>
                 </div>
               )}
@@ -324,7 +326,7 @@ function SettingsPage() {
             <article className="glass-card p-6 lg:p-8 rounded-3xl border border-white/10">
               <div className="flex items-center gap-3 mb-5">
                 <span className="material-symbols-outlined text-teal-400">badge</span>
-                <h3 className="text-xl font-headline font-bold text-white">Account snapshot</h3>
+                <h3 className="text-xl font-headline font-bold text-white">{t('settings.snapshot')}</h3>
               </div>
 
               <div className="space-y-4">
@@ -340,10 +342,10 @@ function SettingsPage() {
             <article className="glass-card p-6 lg:p-8 rounded-3xl border border-rose-500/10 bg-gradient-to-br from-rose-500/5 to-transparent">
               <div className="flex items-center gap-3 mb-4">
                 <span className="material-symbols-outlined text-rose-400">lock</span>
-                <h3 className="text-xl font-headline font-bold text-rose-300">Account safety</h3>
+                <h3 className="text-xl font-headline font-bold text-rose-300">{t('settings.safety')}</h3>
               </div>
               <p className="text-sm text-slate-400 leading-6 mb-6">
-                Use logout when you are done on a shared device. Your saved profile stays in the current browser session until you sign in again.
+                {t('settings.safety_desc')}
               </p>
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
@@ -351,10 +353,10 @@ function SettingsPage() {
                   onClick={handleLogout}
                   className="px-5 py-3 rounded-xl bg-rose-500/10 text-rose-300 font-semibold border border-rose-500/20 hover:bg-rose-500/20 transition-all"
                 >
-                  Logout now
+                  {t('settings.logout_now')}
                 </button>
                 <span className="inline-flex items-center px-4 py-3 rounded-xl border border-white/10 text-slate-400 text-sm">
-                  {session?.loggedInAt ? `Signed in ${new Date(session.loggedInAt).toLocaleString()}` : 'Session started recently'}
+                  {session?.loggedInAt ? `${t('settings.signed_in')} ${new Date(session.loggedInAt).toLocaleString()}` : t('settings.session_recent')}
                 </span>
               </div>
             </article>

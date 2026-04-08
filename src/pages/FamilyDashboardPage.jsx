@@ -26,6 +26,7 @@ const TABS = [
 function FamilyDashboardPage() {
   const { user, updateUserProfile } = useAuth();
   const { t, language } = useLanguage();
+  const dateLocale = { en: 'en-IN', bn: 'bn-IN', hi: 'hi-IN', ta: 'ta-IN', te: 'te-IN', mr: 'mr-IN' }[language] || 'en-IN';
   const patientName = user?.name || 'Patient';
   const patientId = user?.user_id || user?.id || user?.email || '';
 
@@ -422,7 +423,7 @@ function FamilyDashboardPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '22px', color: '#5eead4' }}>badge</span>
               <h4 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: '#e2e8f0' }}>{t('medical.ids')}</h4>
-              <span style={{ fontSize: '11px', color: '#64748b', background: 'rgba(255,255,255,.05)', padding: '2px 8px', borderRadius: '6px' }}>{patientPids.length} record{patientPids.length !== 1 ? 's' : ''}</span>
+              <span style={{ fontSize: '11px', color: '#64748b', background: 'rgba(255,255,255,.05)', padding: '2px 8px', borderRadius: '6px' }}>{patientPids.length} {patientPids.length !== 1 ? t('misc.records') : t('misc.record')}</span>
             </div>
             <div className="family-dashboard-pid-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
               {patientPids.map((p) => {
@@ -434,7 +435,7 @@ function FamilyDashboardPage() {
                         <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '14px', color: '#5eead4' }}>{p.pid}</span>
                         {p.pid === linkedPid && <span style={{ fontSize: '9px', background: 'rgba(94,234,212,.15)', color: '#5eead4', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>{t('linked').toUpperCase()}</span>}
                         <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', fontWeight: 600, background: p.status === 'approved' ? 'rgba(34,197,94,.12)' : p.status === 'pending_admin_review' ? 'rgba(234,179,8,.12)' : 'rgba(255,255,255,.06)', color: p.status === 'approved' ? '#4ade80' : p.status === 'pending_admin_review' ? '#facc15' : '#94a3b8' }}>
-                          {p.status === 'approved' ? t('approved') : p.status === 'pending_admin_review' ? 'Pending' : p.status || 'N/A'}
+                          {p.status === 'approved' ? t('approved') : p.status === 'pending_admin_review' ? t('status.pending') : p.status || 'N/A'}
                         </span>
                       </div>
                       <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>
@@ -442,7 +443,7 @@ function FamilyDashboardPage() {
                       </p>
                       {date && (
                         <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>
-                          {date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          {date.toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })} {date.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       )}
                     </div>
@@ -572,7 +573,7 @@ function FamilyDashboardPage() {
                 {rxLoading ? (<SkeletonBlock />) : insights?.health_summary ? (
                   <p style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: 1.7 }}>{insights.health_summary}</p>
                 ) : extracted?.diagnosis ? (
-                  <p style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: 1.7 }}>Diagnosis: {extracted.diagnosis}</p>
+                  <p style={{ fontSize: '14px', color: '#cbd5e1', lineHeight: 1.7 }}>{t('docs.diagnosis')}: {extracted.diagnosis}</p>
                 ) : <p style={{ fontSize: '13px', color: '#475569', fontStyle: 'italic' }}>{t('overview.clinical_wait')}</p>}
               </div>
 
@@ -624,9 +625,9 @@ function FamilyDashboardPage() {
                     <span className="material-symbols-outlined" style={{ fontSize: '28px', color: '#0d9488' }}>stethoscope</span>
                   </div>
                   <div>
-                    <p style={{ fontSize: '10px', color: '#0d9488', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.2em' }}>Lead Physician</p>
-                    <h4 style={{ fontSize: '18px', fontWeight: 700, margin: '4px 0 0' }}>{extracted?.doctor_name || 'Pending Assignment'}</h4>
-                    <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{extracted?.diagnosis || 'Diagnosis Pending'}</p>
+                    <p style={{ fontSize: '10px', color: '#0d9488', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.2em' }}>{t('overview.lead_physician')}</p>
+                    <h4 style={{ fontSize: '18px', fontWeight: 700, margin: '4px 0 0' }}>{extracted?.doctor_name || t('overview.pending_assign')}</h4>
+                    <p style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{extracted?.diagnosis || t('overview.diag_pending')}</p>
                   </div>
                 </div>
               </div>
@@ -803,9 +804,9 @@ function FamilyDashboardPage() {
                       <div key={rx.prescription_id} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '16px', padding: '22px', border: '1px solid rgba(255,255,255,.08)', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '14px' }}>
                           <div>
-                            <p style={{ fontSize: '14px', fontWeight: 700 }}>{ed.doctor_name || 'Medical Team'}</p>
+                            <p style={{ fontSize: '14px', fontWeight: 700 }}>{ed.doctor_name || t('docs.medical_team')}</p>
                             <p style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '.1em', marginTop: '2px' }}>
-                              {new Date(rx.created_at || ed.prescription_date).toLocaleDateString()}
+                              {new Date(rx.created_at || ed.prescription_date).toLocaleDateString(dateLocale)}
                             </p>
                           </div>
                           <span style={{ fontSize: '9px', background: 'rgba(13,148,136,.1)', color: '#5eead4', padding: '3px 8px', borderRadius: '6px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.1em', border: '1px solid rgba(13,148,136,.2)' }}>{type}</span>
@@ -818,7 +819,7 @@ function FamilyDashboardPage() {
                         )}
                         {meds.length > 0 && (
                           <div style={{ marginBottom: '12px' }}>
-                            <p style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.1em', marginBottom: '8px' }}>Medications</p>
+                            <p style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '.1em', marginBottom: '8px' }}>{t('med.medications')}</p>
                             {meds.slice(0, 3).map((med, i) => (
                               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
                                 <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#2dd4bf', flexShrink: 0 }} />
@@ -826,7 +827,7 @@ function FamilyDashboardPage() {
                                 {med.frequency && <span style={{ fontSize: '11px', color: '#5eead4' }}>{med.frequency}</span>}
                               </div>
                             ))}
-                            {meds.length > 3 && <p style={{ fontSize: '10px', color: '#475569', marginLeft: '14px' }}>+ {meds.length - 3} more</p>}
+                            {meds.length > 3 && <p style={{ fontSize: '10px', color: '#475569', marginLeft: '14px' }}>+ {meds.length - 3} {t('med.more')}</p>}
                           </div>
                         )}
                         {/* Generate Report Button on Document Card */}
@@ -899,9 +900,9 @@ function FamilyDashboardPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#0d9488' }}>picture_as_pdf</span>
                         <div>
-                          <h4 style={{ fontSize: '14px', fontWeight: 700, margin: 0, color: '#e2e8f0' }}>{viewingReport.patientName || 'Health Report'}</h4>
+                          <h4 style={{ fontSize: '14px', fontWeight: 700, margin: 0, color: '#e2e8f0' }}>{viewingReport.patientName || t('docs.health_report')}</h4>
                           <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
-                            {new Date(viewingReport.timestamp).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {new Date(viewingReport.timestamp).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })}
                           </p>
                         </div>
                       </div>
@@ -960,12 +961,12 @@ function FamilyDashboardPage() {
                         <div className="family-dashboard-report-item-main" style={{ flex: 1, minWidth: '200px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
                             <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#0d9488' }}>picture_as_pdf</span>
-                            <h4 style={{ fontSize: '14px', fontWeight: 700, margin: 0, color: '#e2e8f0' }}>{report.patientName || 'Health Report'}</h4>
+                            <h4 style={{ fontSize: '14px', fontWeight: 700, margin: 0, color: '#e2e8f0' }}>{report.patientName || t('docs.health_report')}</h4>
                             <span style={{ fontSize: '9px', background: 'rgba(13,148,136,.1)', color: '#5eead4', padding: '2px 8px', borderRadius: '6px', fontWeight: 600 }}>{report.patientId}</span>
                           </div>
                           <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 4px' }}>{report.diagnosis || t('reports.general')}</p>
                           <p style={{ fontSize: '11px', color: '#64748b' }}>
-                            {date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                            {date.toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' })} {date.toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
                         <div className="family-dashboard-report-item-actions" style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
@@ -1128,18 +1129,18 @@ function PrescriptionImageViewer({ imageUrl, prescriptionId }) {
           {imgLoading && !imgError && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px', color: '#5eead4', fontSize: '13px', gap: '10px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '20px', animation: 'spin 1.5s linear infinite' }}>progress_activity</span>
-              Loading image...
+              {t('docs.loading_image')}
             </div>
           )}
           {imgError ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', color: '#f87171' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '32px', marginBottom: '8px' }}>broken_image</span>
-              <p style={{ fontSize: '12px' }}>Image unavailable or link expired</p>
+              <p style={{ fontSize: '12px' }}>{t('docs.image_unavailable')}</p>
               <button
                 onClick={() => { setImgError(false); setImgLoading(true); }}
                 style={{ marginTop: '10px', padding: '6px 14px', borderRadius: '8px', background: 'rgba(255,255,255,.06)', border: '1px solid rgba(255,255,255,.1)', color: '#94a3b8', fontSize: '11px', cursor: 'pointer' }}
               >
-                Retry
+                {t('action.retry')}
               </button>
             </div>
           ) : (

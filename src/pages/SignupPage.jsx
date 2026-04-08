@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const AmbientDNA = lazy(() => import('../components/effects/AmbientDNA'));
 import { getDashboardRouteForRole, ROLE_OPTIONS } from '../utils/auth';
@@ -16,6 +17,7 @@ export default function SignupPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, user, login } = useAuth();
+  const { t } = useLanguage();
 
   const [step, setStep] = useState(STEPS.FORM);
   const [role, setRole] = useState(() => resolvePreferredRole(location.state?.preferredRole));
@@ -34,10 +36,10 @@ export default function SignupPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const stepLabel = useMemo(() => {
-    if (step === STEPS.FORM) return 'Create Your Account';
-    if (step === STEPS.OTP) return 'Verify Phone Number';
-    return 'Account Created';
-  }, [step]);
+    if (step === STEPS.FORM) return t('signup.step_form');
+    if (step === STEPS.OTP) return t('signup.step_otp');
+    return t('signup.step_done');
+  }, [step, t]);
 
   const stepNumber = step === STEPS.FORM ? 1 : step === STEPS.OTP ? 2 : 3;
   const channelLabel = 'WhatsApp';
@@ -200,13 +202,13 @@ export default function SignupPage() {
               to="/"
               className="text-sm text-teal-200 hover:text-teal-100 transition-colors w-fit"
             >
-              Back to landing page
+              {t('signup.back')}
             </Link>
           </div>
 
           <div className="mb-6">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-teal-200">Role-Based Access</p>
-            <h1 className="text-3xl font-headline font-extrabold mt-2">SwasthaLink Signup</h1>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-teal-200">{t('signup.role_access')}</p>
+            <h1 className="text-3xl font-headline font-extrabold mt-2">{t('signup.title')}</h1>
             <p className="text-sm text-slate-300 mt-2 leading-6">{stepLabel}</p>
           </div>
 
@@ -246,7 +248,7 @@ export default function SignupPage() {
           {step === STEPS.FORM ? (
             <form onSubmit={handleSignup} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Role</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('signup.role')}</label>
                 <select
                   value={role}
                   onChange={(event) => setRole(event.target.value)}
@@ -261,19 +263,19 @@ export default function SignupPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Full Name</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('signup.full_name')}</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  placeholder="Enter your full name"
+                  placeholder={t('signup.enter_name')}
                   className="w-full rounded-2xl bg-[#0f2334] border border-white/15 px-4 py-3 text-sm text-white placeholder:text-slate-500 shadow-inner shadow-black/10 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Email ID</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('signup.email')}</label>
                 <input
                   type="email"
                   required
@@ -285,7 +287,7 @@ export default function SignupPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Password</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('signup.password')}</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -293,7 +295,7 @@ export default function SignupPage() {
                     minLength={6}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Minimum 6 characters"
+                    placeholder={t('signup.min_chars')}
                     className="w-full rounded-2xl bg-[#0f2334] border border-white/15 px-4 py-3 pr-16 text-sm text-white placeholder:text-slate-500 shadow-inner shadow-black/10 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
                   />
                   <button
@@ -301,13 +303,13 @@ export default function SignupPage() {
                     onClick={() => setShowPassword((current) => !current)}
                     className="absolute inset-y-0 right-0 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-teal-200 hover:text-teal-100 transition-colors"
                   >
-                    {showPassword ? 'Hide' : 'Show'}
+                    {showPassword ? t('signup.hide') : t('signup.show')}
                   </button>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Phone Number</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('signup.phone')}</label>
                 <input
                   type="tel"
                   required
@@ -317,7 +319,7 @@ export default function SignupPage() {
                   className="w-full rounded-2xl bg-[#0f2334] border border-white/15 px-4 py-3 text-sm text-white placeholder:text-slate-500 shadow-inner shadow-black/10 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
                 />
                 <p className="text-[11px] text-slate-500">
-                  Use E.164 format with country code, for example +91 for India.
+                  {t('signup.phone_hint')}
                 </p>
               </div>
 
@@ -326,7 +328,7 @@ export default function SignupPage() {
                 disabled={isSubmitting}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal-300 via-cyan-300 to-emerald-300 text-[#053438] font-extrabold tracking-wide hover:shadow-[0_16px_30px_rgba(45,212,191,0.35)] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Creating Account...' : 'Sign Up and Send OTP'}
+                {isSubmitting ? t('signup.creating') : t('signup.submit')}
               </button>
             </form>
           ) : null}
@@ -336,14 +338,14 @@ export default function SignupPage() {
               <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300 leading-6">
                 {hasSentOtp && lastDeliveredChannel ? (
                   <>
-                    We sent a verification code to <span className="text-white font-semibold">{phone}</span> via{' '}
+                    {t('signup.otp_sent')} <span className="text-white font-semibold">{phone}</span> {t('signup.via')}{' '}
                     <span className="text-teal-200 font-semibold">
                       {lastDeliveredChannel === 'sms' ? 'SMS' : 'WhatsApp'}
                     </span>.
                   </>
                 ) : (
                   <>
-                    We could not confirm OTP delivery yet. Choose a delivery channel and resend the code for{' '}
+                    {t('signup.otp_not_confirmed')}{' '}
                     <span className="text-white font-semibold">{phone}</span>.
                   </>
                 )}
@@ -356,7 +358,7 @@ export default function SignupPage() {
               ) : null}
 
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Enter OTP Code</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('signup.enter_otp')}</label>
                 <input
                   type="text"
                   value={otp}
@@ -378,7 +380,7 @@ export default function SignupPage() {
                 disabled={isSubmitting || otp.length < 4}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal-300 via-cyan-300 to-emerald-300 text-[#053438] font-extrabold tracking-wide hover:shadow-[0_16px_30px_rgba(45,212,191,0.35)] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Verifying...' : 'Verify OTP'}
+                {isSubmitting ? t('signup.verifying') : t('signup.verify_otp')}
               </button>
 
               <button
@@ -387,7 +389,7 @@ export default function SignupPage() {
                 disabled={isSubmitting}
                 className="w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-sm text-teal-200 hover:text-teal-100 hover:bg-white/[0.06] transition-all disabled:opacity-50"
               >
-                Resend OTP via {channelLabel}
+                {t('signup.resend_via')} {channelLabel}
               </button>
             </form>
           ) : null}
@@ -395,21 +397,21 @@ export default function SignupPage() {
           {step === STEPS.DONE ? (
             <div className="text-center py-8">
               <span className="material-symbols-outlined text-[56px] text-emerald-300">check_circle</span>
-              <h2 className="text-xl font-headline font-bold text-emerald-300 mt-4 mb-2">Phone Verified</h2>
+              <h2 className="text-xl font-headline font-bold text-emerald-300 mt-4 mb-2">{t('signup.phone_verified')}</h2>
               <p className="text-sm text-slate-300 leading-6">
-                Your account has been created and verified. We are routing you to the next page now.
+                {t('signup.done_desc')}
               </p>
             </div>
           ) : null}
 
           <div className="mt-6 text-center text-sm text-slate-400">
-            Already have an account?{' '}
+            {t('signup.have_account')}{' '}
             <Link
               to="/login"
               state={{ preferredRole: role }}
               className="text-teal-300 hover:text-teal-200 font-medium transition-colors"
             >
-              Sign in here
+              {t('signup.sign_in')}
             </Link>
           </div>
         </section>

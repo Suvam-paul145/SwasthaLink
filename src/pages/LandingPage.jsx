@@ -9,6 +9,7 @@ import GradientText from '../components/ui/GradientText';
 import NeonBadge from '../components/ui/NeonBadge';
 import DataFlowIndicator from '../components/ui/DataFlowIndicator';
 import { heroStagger, tiltCardIn, gridReveal, neonReveal, scaleFadeIn, statSpring } from '../utils/animations';
+import { useLanguage } from '../context/LanguageContext';
 
 const AmbientDNA = lazy(() => import('../components/effects/AmbientDNA'));
 const AmbientHeart = lazy(() => import('../components/effects/AmbientHeart'));
@@ -20,101 +21,101 @@ const AmbientCapsule = lazy(() => import('../components/effects/AmbientCapsule')
 const coreFeatures = [
   {
     icon: Brain,
-    title: 'AI-Powered Simplification',
-    description: 'Clinical language is transformed into practical, plain-language guidance that patients can actually act on.',
-    benefit: 'Cuts down discharge confusion',
+    title: 'landing.feat_ai_t',
+    description: 'landing.feat_ai_d',
+    benefit: 'landing.feat_ai_b',
     color: 'teal',
   },
   {
     icon: Languages,
-    title: 'Bilingual Support',
-    description: 'English and Bengali-friendly guidance can be delivered in a way that matches the patient context.',
-    benefit: 'More inclusive communication',
+    title: 'landing.feat_lang_t',
+    description: 'landing.feat_lang_d',
+    benefit: 'landing.feat_lang_b',
     color: 'purple',
   },
   {
     icon: MessageCircle,
-    title: 'WhatsApp Delivery',
-    description: 'Recovery guidance, medication reminders, and next steps can follow patients beyond the hospital desk.',
-    benefit: 'Stronger follow-through after discharge',
+    title: 'landing.feat_wa_t',
+    description: 'landing.feat_wa_d',
+    benefit: 'landing.feat_wa_b',
     color: 'cyan',
   },
   {
     icon: ShieldCheck,
-    title: 'Comprehension Checks',
-    description: 'Short verification steps help teams confirm whether patients understood the most important instructions.',
-    benefit: 'Safer transitions to home care',
+    title: 'landing.feat_check_t',
+    description: 'landing.feat_check_d',
+    benefit: 'landing.feat_check_b',
     color: 'rose',
   },
   {
     icon: Accessibility,
-    title: 'Accessible Guidance',
-    description: 'Simple layouts and guided flows help patients, doctors, and admins move through the system without friction.',
-    benefit: 'Lower cognitive load',
+    title: 'landing.feat_access_t',
+    description: 'landing.feat_access_d',
+    benefit: 'landing.feat_access_b',
     color: 'amber',
   },
   {
     icon: LayoutDashboard,
-    title: 'Role-Based Dashboards',
-    description: 'Every user lands in the right workspace after login, with navigation tuned to the role they selected.',
-    benefit: 'Cleaner day-to-day workflows',
+    title: 'landing.feat_dash_t',
+    description: 'landing.feat_dash_d',
+    benefit: 'landing.feat_dash_b',
     color: 'emerald',
   },
 ];
 
 const workflow = [
-  { number: '01', title: 'Start at the landing page', description: 'Root path opens a single public home for the full product experience.' },
-  { number: '02', title: 'Choose a route', description: 'Users continue into login or signup based on where they are in the journey.' },
-  { number: '03', title: 'Verify identity', description: 'Role, credentials, and OTP confirmation keep onboarding structured.' },
-  { number: '04', title: 'Enter the right dashboard', description: 'Patients, doctors, and admins land directly in their own workspace.' },
+  { number: '01', title: 'landing.wf1_title', description: 'landing.wf1_desc' },
+  { number: '02', title: 'landing.wf2_title', description: 'landing.wf2_desc' },
+  { number: '03', title: 'landing.wf3_title', description: 'landing.wf3_desc' },
+  { number: '04', title: 'landing.wf4_title', description: 'landing.wf4_desc' },
 ];
 
 const impact = [
-  { metric: '1', label: 'clear starting point at the root path', icon: Zap },
-  { metric: '3', label: 'connected role journeys from one landing page', icon: Sparkles },
-  { metric: '24h', label: 'session continuity with local profile updates', icon: ShieldCheck },
+  { metric: '1', label: 'landing.impact1', icon: Zap },
+  { metric: '3', label: 'landing.impact2', icon: Sparkles },
+  { metric: '24h', label: 'landing.impact3', icon: ShieldCheck },
 ];
 
 const roleJourneys = [
   {
     value: 'patient',
-    label: 'Patient',
+    label: 'landing.role_patient',
     icon: 'personal_injury',
-    eyebrow: 'Recovery-first flow',
-    description: 'Patients can move from landing to signup or login, verify their phone, and continue into the family dashboard with clearer care guidance.',
+    eyebrow: 'landing.role_patient_eye',
+    description: 'landing.role_patient_desc',
     features: [
-      'Plain-language recovery summaries',
-      'Medication and follow-up reminders',
-      'OTP-supported signup flow',
-      'Profile updates from settings',
+      'landing.role_patient_f1',
+      'landing.role_patient_f2',
+      'landing.role_patient_f3',
+      'landing.role_patient_f4',
     ],
     color: 'emerald',
   },
   {
     value: 'doctor',
-    label: 'Doctor',
+    label: 'landing.role_doctor',
     icon: 'stethoscope',
-    eyebrow: 'Clinical workflow',
-    description: 'Doctors can enter through the same public landing page, sign in with the correct role, and reach their portal without dead-end navigation.',
+    eyebrow: 'landing.role_doctor_eye',
+    description: 'landing.role_doctor_desc',
     features: [
-      'Role-aware login defaults',
-      'Protected doctor route handling',
-      'Faster handoff into the dashboard',
-      'Consistent account management',
+      'landing.role_doctor_f1',
+      'landing.role_doctor_f2',
+      'landing.role_doctor_f3',
+      'landing.role_doctor_f4',
     ],
     color: 'cyan',
   },
   {
     value: 'admin',
-    label: 'Admin',
+    label: 'landing.role_admin',
     icon: 'admin_panel_settings',
-    eyebrow: 'Platform oversight',
-    description: 'Admins follow the same clean entry flow while staying connected to settings, authentication, and admin-only areas after sign-in.',
+    eyebrow: 'landing.role_admin_eye',
+    description: 'landing.role_admin_desc',
     features: [
-      'Admin entry from the public homepage',
-      'Protected route enforcement',
-      'Shared settings experience',
-      'Centralized navigation shell',
+      'landing.role_admin_f1',
+      'landing.role_admin_f2',
+      'landing.role_admin_f3',
+      'landing.role_admin_f4',
     ],
     color: 'teal',
   },
@@ -199,6 +200,7 @@ function HeroHologram() {
 /*  MAIN COMPONENT                                                     */
 /* ================================================================== */
 function LandingPage() {
+  const { t } = useLanguage();
   const [activeRoleIndex, setActiveRoleIndex] = useState(0);
   const activeRole = roleJourneys[activeRoleIndex];
 
@@ -235,10 +237,10 @@ function LandingPage() {
 
         <nav className="flex items-center gap-3">
           <Link to="/signup">
-            <GlowButton variant="ghost" size="sm" icon={UserPlus}>Signup</GlowButton>
+            <GlowButton variant="ghost" size="sm" icon={UserPlus}>{t('landing.signup')}</GlowButton>
           </Link>
           <Link to="/login">
-            <GlowButton variant="primary" size="sm" icon={LogIn}>Login</GlowButton>
+            <GlowButton variant="primary" size="sm" icon={LogIn}>{t('landing.login')}</GlowButton>
           </Link>
         </nav>
       </motion.header>
@@ -258,30 +260,30 @@ function LandingPage() {
           <motion.div className="space-y-8" variants={heroStagger} initial="hidden" animate="show">
             <motion.div variants={scaleFadeIn}>
               <NeonBadge color="teal" pulse icon={Sparkles} size="sm">
-                AI Health Companion
+                {t('landing.hero_badge')}
               </NeonBadge>
             </motion.div>
 
             <motion.div variants={scaleFadeIn}>
               <h1 className="text-5xl font-black leading-[1.08] tracking-tight sm:text-6xl lg:text-7xl">
-                <GradientText gradient="teal" animate className="block">Intelligent care,</GradientText>
-                <span className="text-white">delivered simply.</span>
+                <GradientText gradient="teal" animate className="block">{t('landing.hero_h1_1')}</GradientText>
+                <span className="text-white">{t('landing.hero_h1_2')}</span>
               </h1>
             </motion.div>
 
             <motion.p variants={scaleFadeIn} className="max-w-2xl text-lg leading-8 text-slate-300/90">
-              SwasthaLink transforms complex clinical language into clear, actionable guidance — delivered through WhatsApp, bilingual dashboards, and AI-powered comprehension checks.
+              {t('landing.hero_sub')}
             </motion.p>
 
             <motion.div variants={scaleFadeIn} className="flex flex-wrap items-center gap-4">
               <Link to="/login">
                 <GlowButton variant="primary" size="lg" icon={LogIn} iconRight={ArrowRight}>
-                  Continue to Login
+                  {t('landing.hero_login_btn')}
                 </GlowButton>
               </Link>
               <Link to="/signup">
                 <GlowButton variant="secondary" size="lg" icon={UserPlus}>
-                  Create Account
+                  {t('landing.hero_signup_btn')}
                 </GlowButton>
               </Link>
             </motion.div>
@@ -303,7 +305,7 @@ function LandingPage() {
                       <Icon className="h-4 w-4 text-teal-300/70" />
                       <p className="text-2xl font-black text-glow-teal">{item.metric}</p>
                     </div>
-                    <p className="mt-1 text-xs font-semibold text-slate-400 leading-tight">{item.label}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-400 leading-tight">{t(item.label)}</p>
                   </motion.div>
                 );
               })}
@@ -330,9 +332,9 @@ function LandingPage() {
         </Suspense>
         <div className="space-y-14">
           <div className="text-center space-y-4 max-w-2xl mx-auto">
-            <NeonBadge color="teal" icon={Zap} size="sm">Product flow</NeonBadge>
+            <NeonBadge color="teal" icon={Zap} size="sm">{t('landing.wf_badge')}</NeonBadge>
             <h2 className="text-4xl lg:text-5xl font-black tracking-tight">
-              <GradientText gradient="ocean">From first visit to the right dashboard</GradientText>
+              <GradientText gradient="ocean">{t('landing.wf_heading')}</GradientText>
             </h2>
           </div>
 
@@ -351,8 +353,8 @@ function LandingPage() {
                   <div className="absolute -top-4 -left-4 h-11 w-11 rounded-full bg-gradient-to-br from-teal-400 via-cyan-400 to-emerald-400 flex items-center justify-center text-sm font-black text-[#04262b] shadow-[0_0_24px_rgba(45,212,191,0.45)]">
                     {step.number}
                   </div>
-                  <h3 className="mt-4 text-lg font-bold text-white">{step.title}</h3>
-                  <p className="mt-2 text-sm text-slate-400">{step.description}</p>
+                  <h3 className="mt-4 text-lg font-bold text-white">{t(step.title)}</h3>
+                  <p className="mt-2 text-sm text-slate-400">{t(step.description)}</p>
 
                   {/* connector */}
                   {index < workflow.length - 1 && (
@@ -378,9 +380,9 @@ function LandingPage() {
         </Suspense>
         <div className="space-y-14">
           <div className="text-center space-y-4 max-w-2xl mx-auto">
-            <NeonBadge color="cyan" icon={Sparkles} size="sm">Core features</NeonBadge>
+            <NeonBadge color="cyan" icon={Sparkles} size="sm">{t('landing.feat_badge')}</NeonBadge>
             <h2 className="text-4xl lg:text-5xl font-black tracking-tight">
-              <GradientText gradient="purple">Built for the future of healthcare</GradientText>
+              <GradientText gradient="purple">{t('landing.feat_heading')}</GradientText>
             </h2>
           </div>
 
@@ -399,10 +401,10 @@ function LandingPage() {
                     <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-teal-400/20 via-cyan-400/10 to-transparent border border-white/10">
                       <Icon className="h-7 w-7 text-teal-200" />
                     </div>
-                    <h3 className="mt-5 text-xl font-bold text-white">{feature.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">{feature.description}</p>
+                    <h3 className="mt-5 text-xl font-bold text-white">{t(feature.title)}</h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">{t(feature.description)}</p>
                     <div className="mt-5">
-                      <NeonBadge color={feature.color} size="sm">{feature.benefit}</NeonBadge>
+                      <NeonBadge color={feature.color} size="sm">{t(feature.benefit)}</NeonBadge>
                     </div>
                   </GlassCard>
                 </motion.div>
@@ -420,12 +422,12 @@ function LandingPage() {
         </Suspense>
         <div className="space-y-14">
           <div className="text-center space-y-4 max-w-2xl mx-auto">
-            <NeonBadge color="emerald" size="sm">Role journeys</NeonBadge>
+            <NeonBadge color="emerald" size="sm">{t('landing.role_badge')}</NeonBadge>
             <h2 className="text-4xl lg:text-5xl font-black tracking-tight">
-              <GradientText gradient="teal">One page, every role</GradientText>
+              <GradientText gradient="teal">{t('landing.role_heading')}</GradientText>
             </h2>
             <p className="text-lg text-slate-400">
-              Pre-select a role before continuing into login or signup.
+              {t('landing.role_sub')}
             </p>
           </div>
 
@@ -444,7 +446,7 @@ function LandingPage() {
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px]">{role.icon}</span>
-                {role.label}
+                {t(role.label)}
               </motion.button>
             ))}
           </div>
@@ -461,9 +463,9 @@ function LandingPage() {
             >
               <div className="space-y-6">
                 <div>
-                  <NeonBadge color={activeRole.color} pulse size="sm">{activeRole.eyebrow}</NeonBadge>
-                  <h3 className="mt-3 text-3xl font-black text-white">{activeRole.label} entry path</h3>
-                  <p className="mt-2 text-base leading-7 text-slate-400">{activeRole.description}</p>
+                  <NeonBadge color={activeRole.color} pulse size="sm">{t(activeRole.eyebrow)}</NeonBadge>
+                  <h3 className="mt-3 text-3xl font-black text-white">{t(activeRole.label)} {t('landing.entry_path')}</h3>
+                  <p className="mt-2 text-base leading-7 text-slate-400">{t(activeRole.description)}</p>
                 </div>
                 <div className="space-y-3">
                   {activeRole.features.map((feature, i) => (
@@ -475,16 +477,16 @@ function LandingPage() {
                       className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-4 backdrop-blur"
                     >
                       <span className="material-symbols-outlined text-teal-300 mt-0.5">check_circle</span>
-                      <span className="text-sm text-slate-300 font-medium">{feature}</span>
+                      <span className="text-sm text-slate-300 font-medium">{t(feature)}</span>
                     </motion.div>
                   ))}
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <Link to="/login" state={{ preferredRole: activeRole.value }}>
-                    <GlowButton variant="primary" icon={LogIn}>Login as {activeRole.label}</GlowButton>
+                    <GlowButton variant="primary" icon={LogIn}>{t('landing.login_as')} {t(activeRole.label)}</GlowButton>
                   </Link>
                   <Link to="/signup" state={{ preferredRole: activeRole.value }}>
-                    <GlowButton variant="secondary" icon={UserPlus}>Signup as {activeRole.label}</GlowButton>
+                    <GlowButton variant="secondary" icon={UserPlus}>{t('landing.signup_as')} {t(activeRole.label)}</GlowButton>
                   </Link>
                 </div>
               </div>
@@ -501,10 +503,10 @@ function LandingPage() {
                       {activeRole.icon}
                     </motion.span>
                     <GradientText gradient="teal" as="p" className="mt-4 text-sm font-bold uppercase tracking-[0.2em]">
-                      {activeRole.label} portal
+                      {t(activeRole.label)} {t('landing.portal')}
                     </GradientText>
                     <p className="mt-3 max-w-xs mx-auto text-sm leading-6 text-slate-500">
-                      Landing, auth, and protected routing form one continuous journey.
+                      {t('landing.routing_text')}
                     </p>
                   </div>
                 </div>
@@ -527,26 +529,26 @@ function LandingPage() {
 
           <div className="relative z-10 text-center space-y-8">
             <h2 className="text-4xl lg:text-5xl font-black">
-              <GradientText gradient="neon">Ready to experience smarter healthcare?</GradientText>
+              <GradientText gradient="neon">{t('landing.cta_heading')}</GradientText>
             </h2>
             <p className="text-lg text-slate-400 max-w-2xl mx-auto">
-              Start at the public homepage, continue into login or signup, and let the app route each role where it belongs.
+              {t('landing.cta_sub')}
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link to="/login">
                 <GlowButton variant="neon" size="lg" icon={LogIn} iconRight={ArrowRight}>
-                  Open Login
+                  {t('landing.open_login')}
                 </GlowButton>
               </Link>
               <Link to="/signup">
                 <GlowButton variant="secondary" size="lg" icon={UserPlus}>
-                  Open Signup
+                  {t('landing.open_signup')}
                 </GlowButton>
               </Link>
             </div>
 
-            <p className="text-sm text-slate-500">Login stays the default call-to-action from the root path.</p>
+            <p className="text-sm text-slate-500">{t('landing.cta_note')}</p>
           </div>
         </GlassCard>
       </RevealSection>
@@ -556,7 +558,7 @@ function LandingPage() {
         <div className="mx-auto max-w-7xl flex flex-col items-center gap-4">
           <Logo size="sm" showText />
           <p className="text-sm text-slate-500 text-center">
-            &copy; 2026 SwasthaLink. Clearer healthcare communication for patients, doctors, and families.
+            {t('landing.copyright')}
           </p>
           <DataFlowIndicator color="rgb(45, 212, 191)" speed={4} width="w-32" />
         </div>

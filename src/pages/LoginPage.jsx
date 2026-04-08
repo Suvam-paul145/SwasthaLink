@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Logo from '../components/Logo';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const AmbientHeart = lazy(() => import('../components/effects/AmbientHeart'));
 import { getDashboardRouteForRole, ROLE_OPTIONS, ROLE_META } from '../utils/auth';
@@ -15,6 +16,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, user, login } = useAuth();
+  const { t } = useLanguage();
 
   const [role, setRole] = useState(() => resolvePreferredRole(location.state?.preferredRole));
   const [email, setEmail] = useState('');
@@ -77,21 +79,21 @@ function LoginPage() {
               to="/"
               className="text-sm text-teal-200 hover:text-teal-100 transition-colors w-fit"
             >
-              Back to landing page
+              {t('login.back')}
             </Link>
           </div>
 
           <div className="mb-8">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-teal-200">Welcome back</p>
-            <h1 className="text-3xl font-headline font-extrabold mt-2">SwasthaLink Login</h1>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-teal-200">{t('login.welcome')}</p>
+            <h1 className="text-3xl font-headline font-extrabold mt-2">{t('login.title')}</h1>
             <p className="text-sm text-slate-300 mt-2 leading-6">
-              Sign in to your dashboard using the role linked to your account.
+              {t('login.subtitle')}
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Select Role</label>
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('login.select_role')}</label>
               <div className="grid grid-cols-3 gap-2">
                 {ROLE_OPTIONS.map((item) => {
                   const meta = ROLE_META[item.value] || {};
@@ -127,7 +129,7 @@ function LoginPage() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Email ID</label>
+              <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('login.email')}</label>
               <input
                 type="email"
                 required
@@ -140,12 +142,12 @@ function LoginPage() {
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Password</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('login.password')}</label>
                 <Link
                   to="/forgot-password"
                   className="text-xs text-teal-300 hover:text-teal-200 transition-colors"
                 >
-                  Forgot password?
+                  {t('login.forgot')}
                 </Link>
               </div>
               <div className="relative">
@@ -154,7 +156,7 @@ function LoginPage() {
                   required
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Enter your password"
+                  placeholder={t('login.enter_password')}
                   className="w-full rounded-2xl bg-[#0f2334] border border-white/15 px-4 py-3 pr-16 text-sm text-white placeholder:text-slate-500 shadow-inner shadow-black/10 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
                 />
                 <button
@@ -162,7 +164,7 @@ function LoginPage() {
                   onClick={() => setShowPassword((current) => !current)}
                   className="absolute inset-y-0 right-0 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-teal-200 hover:text-teal-100 transition-colors"
                 >
-                  {showPassword ? 'Hide' : 'Show'}
+                  {showPassword ? t('login.hide') : t('login.show')}
                 </button>
               </div>
             </div>
@@ -187,23 +189,23 @@ function LoginPage() {
               whileTap={{ scale: 0.98 }}
               className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal-300 via-cyan-300 to-emerald-300 text-[#053438] font-extrabold tracking-wide hover:shadow-[0_16px_30px_rgba(45,212,191,0.35)] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              {isSubmitting ? 'Signing in...' : 'Login'}
+              {isSubmitting ? t('login.signing_in') : t('login.login')}
             </motion.button>
           </form>
 
           <div className="mt-6 flex flex-col gap-3 text-center text-sm text-slate-400">
             <p>
-              Need a new account?{' '}
+              {t('login.need_account')}{' '}
               <Link
                 to="/signup"
                 state={{ preferredRole: role }}
                 className="text-teal-300 hover:text-teal-200 font-medium transition-colors"
               >
-                Create one here
+                {t('login.create_one')}
               </Link>
             </p>
             <p className="text-xs leading-5 text-slate-500">
-              Protected pages still send unauthenticated visitors here before they can continue.
+              {t('login.protected_info')}
             </p>
           </div>
         </section>

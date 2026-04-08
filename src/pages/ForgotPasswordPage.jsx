@@ -1,12 +1,14 @@
 import { lazy, Suspense, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
+import { useLanguage } from '../context/LanguageContext';
 import api from '../services/api';
 
 const AmbientMolecule = lazy(() => import('../components/effects/AmbientMolecule'));
 
 function ForgotPasswordPage() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
@@ -77,30 +79,30 @@ function ForgotPasswordPage() {
             </Link>
             <div className="flex flex-col items-start sm:items-end gap-2">
               <Link to="/" className="text-sm text-teal-200 hover:text-teal-100 transition-colors">
-                Back to landing page
+                {t('forgot.back_landing')}
               </Link>
               <Link to="/login" className="text-sm text-teal-300 hover:text-teal-200 transition-colors">
-                Back to login
+                {t('forgot.back_login')}
               </Link>
             </div>
           </div>
 
           <div className="mb-6">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-teal-200">Account recovery</p>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-teal-200">{t('forgot.recovery')}</p>
             <h1 className="text-3xl font-headline font-extrabold mt-2">
-              {step === 1 ? 'Forgot Password' : 'Reset Password'}
+              {step === 1 ? t('forgot.title') : t('forgot.reset_title')}
             </h1>
             <p className="text-sm text-slate-300 mt-2 leading-6">
               {step === 1
-                ? 'Enter your registered email and phone number to receive a reset OTP.'
-                : 'Enter the OTP you received and choose a new password.'}
+                ? t('forgot.desc_request')
+                : t('forgot.desc_reset')}
             </p>
           </div>
 
           {step === 1 ? (
             <form onSubmit={handleRequestOtp} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Email ID</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('forgot.email')}</label>
                 <input
                   type="email"
                   required
@@ -112,7 +114,7 @@ function ForgotPasswordPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Phone Number</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('forgot.phone')}</label>
                 <input
                   type="text"
                   required
@@ -140,7 +142,7 @@ function ForgotPasswordPage() {
                 disabled={isSubmitting}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal-300 via-cyan-300 to-emerald-300 text-[#053438] font-extrabold tracking-wide hover:shadow-[0_16px_30px_rgba(45,212,191,0.35)] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Sending OTP...' : 'Send Reset OTP'}
+                {isSubmitting ? t('forgot.sending') : t('forgot.send_otp')}
               </button>
             </form>
           ) : null}
@@ -148,7 +150,7 @@ function ForgotPasswordPage() {
           {step === 2 ? (
             <form onSubmit={handleResetPassword} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">OTP Code</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('forgot.otp_code')}</label>
                 <input
                   type="text"
                   required
@@ -160,7 +162,7 @@ function ForgotPasswordPage() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">New Password</label>
+                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">{t('forgot.new_password')}</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -168,7 +170,7 @@ function ForgotPasswordPage() {
                     minLength={6}
                     value={newPassword}
                     onChange={(event) => setNewPassword(event.target.value)}
-                    placeholder="Create new password"
+                    placeholder={t('forgot.create_new')}
                     className="w-full rounded-2xl bg-[#0f2334] border border-white/15 px-4 py-3 pr-16 text-sm text-white placeholder:text-slate-500 shadow-inner shadow-black/10 focus:outline-none focus:ring-2 focus:ring-teal-300/40"
                   />
                   <button
@@ -176,7 +178,7 @@ function ForgotPasswordPage() {
                     onClick={() => setShowPassword((current) => !current)}
                     className="absolute inset-y-0 right-0 px-4 text-xs font-semibold uppercase tracking-[0.18em] text-teal-200 hover:text-teal-100 transition-colors"
                   >
-                    {showPassword ? 'Hide' : 'Show'}
+                    {showPassword ? t('forgot.hide') : t('forgot.show')}
                   </button>
                 </div>
               </div>
@@ -198,7 +200,7 @@ function ForgotPasswordPage() {
                 disabled={isSubmitting}
                 className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-teal-300 via-cyan-300 to-emerald-300 text-[#053438] font-extrabold tracking-wide hover:shadow-[0_16px_30px_rgba(45,212,191,0.35)] transition-all disabled:opacity-70 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Resetting...' : 'Reset Password'}
+                {isSubmitting ? t('forgot.resetting') : t('forgot.reset_btn')}
               </button>
             </form>
           ) : null}
