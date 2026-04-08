@@ -203,3 +203,117 @@ div:hover > .hover-parent-glow {
 ::-webkit-scrollbar-thumb:hover {
   background: rgb(79 219 200 / 0.4);
 }
+
+.family-dashboard-pid-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+@media (max-width: 1024px) {
+  .family-dashboard-page {
+    padding: 16px !important;
+    padding-bottom: 96px !important;
+  }
+
+  .family-dashboard-title {
+    font-size: 2rem !important;
+    line-height: 1.1 !important;
+  }
+
+  .family-dashboard-link-card,
+  .family-dashboard-stage {
+    padding: 20px !important;
+  }
+
+  .family-dashboard-overview-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+    gap: 16px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .family-dashboard-header-meta {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .family-dashboard-header-button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  .family-dashboard-link-info {
+    min-width: 0 !important;
+    flex: 1 1 100% !important;
+  }
+
+  .family-dashboard-link-form {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+    flex-direction: column !important;
+  }
+
+  .family-dashboard-link-form input,
+  .family-dashboard-link-form button {
+    width: 100% !important;
+  }
+
+  .family-dashboard-pid-grid,
+  .family-dashboard-overview-grid,
+  .family-dashboard-doc-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .family-dashboard-pid-card,
+  .family-dashboard-report-item {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+
+  .family-dashboard-pid-main,
+  .family-dashboard-report-item-main {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .family-dashboard-pid-actions,
+  .family-dashboard-report-item-actions,
+  .family-dashboard-reports-actions,
+  .family-dashboard-viewer-actions {
+    width: 100% !important;
+    flex-wrap: wrap !important;
+    margin-left: 0 !important;
+  }
+
+  .family-dashboard-pid-actions > button {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center !important;
+  }
+
+  .family-dashboard-report-item-actions > button,
+  .family-dashboard-reports-actions > button,
+  .family-dashboard-viewer-actions > button {
+    flex: 1 1 100%;
+    justify-content: center !important;
+  }
+
+  .family-dashboard-reports-toolbar,
+  .family-dashboard-viewer-toolbar {
+    align-items: stretch !important;
+  }
+
+  .family-dashboard-report-frame {
+    height: 60vh !important;
+  }
+
+  .family-dashboard-toast {
+    left: 12px !important;
+    right: 12px !important;
+    bottom: 88px !important;
+    max-width: none !important;
+  }
+}

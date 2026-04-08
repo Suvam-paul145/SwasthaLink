@@ -451,8 +451,9 @@ async def chatbot_query(patient_id: str, request: dict):
         question = request.get("question", "")
         if not question:
             raise HTTPException(status_code=400, detail="Question is required")
+        inline_context = request.get("context")
         from services.chatbot_context_service import answer_from_context
-        result = await answer_from_context(patient_id, question)
+        result = await answer_from_context(patient_id, question, inline_context=inline_context)
         return result
     except HTTPException:
         raise

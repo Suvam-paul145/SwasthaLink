@@ -213,14 +213,6 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=runtime["allowed_origins"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     @app.middleware("http")
     async def normalize_double_slashes(request, call_next):
         """Fix double-slash paths (e.g. //api/... -> /api/...) that break CORS preflight."""
@@ -230,6 +222,16 @@ def create_app() -> FastAPI:
             request.scope["path"] = cleaned
             request.scope["raw_path"] = cleaned.encode("ascii")
         return await call_next(request)
+
+    # CORS must be added AFTER other middleware so it becomes the outermost wrapper,
+    # ensuring CORS headers are present even on error/preflight responses.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=runtime["allowed_origins"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     for router in runtime["routers"]:
         app.include_router(router)

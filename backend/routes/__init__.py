@@ -10,6 +10,7 @@ from routes.prescriptions import router as prescriptions_router
 from routes.analytics import router as analytics_router
 from routes.doctor import router as doctor_router
 from routes.patient import router as patient_router
+from routes.reports import router as reports_router
 
 all_routers = [
     health_router,
@@ -18,6 +19,7 @@ all_routers = [
     whatsapp_router,
     prescriptions_router,
     analytics_router,
+    reports_router,
     doctor_router,
     patient_router,
 ]

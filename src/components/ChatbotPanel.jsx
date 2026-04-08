@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import { getGroqChatbotReply } from '../services/groq';
 
-const ChatbotPanel = () => {
+const ChatbotPanel = ({ prescriptions = [], dischargeHistory = [] }) => {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -14,6 +14,35 @@ const ChatbotPanel = () => {
   const [faqs, setFaqs] = useState([]);
   const messagesEndRef = useRef(null);
   const patientId = user?.user_id || user?.id || user?.email || '';
+
+  // Build inline context from prescription/discharge data available in the dashboard
+  const buildInlineContext = () => {
+    if (!prescriptions.length && !dischargeHistory.length) return null;
+    const medications = [];
+    const diagnoses = [];
+    const tests = [];
+    const doctors = [];
+    prescriptions.forEach(rx => {
+      const ed = rx.extracted_data || {};
+      if (ed.medications) medications.push(...ed.medications);
+      if (ed.diagnosis) diagnoses.push(...(Array.isArray(ed.diagnosis) ? ed.diagnosis : [ed.diagnosis]));
+      if (ed.tests) tests.push(...ed.tests);
+      if (ed.doctor_name && !doctors.includes(ed.doctor_name)) doctors.push(ed.doctor_name);
+    });
+    return {
+      medications,
+      diagnoses,
+      tests,
+      doctors,
+      prescription_count: prescriptions.length,
+      discharge_count: dischargeHistory.length,
+      discharge_summaries: dischargeHistory.slice(0, 3).map(d => ({
+        date: d.discharge_date || d.date,
+        diagnosis: d.diagnosis,
+        instructions: d.instructions,
+      })),
+    };
+  };
 
   useEffect(() => {
     if (isOpen && patientId) {
@@ -34,7 +63,8 @@ const ChatbotPanel = () => {
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setLoading(true);
     try {
-      const result = await getGroqChatbotReply(patientId, q);
+      const context = buildInlineContext();
+      const result = await getGroqChatbotReply(patientId, q, context);
       setMessages(prev => [...prev, {
         role: 'bot',
         text: result.answer || 'Sorry, I could not find an answer.',
@@ -71,7 +101,7 @@ const ChatbotPanel = () => {
       {isOpen && (
         <div style={{
           position: 'fixed', bottom: '100px', right: '24px', zIndex: 999,
-          width: '380px', maxHeight: '520px', borderRadius: '18px',
+          width: 'min(480px, calc(100vw - 48px))', maxHeight: 'min(680px, calc(100vh - 140px))', borderRadius: '18px',
           background: 'rgba(15,23,42,.92)', backdropFilter: 'blur(20px)',
           border: '1px solid rgba(13,148,136,.3)', boxShadow: '0 12px 48px rgba(0,0,0,.5)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -94,7 +124,7 @@ const ChatbotPanel = () => {
           <div style={{
             flex: 1, overflowY: 'auto', padding: '14px 16px',
             display: 'flex', flexDirection: 'column', gap: '10px',
-            maxHeight: '300px',
+            minHeight: '200px',
           }}>
             {messages.map((msg, i) => (
               <div key={i} style={{

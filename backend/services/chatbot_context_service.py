@@ -37,6 +37,40 @@ def _tokenize(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
 
 
+def _build_chunks_from_inline_context(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Build temporary chunk-like dicts from inline context sent by the frontend."""
+    chunks: List[Dict[str, Any]] = []
+    meds = ctx.get("medications") or []
+    if meds:
+        chunks.append({
+            "chunk_type": "medication",
+            "data": {"medications": meds},
+            "prescription_id": "inline",
+        })
+    diagnoses = ctx.get("diagnoses") or []
+    if diagnoses:
+        chunks.append({
+            "chunk_type": "explanation",
+            "data": {"diagnoses": diagnoses, "summary": ", ".join(str(d) for d in diagnoses)},
+            "prescription_id": "inline",
+        })
+    tests = ctx.get("tests") or []
+    if tests:
+        chunks.append({
+            "chunk_type": "routine",
+            "data": {"tests": tests},
+            "prescription_id": "inline",
+        })
+    discharge_summaries = ctx.get("discharge_summaries") or []
+    if discharge_summaries:
+        chunks.append({
+            "chunk_type": "explanation",
+            "data": {"discharge_summaries": discharge_summaries},
+            "prescription_id": "inline",
+        })
+    return chunks
+
+
 def _score_match(query: str, candidate: str) -> int:
     """Score relevance using direct phrase matches plus token overlap."""
     query_text = (query or "").strip().lower()
@@ -143,11 +177,16 @@ def _build_source_label(
     return f"{', '.join(labels[:2])} + more"
 
 
-async def answer_from_context(patient_id: str, question: str) -> Dict[str, Any]:
-    """Answer a question using approved patient chunks, with general knowledge fallback."""
+async def answer_from_context(patient_id: str, question: str, inline_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Answer a question using approved patient chunks, with inline context and general knowledge fallback."""
     from db.patient_chunks_db import get_chunks_by_patient
 
     all_chunks = await get_chunks_by_patient(patient_id)
+
+    # If no stored chunks but we have inline context from the frontend, build temporary chunks
+    if not all_chunks and inline_context:
+        all_chunks = _build_chunks_from_inline_context(inline_context)
+
     if not all_chunks:
         # No prescription data — fall back to general knowledge via Groq
         if is_groq_configured():

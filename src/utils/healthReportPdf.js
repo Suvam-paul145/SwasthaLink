@@ -1,7 +1,5 @@
 import jsPDF from 'jspdf';
-import { applyPlugin } from 'jspdf-autotable';
-
-applyPlugin(jsPDF);
+import autoTable from 'jspdf-autotable';
 
 /**
  * Generate a comprehensive health report PDF from patient prescription data.
@@ -84,7 +82,7 @@ export function generateHealthReport({ patientName, patientId, diagnosis, medica
     y = checkPageBreak(doc, y, 50);
     y = sectionHeader(doc, `MEDICATIONS (${medications.length})`, y, margin, pageW, teal);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
       head: [['#', 'Medication', 'Strength', 'Frequency', 'Duration', 'Instructions']],
@@ -102,7 +100,7 @@ export function generateHealthReport({ patientName, patientId, diagnosis, medica
       columnStyles: { 0: { cellWidth: 8 }, 1: { cellWidth: 32 } },
       theme: 'grid',
     });
-    y = doc.lastAutoTable.finalY + 8;
+    y = doc.previousAutoTable.finalY + 8;
 
     // Medication purposes & warnings
     const medsWithDetails = medications.filter(m => m.purpose || m.warnings);
@@ -143,7 +141,7 @@ export function generateHealthReport({ patientName, patientId, diagnosis, medica
     y = checkPageBreak(doc, y, 40);
     y = sectionHeader(doc, `TEST RESULTS (${tests.length})`, y, margin, pageW, teal);
 
-    doc.autoTable({
+    autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
       head: [['#', 'Test Name', 'Result', 'Normal Range', 'Status']],
@@ -168,7 +166,7 @@ export function generateHealthReport({ patientName, patientId, diagnosis, medica
         }
       },
     });
-    y = doc.lastAutoTable.finalY + 8;
+    y = doc.previousAutoTable.finalY + 8;
   }
 
   // ── Do's & Don'ts ──

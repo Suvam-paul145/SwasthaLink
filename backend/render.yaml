@@ -29,5 +29,11 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: TWILIO_API_KEY_SID
+        sync: false
+      - key: TWILIO_API_KEY_SECRET
+        sync: false
       - key: ENVIRONMENT
         value: production

@@ -21,6 +21,7 @@ export const API_ENDPOINTS = {
   AUTH_ME: '/api/auth/me',
   AUTH_FORGOT_PASSWORD: '/api/auth/forgot-password',
   AUTH_RESET_PASSWORD: '/api/auth/reset-password',
+  AUTH_UPDATE_PROFILE: '/api/auth/profile',
 
   // Prescription RAG pipeline endpoints
   PRESCRIPTION_EXTRACT: '/api/prescriptions/extract',
@@ -42,6 +43,9 @@ export const API_ENDPOINTS = {
   PATIENT_FAQ_SUGGESTIONS: (patientId) => `/api/patients/${patientId}/faq-suggestions`,
   PATIENT_CHATBOT_QUERY: (patientId) => `/api/patients/${patientId}/chatbot-query`,
   PATIENT_HISTORY: (patientId) => `/api/patient/${patientId}/history`,
+
+  // Report generation
+  REPORT_GENERATE: '/api/reports/generate',
 
   // Utility endpoints
   HEALTH: '/api/health',

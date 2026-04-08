@@ -7,13 +7,13 @@ from models import (
     AuthLoginRequest, AuthLoginResponse,
     OTPSendRequest, OTPVerifyRequest,
 )
-from models.auth import SignupRequest, SignupResponse, PasswordResetOTPRequest, PasswordResetConfirmRequest
+from models.auth import SignupRequest, SignupResponse, PasswordResetOTPRequest, PasswordResetConfirmRequest, ProfileUpdateRequest
 from auth.auth_service import login_user, signup_user
 from db.supabase_service import supabase_client
 from auth.jwt_utils import get_current_user
 from core.exceptions import AuthServiceError, OTPServiceError
 from services.otp_service import send_otp, verify_otp
-from db.profile_db import update_phone_verified_for_account
+from db.profile_db import update_phone_verified_for_account, update_profile
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -98,6 +98,43 @@ async def auth_me(user: dict = Depends(get_current_user)):
     except Exception as exc:
         logger.error(f"Error fetching user profile: {exc}")
         raise HTTPException(status_code=500, detail="Failed to fetch user profile")
+
+
+@router.patch("/api/auth/profile")
+async def auth_update_profile(request: ProfileUpdateRequest, user: dict = Depends(get_current_user)):
+    """Update current user's profile (name and/or phone). Resets phone_verified when phone changes."""
+    try:
+        user_id = user.get("id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found in token")
+
+        result = await update_profile(
+            user_id=user_id,
+            name=request.name,
+            phone=request.phone,
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=500, detail=result.get("error", "Profile update failed"))
+
+        # Fetch fresh profile to return
+        profile_data = result.get("data", {})
+        return {
+            "success": True,
+            "message": "Profile updated",
+            "user": {
+                "id": user_id,
+                "name": profile_data.get("full_name", request.name or user.get("name")),
+                "email": user.get("email", ""),
+                "role": user.get("role", ""),
+                "phone": profile_data.get("phone", request.phone or ""),
+                "phone_verified": profile_data.get("phone_verified", False),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Profile update error: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to update profile")
 
 
 @router.post("/api/auth/send-otp")

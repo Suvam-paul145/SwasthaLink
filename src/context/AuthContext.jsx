@@ -219,7 +219,8 @@ export function AuthProvider({ children }) {
     return nextSession;
   }, [session]);
 
-  const updateUserProfile = useCallback((updates) => {
+  const updateUserProfile = useCallback(async (updates) => {
+    // Update local session immediately for responsive UI
     setSession((currentSession) => {
       if (!currentSession?.user) return currentSession;
 
@@ -238,7 +239,40 @@ export function AuthProvider({ children }) {
 
       return nextSession;
     });
-  }, []);
+
+    // Persist to backend (non-demo only)
+    if (!session?.isDemo && !isDemoAccount(session?.user?.email)) {
+      try {
+        const payload = {};
+        if (updates.name !== undefined) payload.name = updates.name;
+        if (updates.phone !== undefined) payload.phone = updates.phone;
+        if (Object.keys(payload).length > 0) {
+          const result = await api.updateProfile(payload);
+          if (result?.success && result?.user) {
+            // Sync backend response into session
+            setSession((currentSession) => {
+              if (!currentSession?.user) return currentSession;
+              const synced = {
+                ...currentSession,
+                user: {
+                  ...currentSession.user,
+                  phone_verified: result.user.phone_verified,
+                },
+              };
+              if (typeof window !== 'undefined') {
+                window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(synced));
+              }
+              return synced;
+            });
+          }
+          return result;
+        }
+      } catch (err) {
+        console.warn('Failed to persist profile update to backend:', err.message);
+        throw err;
+      }
+    }
+  }, [session]);
 
   const logout = useCallback(() => {
     if (typeof window !== 'undefined') {

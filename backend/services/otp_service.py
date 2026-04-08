@@ -6,6 +6,7 @@ because Twilio Verify's WhatsApp channel requires an approved Business sender
 which trial accounts lack.  SMS OTPs still go through Twilio Verify.
 """
 
+import asyncio
 import logging
 import secrets
 from typing import Any, Dict
@@ -93,6 +94,47 @@ def _should_fallback_to_demo(exc: Exception) -> bool:
     )
 
 
+# Twilio WhatsApp Sandbox number
+_SANDBOX_NUMBER = "+14155238886"
+
+
+def _is_sandbox_number() -> bool:
+    """Check if the configured WhatsApp number is the Twilio sandbox."""
+    return _SANDBOX_NUMBER in (TWILIO_WHATSAPP_NUMBER or "")
+
+
+async def _check_message_delivery(msg_sid: str, max_wait: float = 4.0) -> dict | None:
+    """Poll Twilio message status to detect quick delivery failures.
+
+    Returns the message resource if a terminal failure is detected,
+    otherwise None (message is still in transit or delivered).
+    """
+    if not _twilio_client:
+        return None
+    # Wait briefly for Twilio to process the message
+    await asyncio.sleep(max_wait)
+    try:
+        updated = _twilio_client.messages(msg_sid).fetch()
+        if updated.status in ("failed", "undelivered"):
+            return {
+                "status": updated.status,
+                "error_code": updated.error_code,
+                "error_message": updated.error_message,
+            }
+    except Exception as exc:
+        logger.warning(f"Could not check message status for {msg_sid}: {exc}")
+    return None
+
+
+def _sandbox_instructions() -> str:
+    return (
+        "To receive WhatsApp OTPs, you must first join the Twilio Sandbox: "
+        "open WhatsApp, send 'join <your-sandbox-keyword>' to +14155238886. "
+        "Check your Twilio Console for the exact keyword. "
+        "After joining, resend the OTP."
+    )
+
+
 async def send_otp(phone_number: str, channel: str = "whatsapp") -> Dict[str, Any]:
     """Send an OTP to the given phone number.
 
@@ -117,8 +159,55 @@ async def send_otp(phone_number: str, channel: str = "whatsapp") -> Dict[str, An
                     to=to_number,
                     body=body,
                 )
+                logger.info(f"WhatsApp OTP queued for {phone_number}; SID: {msg.sid}")
+
+                # Check delivery status to detect sandbox/unverified failures
+                delivery_fail = await _check_message_delivery(msg.sid)
+                if delivery_fail:
+                    error_code = delivery_fail.get("error_code")
+                    logger.warning(
+                        f"WhatsApp OTP delivery failed for {phone_number}: "
+                        f"status={delivery_fail['status']}, error_code={error_code}"
+                    )
+                    # 63016 = user not in sandbox / no WhatsApp account
+                    # 63015 = number not in sandbox participants
+                    # 63007 = sandbox session expired
+                    if error_code in (63016, 63015, 63007) or _is_sandbox_number():
+                        # Remove the undelivered OTP and use demo OTP instead
+                        _WA_OTP_STORE.pop(phone_number, None)
+                        _DEMO_OTP_STORE[phone_number] = _DEMO_OTP_CODE
+                        sandbox_msg = _sandbox_instructions()
+                        return {
+                            "success": True,
+                            "message": (
+                                f"WhatsApp delivery failed for {phone_number}. "
+                                f"Using demo OTP: {_DEMO_OTP_CODE}. {sandbox_msg}"
+                            ),
+                            "demo_mode": True,
+                            "fallback_reason": "whatsapp_sandbox_not_joined",
+                            "sandbox_instructions": sandbox_msg,
+                            "channel": "whatsapp",
+                            "phone_number": phone_number,
+                            "configured": True,
+                        }
+                    # Other delivery failure — still fall back to demo
+                    _WA_OTP_STORE.pop(phone_number, None)
+                    _DEMO_OTP_STORE[phone_number] = _DEMO_OTP_CODE
+                    return {
+                        "success": True,
+                        "message": (
+                            f"WhatsApp delivery failed (error {error_code}). "
+                            f"Using demo OTP: {_DEMO_OTP_CODE} for {phone_number}."
+                        ),
+                        "demo_mode": True,
+                        "fallback_reason": "whatsapp_delivery_failed",
+                        "channel": "whatsapp",
+                        "phone_number": phone_number,
+                        "configured": True,
+                    }
+
                 _WA_OTP_STORE[phone_number] = otp_code
-                logger.info(f"WhatsApp OTP sent to {phone_number}; SID: {msg.sid}")
+                logger.info(f"WhatsApp OTP confirmed sent to {phone_number}")
                 return {
                     "success": True,
                     "message": f"OTP sent to {phone_number} via WhatsApp",

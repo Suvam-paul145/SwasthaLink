@@ -199,6 +199,18 @@ const api = {
   },
 
   /**
+   * Generate health report PDF on the backend
+   * @param {Object} data - Prescription/patient data
+   * @returns {Promise<{success: boolean, pdf_base64: string, text_summary: string, file_name: string}>}
+   */
+  generateReport: async (data) => {
+    return apiRequest(API_ENDPOINTS.REPORT_GENERATE, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
    * Send WhatsApp message
    * @param {Object} data - Request data
    * @param {string} data.phone_number - Phone number in E.164 format
@@ -387,6 +399,14 @@ const api = {
    * @param {string} channel - 'whatsapp' or 'sms'
    * @returns {Promise<Object>} OTP send result
    */
+  updateProfile: async (data) => {
+    return await apiRequest(API_ENDPOINTS.AUTH_UPDATE_PROFILE, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      timeout: api.AUTH_REQUEST_TIMEOUT,
+    });
+  },
+
   sendOtp: async (phone, channel = 'whatsapp') => {
     return await apiRequest(API_ENDPOINTS.AUTH_SEND_OTP, {
       method: 'POST',
@@ -564,10 +584,12 @@ const api = {
    * @param {string} question - The question to ask
    * @returns {Promise<Object>} { answer, source, confidence }
    */
-  askChatbot: async (patientId, question) => {
+  askChatbot: async (patientId, question, context) => {
+    const payload = { question };
+    if (context) payload.context = context;
     return await apiRequest(API_ENDPOINTS.PATIENT_CHATBOT_QUERY(patientId), {
       method: 'POST',
-      body: JSON.stringify({ question }),
+      body: JSON.stringify(payload),
     });
   },
 

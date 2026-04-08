@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 const AmbientCells = lazy(() => import('../components/effects/AmbientCells'));
 
@@ -13,7 +14,15 @@ function SettingsPage() {
     phone: '',
   });
   const [statusMessage, setStatusMessage] = useState('');
+  const [statusType, setStatusType] = useState('success'); // 'success' | 'error' | 'info'
   const [isSaving, setIsSaving] = useState(false);
+
+  // OTP verification state
+  const [showOtpInput, setShowOtpInput] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpPhone, setOtpPhone] = useState(''); // phone that OTP was sent to
 
   useEffect(() => {
     setFormData({
@@ -22,6 +31,8 @@ function SettingsPage() {
       phone: user?.phone || '',
     });
   }, [user]);
+
+  const phoneChanged = formData.phone.trim() && formData.phone.trim() !== (user?.phone || '');
 
   const profileStats = useMemo(
     () => [
@@ -36,21 +47,83 @@ function SettingsPage() {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setFormData((current) => ({ ...current, [name]: value }));
+    // Reset OTP flow if phone changes again
+    if (name === 'phone') {
+      setShowOtpInput(false);
+      setOtpCode('');
+    }
   };
 
-  const handleSave = (event) => {
+  const handleSave = async (event) => {
     event.preventDefault();
     setIsSaving(true);
     setStatusMessage('');
 
     try {
-      updateUserProfile({
+      await updateUserProfile({
         name: formData.name.trim() || 'User',
         phone: formData.phone.trim() || null,
       });
-      setStatusMessage('Profile updated locally for this session.');
+
+      // If phone changed, auto-send OTP for verification
+      if (phoneChanged) {
+        setStatusMessage('Profile saved! Sending OTP to verify your new phone number...');
+        setStatusType('info');
+        await handleSendOtp(formData.phone.trim());
+      } else {
+        setStatusMessage('Profile updated successfully.');
+        setStatusType('success');
+      }
+    } catch (err) {
+      setStatusMessage(err.message || 'Failed to save profile. Please try again.');
+      setStatusType('error');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSendOtp = async (phone) => {
+    setOtpSending(true);
+    try {
+      const targetPhone = phone || otpPhone || formData.phone.trim();
+      await api.sendOtp(targetPhone, 'whatsapp');
+      setOtpPhone(targetPhone);
+      setShowOtpInput(true);
+      setOtpCode('');
+      setStatusMessage(`OTP sent to ${targetPhone} via WhatsApp. Enter the code below.`);
+      setStatusType('info');
+    } catch (err) {
+      setStatusMessage(err.message || 'Failed to send OTP. Please try again.');
+      setStatusType('error');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpCode.trim()) return;
+    setOtpVerifying(true);
+    try {
+      const result = await api.verifyOtp(otpPhone, otpCode.trim(), {
+        user_id: user?.id,
+        email: user?.email,
+      });
+      if (result?.verified) {
+        setShowOtpInput(false);
+        setOtpCode('');
+        // Update local session with verified status
+        await updateUserProfile({ phone_verified: true });
+        setStatusMessage('Phone number verified successfully!');
+        setStatusType('success');
+      } else {
+        setStatusMessage('Invalid OTP code. Please try again.');
+        setStatusType('error');
+      }
+    } catch (err) {
+      setStatusMessage(err.message || 'OTP verification failed. Please try again.');
+      setStatusType('error');
+    } finally {
+      setOtpVerifying(false);
     }
   };
 
@@ -61,6 +134,8 @@ function SettingsPage() {
       phone: user?.phone || '',
     });
     setStatusMessage('');
+    setShowOtpInput(false);
+    setOtpCode('');
   };
 
   const handleLogout = () => {
@@ -145,6 +220,11 @@ function SettingsPage() {
                     placeholder="+919876543210"
                     className="w-full rounded-2xl bg-white/5 border border-white/10 px-4 py-3 text-white placeholder:text-slate-500 outline-none focus:border-teal-400/60 focus:ring-2 focus:ring-teal-400/10 transition-all"
                   />
+                  {phoneChanged && !showOtpInput && (
+                    <p className="text-xs text-amber-400/80 mt-1">
+                      Phone changed — OTP verification will be required after saving.
+                    </p>
+                  )}
                 </label>
               </div>
 
@@ -186,8 +266,54 @@ function SettingsPage() {
                 </button>
               </div>
 
+              {/* OTP Verification Section */}
+              {showOtpInput && (
+                <div className="bg-white/[0.03] border border-teal-400/20 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <span className="material-symbols-outlined text-teal-400">verified</span>
+                    <h3 className="text-base font-bold text-white">Verify Phone Number</h3>
+                  </div>
+                  <p className="text-sm text-slate-400">
+                    Enter the OTP sent to <span className="text-teal-300 font-semibold">{otpPhone}</span> via WhatsApp.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="Enter OTP code"
+                      maxLength={6}
+                      className="flex-1 rounded-xl bg-white/5 border border-white/10 px-4 py-3 text-white text-center text-lg font-mono tracking-[0.5em] placeholder:text-slate-500 placeholder:tracking-normal placeholder:text-sm outline-none focus:border-teal-400/60 focus:ring-2 focus:ring-teal-400/10 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleVerifyOtp}
+                      disabled={otpVerifying || otpCode.length < 4}
+                      className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 text-[#041115] font-bold hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">{otpVerifying ? 'progress_activity' : 'check_circle'}</span>
+                      {otpVerifying ? 'Verifying...' : 'Verify'}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleSendOtp(otpPhone)}
+                    disabled={otpSending}
+                    className="text-sm text-teal-400 hover:text-teal-300 transition-colors disabled:opacity-50"
+                  >
+                    {otpSending ? 'Sending...' : 'Resend OTP'}
+                  </button>
+                </div>
+              )}
+
               {statusMessage ? (
-                <p className="text-sm text-teal-300 bg-teal-400/10 border border-teal-400/15 rounded-2xl px-4 py-3">
+                <p className={`text-sm rounded-2xl px-4 py-3 ${
+                  statusType === 'error'
+                    ? 'text-rose-300 bg-rose-400/10 border border-rose-400/15'
+                    : statusType === 'info'
+                    ? 'text-amber-300 bg-amber-400/10 border border-amber-400/15'
+                    : 'text-teal-300 bg-teal-400/10 border border-teal-400/15'
+                }`}>
                   {statusMessage}
                 </p>
               ) : null}

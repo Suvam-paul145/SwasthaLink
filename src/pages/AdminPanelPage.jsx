@@ -92,7 +92,7 @@ function PrescriptionQueuePanel({ onAction }) {
   return (
     <div className="glass-card rounded-xl overflow-hidden border border-white/5 flex flex-col h-full">
       {/* Panel header */}
-      <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+      <div className="p-4 sm:p-6 border-b border-white/5 flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center bg-white/[0.01]">
         <div>
           <h3 className="text-lg font-headline font-bold text-white flex items-center gap-2">
             <span className="material-symbols-outlined text-primary">medication</span>
@@ -113,7 +113,7 @@ function PrescriptionQueuePanel({ onAction }) {
       </div>
 
       {/* Auto Admin ID badge */}
-      <div className="px-6 py-3 border-b border-white/5 flex items-center gap-3 bg-white/[0.02]">
+      <div className="px-4 sm:px-6 py-3 border-b border-white/5 flex flex-wrap items-center gap-3 bg-white/[0.02]">
         <span className="material-symbols-outlined text-sm text-teal-400">verified_user</span>
         <span className="text-xs text-slate-400">Reviewing as</span>
         <span className="text-xs font-mono font-bold text-teal-300 bg-teal-400/10 px-2.5 py-1 rounded-lg border border-teal-400/20">
@@ -144,7 +144,7 @@ function PrescriptionQueuePanel({ onAction }) {
       )}
 
       {!loading && records.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-x divide-white/5 flex-1 min-h-[500px]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-y lg:divide-y-0 lg:divide-x divide-white/5 flex-1 min-h-[500px]">
           {/* Left — list */}
           <div className="overflow-y-auto max-h-[600px] p-4 space-y-3">
             {records.map((rec) => {
@@ -186,7 +186,7 @@ function PrescriptionQueuePanel({ onAction }) {
           </div>
 
           {/* Right — detail / action pane */}
-          <div className="p-6 flex flex-col gap-4 overflow-y-auto max-h-[600px] bg-white/[0.01]">
+          <div className="p-4 sm:p-6 flex flex-col gap-4 overflow-y-auto max-h-[600px] bg-white/[0.01]">
             {!selected ? (
               <div className="flex flex-col items-center justify-center h-full text-slate-500 text-sm gap-2">
                 <span className="material-symbols-outlined text-3xl text-slate-600">touch_app</span>
@@ -194,7 +194,7 @@ function PrescriptionQueuePanel({ onAction }) {
               </div>
             ) : (
               <>
-                <h4 className="text-sm font-bold text-white uppercase tracking-wider flex justify-between items-center">
+                <h4 className="text-sm font-bold text-white uppercase tracking-wider flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:items-center">
                   <span>Extracted Data</span>
                   <span className="text-[10px] text-primary bg-primary/20 px-2 py-1 rounded capitalize">{selected.report_type || 'Prescription'}</span>
                 </h4>
@@ -210,7 +210,7 @@ function PrescriptionQueuePanel({ onAction }) {
                 )}
 
                 <div className="space-y-4 text-sm text-slate-300 flex-1">
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     {[
                       ['Doctor', selected.extracted_data.doctor_name],
                       ['Patient Name', selected.extracted_data.patient_name],
@@ -239,7 +239,7 @@ function PrescriptionQueuePanel({ onAction }) {
                       <p className="text-slate-500 mb-2">Tests:</p>
                       <ul className="space-y-2">
                         {selected.extracted_data.tests.map((t, i) => (
-                          <li key={i} className="text-xs text-white bg-surface-container-low border border-white/10 rounded-lg px-3 py-2 flex justify-between items-center">
+                          <li key={i} className="text-xs text-white bg-surface-container-low border border-white/10 rounded-lg px-3 py-2 flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:items-center">
                             <span className="font-semibold">{t.name}</span>
                             {t.status && (
                               <span className={`text-[10px] px-2 py-0.5 rounded-full ${t.status === 'completed' ? 'bg-primary/20 text-primary' : 'bg-yellow-500/20 text-yellow-300'} uppercase font-bold`}>
@@ -315,7 +315,7 @@ function PrescriptionQueuePanel({ onAction }) {
                 />
 
                 {/* Action buttons */}
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3">
                   <button
                     onClick={() => handleApprove(selected.prescription_id)}
                     disabled={actionStatus[selected.prescription_id] === 'approving'}
@@ -406,12 +406,12 @@ function AdminPanelPage() {
       </Suspense>
 
       {/* Topbar Navigation */}
-      <header className="fixed top-0 right-0 left-72 z-30 flex justify-between items-center px-8 h-20 bg-slate-950/60 backdrop-blur-2xl border-b border-white/5">
+      <header className="sticky top-0 z-30 mx-4 mt-4 flex flex-col gap-4 rounded-2xl border border-white/5 bg-slate-950/80 px-4 py-4 backdrop-blur-2xl sm:mx-6 sm:flex-row sm:items-center sm:justify-between lg:mx-0 lg:mt-0 lg:rounded-none lg:border-x-0 lg:border-t-0 lg:px-8 lg:py-0 lg:h-20">
         <div className="flex items-center gap-4">
           <h2 className="text-teal-400 font-bold tracking-tighter text-2xl font-headline">Admin Control</h2>
           <LivePulseIndicator status="active" label="Live" />
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between sm:justify-end gap-4">
           <div className="hidden md:flex flex-col items-end">
             <p className="text-xs text-slate-400 uppercase tracking-[0.14em]">{roleLabel}</p>
             <p className="text-sm font-semibold text-white">{user?.name || 'Administrator'}</p>
@@ -426,7 +426,7 @@ function AdminPanelPage() {
       </header>
 
       {/* Main Content Area */}
-      <main className="p-8 pt-28 max-w-[1600px] mx-auto space-y-8 relative z-10">
+      <main className="px-4 pb-8 pt-6 sm:px-6 lg:px-8 lg:pt-8 max-w-[1600px] mx-auto space-y-8 relative z-10">
         
         {/* Section: Animated Stats Ribbon */}
         <motion.div
@@ -483,7 +483,7 @@ function AdminPanelPage() {
           transition={{ duration: 0.5, delay: 0.4 }}
           className="glass-card rounded-2xl border border-white/[0.06] overflow-hidden flex flex-col min-h-[400px]"
         >
-          <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/[0.01]">
+          <div className="p-4 sm:p-6 border-b border-white/5 flex flex-col gap-4 lg:flex-row lg:justify-between lg:items-center bg-white/[0.01]">
             <div>
               <h3 className="text-lg font-headline font-bold text-white flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">history</span>
@@ -493,7 +493,7 @@ function AdminPanelPage() {
                 Complete record of all processed documents across the system
               </p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {/* Status filter pills */}
               {[{ value: 'all', label: 'All' }, { value: 'pending_admin_review', label: 'Pending' }, { value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }].map((f) => (
                 <button

@@ -8,10 +8,6 @@ import { getDashboardRouteForRole, ROLE_OPTIONS } from '../utils/auth';
 import api from '../services/api';
 
 const STEPS = { FORM: 'form', OTP: 'otp', DONE: 'done' };
-const DELIVERY_OPTIONS = [
-  { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'sms', label: 'SMS' },
-];
 
 const resolvePreferredRole = (value) =>
   ROLE_OPTIONS.some((item) => item.value === value) ? value : 'patient';
@@ -28,7 +24,6 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
-  const [otpChannel, setOtpChannel] = useState('whatsapp');
   const [otp, setOtp] = useState('');
   const [createdUserId, setCreatedUserId] = useState('');
   const [lastDeliveredChannel, setLastDeliveredChannel] = useState(null);
@@ -45,32 +40,35 @@ export default function SignupPage() {
   }, [step]);
 
   const stepNumber = step === STEPS.FORM ? 1 : step === STEPS.OTP ? 2 : 3;
-  const channelLabel = DELIVERY_OPTIONS.find((item) => item.value === otpChannel)?.label || 'WhatsApp';
+  const channelLabel = 'WhatsApp';
 
   useEffect(() => {
     if (!isAuthenticated || !user?.role) return;
     navigate(getDashboardRouteForRole(user.role), { replace: true });
   }, [isAuthenticated, navigate, user]);
 
-  const sendOtpForCurrentNumber = useCallback(async (channel = otpChannel) => {
+  const sendOtpForCurrentNumber = useCallback(async (channel = 'whatsapp') => {
     const trimmedPhone = phone.trim();
     const otpResult = await api.sendOtp(trimmedPhone, channel);
-    const deliveredChannel = DELIVERY_OPTIONS.some((item) => item.value === otpResult.channel)
-      ? otpResult.channel
-      : channel;
+    const deliveredChannel = otpResult.channel || 'whatsapp';
 
     setHasSentOtp(true);
     setLastDeliveredChannel(deliveredChannel);
     setLastDeliveryMessage(otpResult.message || '');
 
     if (otpResult.demo_mode) {
-      setInfo(`Verification code sent via ${deliveredChannel === 'sms' ? 'SMS' : 'WhatsApp'}. Use code 123456.`);
+      if (otpResult.sandbox_instructions) {
+        setError(otpResult.sandbox_instructions);
+        setInfo(`WhatsApp delivery failed. Use demo code: 123456`);
+      } else {
+        setInfo(`Demo mode active. Use code 123456 to verify.`);
+      }
     } else {
-      setInfo(`Verification code sent via ${deliveredChannel === 'sms' ? 'SMS' : 'WhatsApp'} to ${trimmedPhone}.`);
+      setInfo(`Verification code sent via WhatsApp to ${trimmedPhone}.`);
     }
 
     return otpResult;
-  }, [phone, otpChannel]);
+  }, [phone]);
 
   const handleSignup = useCallback(async (event) => {
     event.preventDefault();
@@ -108,7 +106,7 @@ export default function SignupPage() {
       setInfo(signupResult?.message || 'Account created successfully. Sending your OTP now.');
 
       try {
-        await sendOtpForCurrentNumber(otpChannel);
+        await sendOtpForCurrentNumber();
       } catch (sendErr) {
         setError(sendErr.message || 'Account created, but OTP could not be sent yet. Please resend it below.');
         setInfo('');
@@ -118,7 +116,7 @@ export default function SignupPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [role, name, email, password, phone, sendOtpForCurrentNumber, otpChannel]);
+  }, [role, name, email, password, phone, sendOtpForCurrentNumber]);
 
   const handleVerifyOtp = useCallback(async (event) => {
     event.preventDefault();
@@ -174,13 +172,13 @@ export default function SignupPage() {
     setIsSubmitting(true);
 
     try {
-      await sendOtpForCurrentNumber(otpChannel);
+      await sendOtpForCurrentNumber();
     } catch (err) {
       setError(err.message || 'Failed to resend OTP.');
     } finally {
       setIsSubmitting(false);
     }
-  }, [otpChannel, sendOtpForCurrentNumber]);
+  }, [sendOtpForCurrentNumber]);
 
   return (
     <div className="min-h-screen bg-[#06101d] text-white relative overflow-hidden px-4 py-8 sm:px-6 lg:px-8 flex items-center">
@@ -323,32 +321,6 @@ export default function SignupPage() {
                 </p>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">OTP Channel</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {DELIVERY_OPTIONS.map((option) => (
-                    <label
-                      key={option.value}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-2xl border cursor-pointer transition-all text-sm ${
-                        otpChannel === option.value
-                          ? 'bg-teal-300/10 border-teal-300/40 text-teal-100'
-                          : 'bg-white/[0.03] border-white/10 text-slate-300 hover:bg-white/[0.06]'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        value={option.value}
-                        checked={otpChannel === option.value}
-                        onChange={() => setOtpChannel(option.value)}
-                        className="hidden"
-                      />
-                      <span className="text-xs font-bold uppercase tracking-[0.2em] opacity-80">{option.value}</span>
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -382,26 +354,6 @@ export default function SignupPage() {
                   {lastDeliveryMessage}
                 </div>
               ) : null}
-
-              <div className="space-y-1.5">
-                <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Choose Delivery Channel</label>
-                <div className="grid grid-cols-2 gap-3">
-                  {DELIVERY_OPTIONS.map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => setOtpChannel(option.value)}
-                      className={`rounded-2xl border px-4 py-3 text-sm font-medium transition-all ${
-                        otpChannel === option.value
-                          ? 'bg-teal-300/10 border-teal-300/40 text-teal-100'
-                          : 'bg-white/[0.03] border-white/10 text-slate-300 hover:bg-white/[0.06]'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs text-slate-300 uppercase tracking-[0.16em]">Enter OTP Code</label>

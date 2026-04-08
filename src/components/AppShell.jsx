@@ -1,24 +1,26 @@
 import { useMemo, useState } from "react";
-import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import { getDashboardRouteForRole, ROLE_OPTIONS, ROLE_META } from "../utils/auth";
 import Logo from "./Logo";
 import RoleSwitcher from "./RoleSwitcher";
 import ScrollProgress from "./effects/ScrollProgress";
+import LanguageSelector from "./LanguageSelector";
 
 const navItems = [
-  { to: "/family-dashboard", icon: "personal_injury", label: "Family Dashboard", roles: ["patient"] },
-  { to: "/clarity-hub", icon: "auto_awesome", label: "Clarity Center", roles: ["patient"] },
-  { to: "/admin-panel", icon: "admin_panel_settings", label: "Admin Hub", roles: ["admin"] },
-  { to: "/doctor-panel", icon: "stethoscope", label: "Doctor Portal", roles: ["doctor"] },
-  { to: "/settings", icon: "settings", label: "Settings" },
+  { to: "/family-dashboard", icon: "personal_injury", labelKey: "nav.family_dashboard", roles: ["patient"] },
+  { to: "/clarity-hub", icon: "auto_awesome", labelKey: "nav.clarity_center", roles: ["patient"] },
+  { to: "/admin-panel", icon: "admin_panel_settings", labelKey: "nav.admin_hub", roles: ["admin"] },
+  { to: "/doctor-panel", icon: "stethoscope", labelKey: "nav.doctor_portal", roles: ["doctor"] },
+  { to: "/settings", icon: "settings", labelKey: "nav.settings" },
 ];
 
 function AppShell() {
-  const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, switchRole, availableRoles } = useAuth();
+  const { user, logout, availableRoles } = useAuth();
+  const { t } = useLanguage();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const roleLabel = ROLE_OPTIONS.find((item) => item.value === user?.role)?.label || "User";
@@ -43,8 +45,8 @@ function AppShell() {
 
   return (
     <div className="flex min-h-screen bg-[#070e17] text-white">
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#101c2e]/90 backdrop-blur-xl z-50 flex items-center px-4 border-b border-white/5 justify-between">
-        <div className="flex items-center gap-3">
+      <div className="lg:hidden fixed top-0 left-0 right-0 min-h-16 bg-[#101c2e]/90 backdrop-blur-xl z-50 flex items-center gap-3 px-3 py-2 border-b border-white/5 justify-between">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <button
             type="button"
             onClick={handleGoToRoleDashboard}
@@ -55,10 +57,10 @@ function AppShell() {
           </button>
           <button
             onClick={handleGoToRoleDashboard}
-            className={`bg-[#0f2334] border text-xs text-slate-100 px-2 py-1 rounded-lg hover:bg-[#15314a] transition-colors ${roleMeta.border}`}
+            className={`min-w-0 max-w-[8.5rem] bg-[#0f2334] border text-xs text-slate-100 px-2 py-1 rounded-lg hover:bg-[#15314a] transition-colors ${roleMeta.border}`}
             aria-label="Go to role dashboard"
           >
-            {roleLabel}
+            <span className="block truncate">{roleLabel}</span>
           </button>
           {availableRoles.length > 1 && (
             <RoleSwitcher mode="compact" />
@@ -83,7 +85,7 @@ function AppShell() {
       )}
 
       <aside
-        className={`fixed left-0 top-0 h-full flex flex-col z-40 bg-[#0a1628]/95 backdrop-blur-2xl shadow-2xl shadow-teal-900/40 font-headline font-medium text-lg w-72 transition-transform duration-300 border-r border-white/[0.06] overflow-y-auto ${
+        className={`fixed left-0 top-0 h-full flex flex-col z-40 bg-[#0a1628]/95 backdrop-blur-2xl shadow-2xl shadow-teal-900/40 font-headline font-medium text-lg w-[85vw] max-w-72 transition-transform duration-300 border-r border-white/[0.06] overflow-y-auto ${
           isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -120,7 +122,7 @@ function AppShell() {
         </div>
 
         <nav className="flex-1 mt-4 lg:mt-8 px-3 flex flex-col gap-1">
-          {allowedNavItems.map((item, i) => (
+          {allowedNavItems.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -148,7 +150,7 @@ function AppShell() {
                   >
                     {item.icon}
                   </span>
-                  <span className="text-sm font-medium">{item.label}</span>
+                  <span className="text-sm font-medium">{t(item.labelKey)}</span>
                   {isActive && (
                     <div className="absolute inset-0 rounded-xl bg-white/[0.03] pointer-events-none" />
                   )}
@@ -158,17 +160,20 @@ function AppShell() {
           ))}
         </nav>
 
-        <div className="p-6 mt-auto flex flex-col gap-4">
-          <button
-            onClick={() => {
-              navigate('/family-dashboard?tab=reports');
-              setIsSidebarOpen(false);
-            }}
-            className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white py-3 px-5 rounded-xl font-semibold shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30 hover:brightness-110 active:scale-[0.97] transition-all flex items-center justify-center gap-2 text-sm"
-          >
-            <span className="material-symbols-outlined text-lg">description</span>
-            Health Reports
-          </button>
+        <div className="p-4 sm:p-6 mt-auto flex flex-col gap-4">
+          <LanguageSelector />
+          {user?.role === "patient" && (
+            <button
+              onClick={() => {
+                navigate('/family-dashboard?tab=reports');
+                setIsSidebarOpen(false);
+              }}
+              className="w-full bg-gradient-to-r from-teal-500 to-cyan-500 text-white py-3 px-5 rounded-xl font-semibold shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30 hover:brightness-110 active:scale-[0.97] transition-all flex items-center justify-center gap-2 text-sm"
+            >
+              <span className="material-symbols-outlined text-lg">description</span>
+              Health Reports
+            </button>
+          )}
           <button
             onClick={handleLogout}
             className="flex items-center gap-4 text-slate-500 py-3 px-4 hover:text-slate-200 rounded-xl hover:bg-white/[0.03] transition-all text-sm"
@@ -182,7 +187,7 @@ function AppShell() {
         <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/20 to-transparent" />
       </aside>
 
-      <main className="flex-1 lg:ml-72 min-h-screen relative flex flex-col pt-16 lg:pt-0 bg-[#070e17]/90 backdrop-blur-sm">
+      <main className="flex-1 lg:ml-72 min-h-screen relative flex flex-col pt-[72px] lg:pt-0 bg-[#070e17]/90 backdrop-blur-sm">
         <ScrollProgress />
         <Outlet />
       </main>
