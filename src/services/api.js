@@ -199,6 +199,18 @@ const api = {
   },
 
   /**
+   * Generate health report PDF on the backend
+   * @param {Object} data - Prescription/patient data
+   * @returns {Promise<{success: boolean, pdf_base64: string, text_summary: string, file_name: string}>}
+   */
+  generateReport: async (data) => {
+    return apiRequest(API_ENDPOINTS.REPORT_GENERATE, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
    * Send WhatsApp message
    * @param {Object} data - Request data
    * @param {string} data.phone_number - Phone number in E.164 format

@@ -43,6 +43,9 @@ export const API_ENDPOINTS = {
   PATIENT_CHATBOT_QUERY: (patientId) => `/api/patients/${patientId}/chatbot-query`,
   PATIENT_HISTORY: (patientId) => `/api/patient/${patientId}/history`,
 
+  // Report generation
+  REPORT_GENERATE: '/api/reports/generate',
+
   // Utility endpoints
   HEALTH: '/api/health',
   SESSION_COUNT: '/api/sessions/count',
