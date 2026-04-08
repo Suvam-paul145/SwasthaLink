@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { lazy, Suspense, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useInView, AnimatePresence } from 'framer-motion';
 import { Brain, Languages, MessageCircle, ShieldCheck, Accessibility, LayoutDashboard, ArrowRight, UserPlus, LogIn, Sparkles, Zap, ChevronRight } from 'lucide-react';
@@ -9,7 +9,6 @@ import GradientText from '../components/ui/GradientText';
 import NeonBadge from '../components/ui/NeonBadge';
 import DataFlowIndicator from '../components/ui/DataFlowIndicator';
 import { heroStagger, tiltCardIn, gridReveal, neonReveal, scaleFadeIn, statSpring } from '../utils/animations';
-import { lazy, Suspense } from 'react';
 
 const AmbientDNA = lazy(() => import('../components/effects/AmbientDNA'));
 const AmbientHeart = lazy(() => import('../components/effects/AmbientHeart'));
