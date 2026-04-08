@@ -340,21 +340,21 @@ function ClarityHubPage() {
   };
 
   return (
-    <div className="p-12 relative z-10">
+    <div className="p-4 sm:p-6 lg:p-12 relative z-10">
       <Suspense fallback={null}>
         <AmbientDNA className="hidden lg:block absolute right-0 top-16 w-44 h-64 opacity-25 z-0" />
       </Suspense>
 
       {/* Header Section */}
-      <header className="mb-16 flex justify-between items-end">
+      <header className="mb-10 flex flex-col gap-6 lg:mb-16 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-4">
           <span className="text-teal-400 font-bold tracking-widest uppercase text-xs">Clarity Hub</span>
-          <h2 className="text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">
             Welcome, {user?.name || 'User'}.<br />
-            <span className="text-teal-400/80 font-normal">স্বাগতম, {user?.name || 'ব্যবহারকারী'}।</span>
+            <span className="text-2xl sm:text-3xl lg:text-[inherit] text-teal-400/80 font-normal">স্বাগতম, {user?.name || 'ব্যবহারকারী'}।</span>
           </h2>
         </div>
-        <div className="flex gap-4 items-center">
+        <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center lg:w-auto">
           <select
             value={selectedLang}
             onChange={(e) => setSelectedLang(e.target.value)}
@@ -365,8 +365,8 @@ function ClarityHubPage() {
               <option key={l.code} value={l.code} className="bg-slate-900 text-white">{l.label}</option>
             ))}
           </select>
-          <div className="bg-white/5 p-4 rounded-xl flex items-center gap-4 border border-white/5 backdrop-blur-md">
-            <div className="text-right">
+          <div className="bg-white/5 p-4 rounded-xl flex items-center justify-between gap-4 border border-white/5 backdrop-blur-md">
+            <div className="text-left sm:text-right">
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Role Access</p>
               <p className="text-xl font-bold text-teal-300">{user?.role?.toUpperCase() || 'GUEST'}</p>
             </div>
@@ -386,7 +386,7 @@ function ClarityHubPage() {
               <button
                 key={panel.id}
                 onClick={() => navigate(panel.route)}
-                className="rounded-xl border border-white/15 bg-white/[0.04] hover:bg-teal-400/20 hover:border-teal-300/40 transition-all px-4 py-3 text-left"
+                className="w-full sm:w-auto min-w-[14rem] rounded-xl border border-white/15 bg-white/[0.04] hover:bg-teal-400/20 hover:border-teal-300/40 transition-all px-4 py-3 text-left"
               >
                 <div className="flex items-center gap-2 text-teal-200">
                   <span className="material-symbols-outlined text-[20px]">{panel.icon}</span>
@@ -400,17 +400,17 @@ function ClarityHubPage() {
       </section>
 
       {/* Bento Grid Layout */}
-      <div className="grid grid-cols-12 gap-8 items-start">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8 items-start">
         {/* Central Clarity Glass Card */}
-        <section className="col-span-8 glass-card rounded-xl p-10 relative overflow-hidden group">
+        <section className="xl:col-span-8 glass-card rounded-xl p-6 sm:p-8 lg:p-10 relative overflow-hidden group">
           <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl group-hover:bg-primary/20 transition-all duration-700"></div>
           <div className="relative z-10">
-            <div className="flex justify-between items-start mb-12">
+            <div className="mb-8 flex flex-col gap-4 sm:mb-12 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 className="text-2xl font-headline font-bold text-white mb-2">Today's Treatment Plan</h3>
                 <p className="text-outline text-lg">আপনার আজকের চিকিৎসা পরিকল্পনা</p>
               </div>
-              <button onClick={handleSpeak} className={`w-14 h-14 rounded-full ${isSpeakingState ? 'bg-red-500/20 text-red-400' : 'bg-primary/10 text-primary'} flex items-center justify-center hover:bg-primary hover:text-on-primary transition-all duration-300 shadow-xl shadow-primary/5 group/speaker relative`}>
+              <button onClick={handleSpeak} className={`w-14 h-14 self-start rounded-full ${isSpeakingState ? 'bg-red-500/20 text-red-400' : 'bg-primary/10 text-primary'} flex items-center justify-center hover:bg-primary hover:text-on-primary transition-all duration-300 shadow-xl shadow-primary/5 group/speaker relative`}>
                 {!isSpeakingState && <span className="absolute inset-0 rounded-full bg-primary animate-ping opacity-20 group-hover:hidden"></span>}
                 <span className="material-symbols-outlined text-2xl">{isSpeakingState ? 'stop' : 'volume_up'}</span>
               </button>
@@ -418,7 +418,7 @@ function ClarityHubPage() {
 
             <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
               {treatmentItems.length > 0 ? treatmentItems.map((item) => (
-                <div key={item.id} className={`flex items-center gap-5 p-5 rounded-lg bg-white/5 hover:bg-white/10 transition-all group/item cursor-pointer ${item.status === 'due' ? 'border-l-2 border-l-teal-400' : ''}`}>
+                <div key={item.id} className={`flex flex-col items-start gap-4 p-5 rounded-lg bg-white/5 hover:bg-white/10 transition-all group/item cursor-pointer sm:flex-row sm:items-center sm:gap-5 ${item.status === 'due' ? 'border-l-2 border-l-teal-400' : ''}`}>
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                     item.status === 'completed' ? 'bg-primary' : 'border-2 border-primary/40 group-hover/item:border-primary transition-colors'
                   }`}>
@@ -435,7 +435,7 @@ function ClarityHubPage() {
                     <p className={`text-lg font-medium mt-0.5 ${item.status === 'completed' ? 'text-white/50 line-through' : 'text-white'}`}>{item.name}</p>
                     <p className={`text-sm ${item.status === 'completed' ? 'text-outline/50' : 'text-outline'}`}>{item.purpose}</p>
                   </div>
-                  <div className="text-right flex flex-col items-end shrink-0">
+                  <div className="flex w-full flex-col items-start text-left sm:w-auto sm:items-end sm:text-right shrink-0">
                     <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${item.statusStyle}`}>{item.statusLabel}</span>
                     {item.timeNote && <span className="text-[10px] text-outline opacity-60 mt-1">{item.timeNote}</span>}
                   </div>
@@ -451,15 +451,15 @@ function ClarityHubPage() {
         </section>
 
         {/* Goals and Vitals Sidebar */}
-        <section className="col-span-4 space-y-8">
+        <section className="xl:col-span-4 space-y-6 lg:space-y-8">
           {/* Today's Goal Section */}
-          <div className="bg-surface-container-low rounded-xl p-8 border border-white/5 flex flex-col items-center text-center relative overflow-hidden">
+          <div className="bg-surface-container-low rounded-xl p-6 sm:p-8 border border-white/5 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4">
               <span className="material-symbols-outlined text-primary/30 text-4xl">water_drop</span>
             </div>
             <h4 className="text-lg font-headline font-bold text-white mb-8">Hydration Goal</h4>
             {/* Progress Ring */}
-            <div className="relative w-48 h-48 mb-8">
+            <div className="relative w-40 h-40 sm:w-48 sm:h-48 mb-8">
               <svg className="w-full h-full" viewBox="0 0 100 100">
                 <circle className="text-surface-container-highest stroke-current" cx="50" cy="50" fill="transparent" r="42" strokeWidth="8"></circle>
                 <circle className="text-primary stroke-current progress-ring-circle" cx="50" cy="50" fill="transparent" r="42" strokeLinecap="round" strokeWidth="8" style={{ strokeDasharray: 264, strokeDashoffset: 66 }}></circle>
@@ -491,10 +491,10 @@ function ClarityHubPage() {
         </section>
       </div>
 
-      <div className="mt-12 flex justify-end">
+      <div className="mt-8 flex justify-center sm:mt-12 sm:justify-end">
         <Link 
           to="/clarity-hub" 
-          className="bg-primary/10 text-primary border border-primary/20 py-4 px-8 rounded-full font-bold hover:bg-primary hover:text-on-primary transition-all shadow-xl shadow-primary/5"
+          className="w-full sm:w-auto text-center bg-primary/10 text-primary border border-primary/20 py-4 px-8 rounded-full font-bold hover:bg-primary hover:text-on-primary transition-all shadow-xl shadow-primary/5"
         >
           Open Detailed Clarity Center
         </Link>
@@ -614,11 +614,11 @@ function ClarityHubPage() {
 
         <button
           onClick={() => setIsAssistantOpen((prev) => !prev)}
-          className="relative w-20 h-20 rounded-full bg-gradient-to-br from-teal-300 via-teal-400 to-cyan-500 text-[#043437] shadow-[0_20px_40px_rgba(20,184,166,0.45)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border border-white/35"
+          className="relative h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-gradient-to-br from-teal-300 via-teal-400 to-cyan-500 text-[#043437] shadow-[0_20px_40px_rgba(20,184,166,0.45)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all border border-white/35"
           aria-label="Toggle clarity assistant"
         >
           <span className="absolute inset-0 rounded-full border-4 border-teal-200/30 animate-ping"></span>
-          <span className="material-symbols-outlined text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
+          <span className="material-symbols-outlined text-2xl sm:text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>chat</span>
         </button>
       </div>
     </div>

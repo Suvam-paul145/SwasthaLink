@@ -584,10 +584,12 @@ const api = {
    * @param {string} question - The question to ask
    * @returns {Promise<Object>} { answer, source, confidence }
    */
-  askChatbot: async (patientId, question) => {
+  askChatbot: async (patientId, question, context) => {
+    const payload = { question };
+    if (context) payload.context = context;
     return await apiRequest(API_ENDPOINTS.PATIENT_CHATBOT_QUERY(patientId), {
       method: 'POST',
-      body: JSON.stringify({ question }),
+      body: JSON.stringify(payload),
     });
   },
 

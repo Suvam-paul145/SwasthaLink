@@ -344,7 +344,7 @@ function FamilyDashboardPage() {
   const displayMeds = allMedications.length > 0 ? allMedications : fallbackMeds;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#070e17', color: '#fff', padding: '24px', paddingBottom: '100px', position: 'relative', overflow: 'hidden' }}>
+    <div className="family-dashboard-page" style={{ minHeight: '100vh', background: '#070e17', color: '#fff', padding: '24px', paddingBottom: '100px', position: 'relative', overflow: 'hidden' }}>
       {/* Ambient glow */}
       <div style={{ position: 'absolute', top: '-100px', right: '-80px', width: '280px', height: '280px', background: 'rgba(13,148,136,.1)', borderRadius: '50%', filter: 'blur(100px)' }} />
       <div style={{ position: 'absolute', bottom: '-120px', left: '-80px', width: '300px', height: '300px', background: 'rgba(34,211,238,.08)', borderRadius: '50%', filter: 'blur(120px)' }} />
@@ -354,20 +354,21 @@ function FamilyDashboardPage() {
         <AmbientLungs className="hidden lg:block absolute -left-8 bottom-40 w-48 h-48 opacity-20 z-0" />
       </Suspense>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative', zIndex: 10 }}>
+      <div className="family-dashboard-inner" style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative', zIndex: 10 }}>
         {/* Header */}
-        <div style={{ marginBottom: '32px' }}>
+        <div className="family-dashboard-header" style={{ marginBottom: '32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
             <span style={{ background: 'rgba(13,148,136,.2)', color: '#5eead4', padding: '4px 12px', borderRadius: '999px', fontSize: '10px', fontWeight: 700, letterSpacing: '.2em', textTransform: 'uppercase', border: '1px solid rgba(13,148,136,.2)' }}>{t('header.badge')}</span>
           </div>
-          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>{t('header.title')}</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
+          <h1 className="family-dashboard-title" style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>{t('header.title')}</h1>
+          <div className="family-dashboard-header-meta" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '6px', flexWrap: 'wrap' }}>
             <p style={{ color: '#94a3b8', fontSize: '16px', margin: 0 }}>
               {t('header.subtitle')} <span style={{ color: '#5eead4', fontWeight: 600 }}>{patientName}</span>
               {linkedPid && <span style={{ marginLeft: '12px', fontSize: '12px', background: 'rgba(94,234,212,.1)', color: '#5eead4', padding: '2px 8px', borderRadius: '6px' }}>{t('linked')}: {linkedPid}</span>}
             </p>
             <button
               onClick={() => setShowShareQR(true)}
+              className="family-dashboard-header-button"
               style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(13,148,136,.15)', border: '1px solid rgba(13,148,136,.3)', borderRadius: '10px', padding: '6px 14px', color: '#5eead4', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>qr_code_2</span>
@@ -375,6 +376,7 @@ function FamilyDashboardPage() {
             </button>
             <button
               onClick={() => setShowEmergencyCard(true)}
+              className="family-dashboard-header-button"
               style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(239,68,68,.15)', border: '1px solid rgba(239,68,68,.3)', borderRadius: '10px', padding: '6px 14px', color: '#fca5a5', fontSize: '12px', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>emergency</span>
@@ -385,12 +387,12 @@ function FamilyDashboardPage() {
 
         {/* Link Records Section */}
         {!linkedPid && (
-          <div style={{ background: 'rgba(13,148,136,.05)', border: '1px dashed rgba(13,148,136,.3)', borderRadius: '20px', padding: '24px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
-            <div style={{ flex: 1, minWidth: '300px' }}>
+          <div className="family-dashboard-link-card" style={{ background: 'rgba(13,148,136,.05)', border: '1px dashed rgba(13,148,136,.3)', borderRadius: '20px', padding: '24px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+            <div className="family-dashboard-link-info" style={{ flex: 1, minWidth: '300px' }}>
               <h4 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#5eead4' }}>{t('link.title')}</h4>
               <p style={{ fontSize: '14px', color: '#94a3b8', marginTop: '4px' }}>{t('link.subtitle')}</p>
             </div>
-            <form onSubmit={handleLinkPid} style={{ display: 'flex', gap: '10px', flex: '0 0 auto' }}>
+            <form className="family-dashboard-link-form" onSubmit={handleLinkPid} style={{ display: 'flex', gap: '10px', flex: '0 0 auto' }}>
               <input 
                 type="text" 
                 placeholder="PID-XXXXXX"
@@ -422,12 +424,12 @@ function FamilyDashboardPage() {
               <h4 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: '#e2e8f0' }}>{t('medical.ids')}</h4>
               <span style={{ fontSize: '11px', color: '#64748b', background: 'rgba(255,255,255,.05)', padding: '2px 8px', borderRadius: '6px' }}>{patientPids.length} record{patientPids.length !== 1 ? 's' : ''}</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
+            <div className="family-dashboard-pid-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '12px' }}>
               {patientPids.map((p) => {
                 const date = p.createdAt ? new Date(p.createdAt) : null;
                 return (
-                  <div key={p.pid} style={{ background: 'rgba(13,148,136,.06)', border: '1px solid rgba(13,148,136,.15)', borderRadius: '14px', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
+                  <div key={p.pid} className="family-dashboard-pid-card" style={{ background: 'rgba(13,148,136,.06)', border: '1px solid rgba(13,148,136,.15)', borderRadius: '14px', padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="family-dashboard-pid-main">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                         <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '14px', color: '#5eead4' }}>{p.pid}</span>
                         {p.pid === linkedPid && <span style={{ fontSize: '9px', background: 'rgba(94,234,212,.15)', color: '#5eead4', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>{t('linked').toUpperCase()}</span>}
@@ -444,21 +446,23 @@ function FamilyDashboardPage() {
                         </p>
                       )}
                     </div>
-                    <button onClick={() => { navigator.clipboard.writeText(p.pid); }} title="Copy PID" style={{ background: 'rgba(255,255,255,.06)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
-                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        const rx = prescriptions.find(r => (r.extracted_data?.patient_id || r.patient_id) === p.pid);
-                        if (rx) handleGenerateReport(rx, true);
-                      }}
-                      disabled={reportGenerating}
-                      title="Generate Health Report & Send to WhatsApp"
-                      style={{ background: reportGenerating ? 'rgba(13,148,136,.1)' : 'rgba(13,148,136,.15)', border: '1px solid rgba(13,148,136,.3)', borderRadius: '8px', padding: '6px 10px', cursor: reportGenerating ? 'wait' : 'pointer', color: '#5eead4', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, transition: 'all .2s' }}
-                    >
-                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{reportGenerating ? 'progress_activity' : 'picture_as_pdf'}</span>
-                      {t('report')}
-                    </button>
+                    <div className="family-dashboard-pid-actions">
+                      <button onClick={() => { navigator.clipboard.writeText(p.pid); }} title="Copy PID" style={{ background: 'rgba(255,255,255,.06)', border: 'none', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>content_copy</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const rx = prescriptions.find(r => (r.extracted_data?.patient_id || r.patient_id) === p.pid);
+                          if (rx) handleGenerateReport(rx, true);
+                        }}
+                        disabled={reportGenerating}
+                        title="Generate Health Report & Send to WhatsApp"
+                        style={{ background: reportGenerating ? 'rgba(13,148,136,.1)' : 'rgba(13,148,136,.15)', border: '1px solid rgba(13,148,136,.3)', borderRadius: '8px', padding: '6px 10px', cursor: reportGenerating ? 'wait' : 'pointer', color: '#5eead4', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', fontWeight: 600, transition: 'all .2s' }}
+                      >
+                        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>{reportGenerating ? 'progress_activity' : 'picture_as_pdf'}</span>
+                        {t('report')}
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -467,7 +471,7 @@ function FamilyDashboardPage() {
         )}
 
         {/* Tab Navigation */}
-        <div style={{ display: 'flex', gap: '4px', marginBottom: '28px', overflowX: 'auto', paddingBottom: '4px' }}>
+        <div className="family-dashboard-tabs" style={{ display: 'flex', gap: '4px', marginBottom: '28px', overflowX: 'auto', paddingBottom: '4px' }}>
           {TABS.map(tab => (
             <button
               key={tab.id}
@@ -491,7 +495,7 @@ function FamilyDashboardPage() {
 
         {/* Report Generation Stage Animation Overlay */}
         {reportGenerating && reportStage >= 0 && (
-          <div style={{
+          <div className="family-dashboard-stage" style={{
             background: 'rgba(15,23,42,.92)', backdropFilter: 'blur(12px)',
             borderRadius: '20px', padding: '36px', marginBottom: '28px',
             border: '1px solid rgba(13,148,136,.25)', position: 'relative', overflow: 'hidden',
@@ -551,11 +555,11 @@ function FamilyDashboardPage() {
         )}
 
         {/* Tab Content */}
-        <div style={{ minHeight: '400px' }}>
+        <div className="family-dashboard-content" style={{ minHeight: '400px' }}>
 
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px' }}>
+            <div className="family-dashboard-overview-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '24px' }}>
               {/* Clinical Status */}
               <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', padding: '28px', border: '1px solid rgba(255,255,255,.08)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '16px' }}>
@@ -789,7 +793,7 @@ function FamilyDashboardPage() {
               {rxLoading ? <SkeletonGrid /> : prescriptions.length === 0 ? (
                 <EmptyState message={t('docs.empty')} />
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+                <div className="family-dashboard-doc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
                   {prescriptions.map(rx => {
                     const ed = rx.extracted_data || rx;
                     const meds = ed.medications || rx.medications || [];
@@ -855,9 +859,9 @@ function FamilyDashboardPage() {
           {/* REPORTS TAB */}
           {activeTab === 'reports' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+              <div className="family-dashboard-reports-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
                 <h3 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>📄 {t('reports.title')}</h3>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="family-dashboard-reports-actions" style={{ display: 'flex', gap: '8px' }}>
                   {viewingReport && (
                     <button
                       onClick={() => setViewingReport(null)}
@@ -891,7 +895,7 @@ function FamilyDashboardPage() {
                 <div style={{ marginBottom: '24px' }}>
                   <div style={{ background: 'rgba(255,255,255,.03)', borderRadius: '20px', border: '1px solid rgba(13,148,136,.2)', overflow: 'hidden' }}>
                     {/* Viewer toolbar */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: 'rgba(13,148,136,.08)', borderBottom: '1px solid rgba(13,148,136,.15)', flexWrap: 'wrap', gap: '8px' }}>
+                    <div className="family-dashboard-viewer-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: 'rgba(13,148,136,.08)', borderBottom: '1px solid rgba(13,148,136,.15)', flexWrap: 'wrap', gap: '8px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                         <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#0d9488' }}>picture_as_pdf</span>
                         <div>
@@ -901,7 +905,7 @@ function FamilyDashboardPage() {
                           </p>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
+                      <div className="family-dashboard-viewer-actions" style={{ display: 'flex', gap: '8px' }}>
                         <button
                           onClick={() => downloadReportPdf(viewingReport)}
                           title="Download PDF"
@@ -931,6 +935,7 @@ function FamilyDashboardPage() {
                     <iframe
                       src={viewingReport.pdfDataUri}
                       title="Health Report PDF"
+                      className="family-dashboard-report-frame"
                       style={{ width: '100%', height: '75vh', border: 'none', background: '#1e293b' }}
                     />
                   </div>
@@ -951,8 +956,8 @@ function FamilyDashboardPage() {
                   {savedReports.map(report => {
                     const date = new Date(report.timestamp);
                     return (
-                      <div key={report.id} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '16px', padding: '20px 24px', border: '1px solid rgba(255,255,255,.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                        <div style={{ flex: 1, minWidth: '200px' }}>
+                      <div key={report.id} className="family-dashboard-report-item" style={{ background: 'rgba(255,255,255,.03)', borderRadius: '16px', padding: '20px 24px', border: '1px solid rgba(255,255,255,.08)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                        <div className="family-dashboard-report-item-main" style={{ flex: 1, minWidth: '200px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
                             <span className="material-symbols-outlined" style={{ fontSize: '20px', color: '#0d9488' }}>picture_as_pdf</span>
                             <h4 style={{ fontSize: '14px', fontWeight: 700, margin: 0, color: '#e2e8f0' }}>{report.patientName || 'Health Report'}</h4>
@@ -963,7 +968,7 @@ function FamilyDashboardPage() {
                             {date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })} at {date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
-                        <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
+                        <div className="family-dashboard-report-item-actions" style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap' }}>
                           <button
                             onClick={() => setViewingReport(report)}
                             title="View PDF"
@@ -1008,7 +1013,7 @@ function FamilyDashboardPage() {
 
       {/* Report Toast Notification */}
       {reportToast && (
-        <div style={{
+        <div className="family-dashboard-toast" style={{
           position: 'fixed', bottom: '100px', right: '24px', zIndex: 9999,
           background: reportToast.type === 'success' ? 'rgba(13,148,136,.95)' : reportToast.type === 'warning' ? 'rgba(245,158,11,.95)' : 'rgba(239,68,68,.95)',
           color: '#fff', padding: '14px 22px', borderRadius: '14px', maxWidth: '420px',
@@ -1026,7 +1031,7 @@ function FamilyDashboardPage() {
       )}
 
       {/* Chatbot Panel */}
-      <ChatbotPanel />
+      <ChatbotPanel prescriptions={prescriptions} dischargeHistory={dischargeHistory} />
 
       {/* Share QR Modal */}
       {showShareQR && (
@@ -1073,7 +1078,7 @@ function SkeletonBlock() {
 
 function SkeletonGrid() {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
+    <div className="family-dashboard-doc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
       {[1, 2, 3].map(i => (
         <div key={i} style={{ background: 'rgba(255,255,255,.03)', borderRadius: '16px', padding: '24px', height: '160px' }}>
           <SkeletonBlock />
@@ -1101,7 +1106,7 @@ function PrescriptionImageViewer({ imageUrl, prescriptionId }) {
   const { t } = useLanguage();
 
   return (
-    <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
+    <div className="family-dashboard-rx-image" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(255,255,255,.06)' }}>
       <button
         onClick={() => { setShowImage(!showImage); setImgError(false); setImgLoading(true); }}
         style={{
@@ -1119,7 +1124,7 @@ function PrescriptionImageViewer({ imageUrl, prescriptionId }) {
         {showImage ? t('docs.hide_image') : t('docs.view_image')}
       </button>
       {showImage && (
-        <div style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', background: 'rgba(0,0,0,.3)', border: '1px solid rgba(255,255,255,.08)', position: 'relative' }}>
+        <div className="family-dashboard-rx-image-preview" style={{ marginTop: '12px', borderRadius: '12px', overflow: 'hidden', background: 'rgba(0,0,0,.3)', border: '1px solid rgba(255,255,255,.08)', position: 'relative' }}>
           {imgLoading && !imgError && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px', color: '#5eead4', fontSize: '13px', gap: '10px' }}>
               <span className="material-symbols-outlined" style={{ fontSize: '20px', animation: 'spin 1.5s linear infinite' }}>progress_activity</span>

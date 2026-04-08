@@ -315,7 +315,7 @@ function DoctorPanelPage() {
   };
 
   return (
-    <motion.div className="p-6 lg:p-10 relative z-10" {...pageTransition}>
+    <motion.div className="p-4 sm:p-6 lg:p-10 relative z-10" {...pageTransition}>
       {/* 3D Hero Background */}
       <div className="absolute inset-0 h-64 pointer-events-none overflow-hidden -z-10">
         <DashboardHero3D variant="doctor" height="260px" />
@@ -357,7 +357,7 @@ function DoctorPanelPage() {
             <button
               onClick={handleExportSummary}
               disabled={exporting}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-teal-300 hover:bg-white/10 transition-all text-xs font-bold disabled:opacity-50"
+              className="flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-teal-300 hover:bg-white/10 transition-all text-xs font-bold disabled:opacity-50"
             >
               <span className="material-symbols-outlined text-sm">{exporting ? "progress_activity" : "download_clinical_notes"}</span>
               {exporting ? "Preparing Report..." : "Export Daily Summary (CSV)"}
@@ -366,7 +366,7 @@ function DoctorPanelPage() {
         </motion.div>
 
         <motion.div
-          className="grid grid-cols-3 gap-3 w-full lg:w-auto"
+          className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto"
           {...dashboardStagger}
         >
           <AnimatedStatCard
@@ -570,7 +570,7 @@ function DoctorPanelPage() {
               {/* Patient Mode Toggle */}
               <div className="space-y-2 md:col-span-2">
                 <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Patient Selection</label>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <button
                     onClick={() => { setPatientMode('new'); setSelectedPatient(null); }}
                     className={`flex-1 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-all flex items-center justify-center gap-2 ${
