@@ -21,6 +21,7 @@ export const API_ENDPOINTS = {
   AUTH_ME: '/api/auth/me',
   AUTH_FORGOT_PASSWORD: '/api/auth/forgot-password',
   AUTH_RESET_PASSWORD: '/api/auth/reset-password',
+  AUTH_UPDATE_PROFILE: '/api/auth/profile',
 
   // Prescription RAG pipeline endpoints
   PRESCRIPTION_EXTRACT: '/api/prescriptions/extract',

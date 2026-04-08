@@ -26,6 +26,7 @@ class ReportRequest(BaseModel):
     tests: List[Dict[str, Any]] = Field(default_factory=list)
     patient_insights: Optional[Dict[str, Any]] = None
     discharge_history: List[Dict[str, Any]] = Field(default_factory=list)
+    language: Optional[str] = "en"
 
 
 @router.post("/api/reports/generate")

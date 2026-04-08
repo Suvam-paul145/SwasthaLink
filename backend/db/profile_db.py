@@ -125,6 +125,47 @@ async def link_patient_pid(user_id: str, pid: str) -> dict:
         return {"success": False, "error": str(e)}
 
 
+async def update_profile(user_id: str, name: str = None, phone: str = None) -> Dict[str, Any]:
+    """Update a user's profile (name and/or phone). Resets phone_verified when phone changes."""
+    try:
+        client = _get_client()
+        if not client:
+            return {"success": False, "error": "Supabase not configured"}
+
+        update_data = {}
+        if name is not None:
+            update_data["full_name"] = name
+
+        if phone is not None:
+            # Fetch current phone to check if it changed
+            current = (
+                client.table("profiles")
+                .select("phone")
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
+            )
+            current_phone = current.data[0]["phone"] if current.data else None
+            update_data["phone"] = phone
+            if phone != current_phone:
+                update_data["phone_verified"] = False
+
+        if not update_data:
+            return {"success": True, "message": "Nothing to update"}
+
+        result = (
+            client.table("profiles")
+            .update(update_data)
+            .eq("user_id", user_id)
+            .execute()
+        )
+        logger.info(f"Profile updated for user {user_id}: {list(update_data.keys())}")
+        return {"success": True, "data": result.data[0] if result.data else update_data}
+    except Exception as e:
+        logger.error(f"Failed to update profile for {user_id}: {e}")
+        return {"success": False, "error": str(e)}
+
+
 async def get_user_pid(user_id: str) -> str:
     """Fetch the linked PID for a user profile."""
     try:

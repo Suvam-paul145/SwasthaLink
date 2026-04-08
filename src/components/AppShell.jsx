@@ -2,23 +2,26 @@ import { useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import { getDashboardRouteForRole, ROLE_OPTIONS, ROLE_META } from "../utils/auth";
 import Logo from "./Logo";
 import RoleSwitcher from "./RoleSwitcher";
 import ScrollProgress from "./effects/ScrollProgress";
+import LanguageSelector from "./LanguageSelector";
 
 const navItems = [
-  { to: "/family-dashboard", icon: "personal_injury", label: "Family Dashboard", roles: ["patient"] },
-  { to: "/clarity-hub", icon: "auto_awesome", label: "Clarity Center", roles: ["patient"] },
-  { to: "/admin-panel", icon: "admin_panel_settings", label: "Admin Hub", roles: ["admin"] },
-  { to: "/doctor-panel", icon: "stethoscope", label: "Doctor Portal", roles: ["doctor"] },
-  { to: "/settings", icon: "settings", label: "Settings" },
+  { to: "/family-dashboard", icon: "personal_injury", labelKey: "nav.family_dashboard", roles: ["patient"] },
+  { to: "/clarity-hub", icon: "auto_awesome", labelKey: "nav.clarity_center", roles: ["patient"] },
+  { to: "/admin-panel", icon: "admin_panel_settings", labelKey: "nav.admin_hub", roles: ["admin"] },
+  { to: "/doctor-panel", icon: "stethoscope", labelKey: "nav.doctor_portal", roles: ["doctor"] },
+  { to: "/settings", icon: "settings", labelKey: "nav.settings" },
 ];
 
 function AppShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, switchRole, availableRoles } = useAuth();
+  const { t } = useLanguage();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const roleLabel = ROLE_OPTIONS.find((item) => item.value === user?.role)?.label || "User";
@@ -148,7 +151,7 @@ function AppShell() {
                   >
                     {item.icon}
                   </span>
-                  <span className="text-sm font-medium">{item.label}</span>
+                  <span className="text-sm font-medium">{t(item.labelKey)}</span>
                   {isActive && (
                     <div className="absolute inset-0 rounded-xl bg-white/[0.03] pointer-events-none" />
                   )}
@@ -159,6 +162,7 @@ function AppShell() {
         </nav>
 
         <div className="p-6 mt-auto flex flex-col gap-4">
+          <LanguageSelector />
           <button
             onClick={() => {
               navigate('/family-dashboard?tab=reports');

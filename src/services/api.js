@@ -399,6 +399,14 @@ const api = {
    * @param {string} channel - 'whatsapp' or 'sms'
    * @returns {Promise<Object>} OTP send result
    */
+  updateProfile: async (data) => {
+    return await apiRequest(API_ENDPOINTS.AUTH_UPDATE_PROFILE, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+      timeout: api.AUTH_REQUEST_TIMEOUT,
+    });
+  },
+
   sendOtp: async (phone, channel = 'whatsapp') => {
     return await apiRequest(API_ENDPOINTS.AUTH_SEND_OTP, {
       method: 'POST',

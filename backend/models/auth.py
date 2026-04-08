@@ -127,3 +127,12 @@ class PasswordResetConfirmRequest(BaseModel):
         if "@" not in trimmed or "." not in trimmed.split("@")[-1]:
             raise ValueError("Invalid email format")
         return trimmed
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Request to update user profile (name and/or phone)."""
+    name: Optional[str] = Field(None, min_length=2, max_length=100, description="Display name")
+    phone: Optional[str] = Field(
+        None, pattern=r'^\+\d{10,15}$',
+        description="Phone in E.164 format",
+    )
