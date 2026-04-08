@@ -1,6 +1,5 @@
-import { useRef } from 'react';
+import { Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Suspense } from 'react';
 import { COLORS } from '../utils/three-config';
 
 function Capsule({ color = COLORS.primary, speed = 1 }) {
