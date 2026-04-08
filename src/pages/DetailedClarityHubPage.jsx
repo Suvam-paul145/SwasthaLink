@@ -5,24 +5,23 @@ import { useAuth } from "../context/AuthContext";
 const AmbientLungs = lazy(() => import('../components/effects/AmbientLungs'));
 import { speak, stop } from "../utils/tts";
 import { startListening } from "../utils/stt";
-import { LANGUAGE_LABELS } from "../utils/config";
+import { useLanguage } from '../context/LanguageContext';
 
 function DetailedClarityHubPage() {
   const { user } = useAuth();
   const patientName = user?.name || "Patient";
+  const { language, setLanguage, t, SUPPORTED_LANGUAGES } = useLanguage();
 
   const [chatMessages, setChatMessages] = useState([
     {
       id: "welcome",
       sender: "assistant",
-      text: "Hi! I can help with your care plan, medicines, or questions. Type or tap mic to speak.",
-      subtext: "আপনার কেয়ার প্ল্যান, ওষুধ বা প্রশ্নে সাহায্য করতে পারি। টাইপ করুন বা মাইক ট্যাপ করুন।"
+      text: t('clarity.welcome_msg_detail'),
     },
     {
       id: "voice-welcome",
       sender: "assistant",
-      text: "Ready to assist\n\nTap the mic to explain your treatment in simple language.",
-      subtext: "সহজ ভাষায় চিকিৎসা পরিকল্পনা বুঝতে মাইক আইকনে ট্যাপ করুন।"
+      text: t('clarity.voice_ready'),
     }
   ]);
   const [chatInput, setChatInput] = useState("");
@@ -32,48 +31,31 @@ function DetailedClarityHubPage() {
 
   const quickActions = useMemo(
     () => [
-      { icon: "medication", label: "Next dose" },
-      { icon: "schedule", label: "Set reminder" },
-      { icon: "restaurant", label: "Diet" },
-      { icon: "warning", label: "Warning signs" }
+      { icon: "medication", label: "Next dose", tKey: "clarity.qa_next_dose" },
+      { icon: "schedule", label: "Set reminder", tKey: "clarity.qa_reminder" },
+      { icon: "restaurant", label: "Diet", tKey: "clarity.qa_diet_short" },
+      { icon: "warning", label: "Warning signs", tKey: "clarity.qa_warning" }
     ],
     []
   );
 
 
   const respondToPrompt = (promptLabel) => {
-    const cannedResponses = {
-      "Next dose": {
-        text: "Insulin 10 units at 8:00 PM, BP tablet after dinner.",
-        subtext: "রাত ৮টায় ইনসুলিন ১০ ইউনিট, রাতের খাবারের পর BP ট্যাবলেট।"
-      },
-      "Set reminder": {
-        text: "Reminders set for 7:30 PM medicine and 9:00 PM sugar check.",
-        subtext: "ওষুধ ও সুগার চেকের জন্য ৭:৩০ PM এবং ৯:০০ PM রিমাইন্ডার সেট।"
-      },
-      "Diet": {
-        text: "Low-salt meals, avoid sugary drinks, 2 glasses water before sleep.",
-        subtext: "কম লবণের খাবার, মিষ্টি পানীয় এড়ান, ঘুমের আগে ২ গ্লাস পানি।"
-      },
-      "Warning signs": {
-        text: "Sugar >300, dizziness, chest pain, breathlessness - call emergency.",
-        subtext: "শর্করা >৩০০, মাথা ঘোরা, বুক ব্যথা, শ্বাসকষ্ট - জরুরি সাহায্য নিন।"
-      },
-      custom: {
-        text: "Got it. Need short answer, Bengali explanation, or repeat?",
-        subtext: "বুঝলাম। সংক্ষেপ, বাংলা ব্যাখ্যা, নাকি পুনরাবৃত্তি?"
-      }
+    const cannedKeys = {
+      "Next dose": 'clarity.resp_next_dose',
+      "Set reminder": 'clarity.resp_reminder',
+      "Diet": 'clarity.resp_diet',
+      "Warning signs": 'clarity.resp_warning',
+      custom: 'clarity.resp_custom'
     };
 
-    const response = cannedResponses[promptLabel] || cannedResponses.custom;
-    // Typing simulation
+    const tKey = cannedKeys[promptLabel] || cannedKeys.custom;
     setIsListening(true);
     setTimeout(() => {
       setChatMessages(prev => [...prev, {
         id: `${Date.now()}-assistant`,
         sender: "assistant",
-        text: response.text,
-        subtext: response.subtext
+        text: t(tKey),
       }]);
       setIsListening(false);
     }, 1200);
@@ -84,7 +66,7 @@ function DetailedClarityHubPage() {
     setChatMessages(prev => [...prev, {
       id: `${Date.now()}-user`,
       sender: "user",
-      text: action.label
+      text: t(action.tKey)
     }]);
     respondToPrompt(action.label);
   };
@@ -104,15 +86,14 @@ function DetailedClarityHubPage() {
 
   const [isSpeakingState, setIsSpeakingState] = useState(false);
   const [recognitionRef, setRecognitionRef] = useState(null);
-  const [selectedLang, setSelectedLang] = useState('bn');
 
   const handleSpeak = () => {
     if (isSpeakingState) {
       stop();
       setIsSpeakingState(false);
     } else {
-      const text = "সকালে ইনসুলিন ১০ ইউনিট নিন। রক্তচাপের ওষুধ রাতের খাবারের পর নিন। রক্তে শর্করা পরীক্ষা করুন।";
-      speak(text, selectedLang, () => setIsSpeakingState(false));
+      const text = `${t('clarity.morning_insulin')}. ${t('clarity.bp_med')}. ${t('clarity.check_sugar')}.`;
+      speak(text, language, () => setIsSpeakingState(false));
       setIsSpeakingState(true);
     }
   };
@@ -134,7 +115,7 @@ function DetailedClarityHubPage() {
         }]);
         respondToPrompt("custom");
       },
-      selectedLang,
+      language,
       () => {
         setIsListening(false);
         setRecognitionRef(null);
@@ -153,26 +134,25 @@ function DetailedClarityHubPage() {
       {/* Header Section */}
       <header className="mb-10 flex flex-col gap-6 lg:mb-12 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-4">
-          <span className="text-primary font-bold tracking-widest uppercase text-xs">Clarity Hub</span>
+          <span className="text-primary font-bold tracking-widest uppercase text-xs">{t('clarity.badge')}</span>
           <div className="flex flex-col gap-0.5">
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">Welcome back, {patientName}.</h2>
-            <span className="text-2xl sm:text-3xl text-teal-400/80 font-headline font-medium">আবার স্বাগতম, রাহাত।</span>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">{t('clarity.welcome_back')} {patientName}.</h2>
           </div>
         </div>
         <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center lg:w-auto">
           <select
-            value={selectedLang}
-            onChange={(e) => setSelectedLang(e.target.value)}
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
             className="bg-white/5 border border-white/10 text-teal-200 text-sm rounded-xl px-3 py-2 backdrop-blur-md focus:border-teal-400/60 focus:outline-none cursor-pointer"
             aria-label="Select language"
           >
-            {LANGUAGE_LABELS.map((l) => (
-              <option key={l.code} value={l.code} className="bg-slate-900 text-white">{l.label}</option>
+            {SUPPORTED_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code} className="bg-slate-900 text-white">{l.nativeName}</option>
             ))}
           </select>
           <div className="glass-card bg-surface-container-low/30 px-4 sm:px-6 py-4 rounded-2xl flex items-center justify-between gap-5 border border-white/5">
             <div className="text-left sm:text-right">
-              <p className="text-[10px] text-outline font-bold uppercase tracking-widest mb-1">Current Temperature</p>
+              <p className="text-[10px] text-outline font-bold uppercase tracking-widest mb-1">{t('clarity.current_temp')}</p>
               <p className="text-2xl font-bold text-white">98.4<span className="text-primary ml-1">°F</span></p>
             </div>
             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
@@ -192,8 +172,7 @@ function DetailedClarityHubPage() {
             <div className="relative z-10">
               <div className="mb-8 flex flex-col gap-4 sm:mb-10 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-col gap-0.5">
-                  <h3 className="text-3xl font-headline font-bold text-white">Today's Treatment Plan</h3>
-                  <p className="text-lg text-outline">আপনার আজকের চিকিৎসা পরিকল্পনা</p>
+                  <h3 className="text-3xl font-headline font-bold text-white">{t('clarity.treatment_plan')}</h3>
                 </div>
                 <button onClick={handleSpeak} className={`w-16 h-16 self-start rounded-2xl ${isSpeakingState ? 'bg-red-500/20 text-red-400' : 'bg-primary/10 text-primary'} flex items-center justify-center hover:bg-primary hover:text-on-primary transition-all duration-300 shadow-xl shadow-primary/5 group/speaker relative`}>
                   {!isSpeakingState && <span className="absolute inset-0 rounded-2xl bg-primary animate-ping opacity-10 group-hover:hidden"></span>}
@@ -209,16 +188,14 @@ function DetailedClarityHubPage() {
                   </div>
                   <div className="flex-1">
                     <div className="flex flex-col gap-0.5 mb-2">
-                      <p className="text-xl font-semibold text-white tracking-tight">Morning Insulin (10 Units)</p>
-                      <p className="text-sm text-outline font-medium">সকালের ইনসুলিন (১০ ইউনিট)</p>
+                      <p className="text-xl font-semibold text-white tracking-tight">{t('clarity.morning_insulin')}</p>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <p className="text-xs text-primary/80 font-medium italic">Take before breakfast, 30 mins prior</p>
-                      <p className="text-[10px] text-primary/60">নাস্তার ৩০ মিনিট আগে নিন</p>
+                      <p className="text-xs text-primary/80 font-medium italic">{t('clarity.before_breakfast')}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest border border-primary/30 shadow-sm shadow-primary/5">Pending</span>
+                    <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest border border-primary/30 shadow-sm shadow-primary/5">{t('clarity.pending')}</span>
                   </div>
                 </div>
 
@@ -228,16 +205,14 @@ function DetailedClarityHubPage() {
                   </div>
                   <div className="flex-1">
                     <div className="flex flex-col gap-0.5 mb-2">
-                      <p className="text-xl font-semibold text-white/70 line-through tracking-tight">Take BP Medication (Telmisartan 40mg)</p>
-                      <p className="text-sm text-outline/70 line-through font-medium">রক্তচাপের ওষুধ নিন (টেলমিসার্টন ৪০ মি.গ্রা.)</p>
+                      <p className="text-xl font-semibold text-white/70 line-through tracking-tight">{t('clarity.bp_med')}</p>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <p className="text-xs text-white/40 font-medium italic">Take with water, do not crush</p>
-                      <p className="text-[10px] text-white/30">জল দিয়ে খান, গুঁড়ো করবেন না</p>
+                      <p className="text-xs text-white/40 font-medium italic">{t('clarity.take_with_water')}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="px-3 py-1 rounded-full bg-surface-container-highest/50 text-outline text-[10px] font-bold uppercase tracking-widest border border-white/5">Completed</span>
+                    <span className="px-3 py-1 rounded-full bg-surface-container-highest/50 text-outline text-[10px] font-bold uppercase tracking-widest border border-white/5">{t('clarity.completed')}</span>
                   </div>
                 </div>
 
@@ -273,8 +248,7 @@ function DetailedClarityHubPage() {
               <span className="material-symbols-outlined text-primary/40 text-3xl group-hover:scale-110 transition-transform">water_drop</span>
             </div>
             <div className="flex flex-col gap-0.5 items-center mb-8">
-              <h4 className="text-lg font-headline font-bold text-white uppercase tracking-wider">Hydration Goal</h4>
-              <span className="text-xs text-outline font-medium">জলের লক্ষ্য</span>
+              <h4 className="text-lg font-headline font-bold text-white uppercase tracking-wider">{t('clarity.hydration_goal')}</h4>
             </div>
             {/* Progress Ring */}
             <div className="relative w-36 h-36 sm:w-44 sm:h-44 mb-8">
@@ -284,12 +258,11 @@ function DetailedClarityHubPage() {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-4xl font-headline font-extrabold text-white">75%</span>
-                <span className="text-[10px] text-outline font-bold uppercase tracking-[0.2em]">Full</span>
+                <span className="text-[10px] text-outline font-bold uppercase tracking-[0.2em]">{t('clarity.full')}</span>
               </div>
             </div>
             <div className="flex flex-col gap-0.5 items-center">
               <p className="text-2xl font-bold text-white">1.5L <span className="text-outline font-normal mx-1">/</span> 2.0L</p>
-              <p className="text-sm text-outline">১.৫ লিটার / ২.০ লিটার</p>
             </div>
           </div>
 
@@ -303,9 +276,8 @@ function DetailedClarityHubPage() {
             <div className="absolute inset-0 bg-gradient-to-t from-surface via-surface/40 to-transparent"></div>
             <div className="absolute bottom-0 left-0 p-6 sm:p-8 w-full flex justify-between items-end">
               <div className="flex flex-col gap-0.5">
-                <p className="text-primary font-bold text-[10px] tracking-[0.3em] uppercase mb-2">Heart Health</p>
-                <h5 className="text-white text-xl font-headline font-bold">Rhythm: Sinus</h5>
-                <p className="text-sm text-outline">ছন্দ: স্বাভাবিক</p>
+                <p className="text-primary font-bold text-[10px] tracking-[0.3em] uppercase mb-2">{t('clarity.heart_health')}</p>
+                <h5 className="text-white text-xl font-headline font-bold">{t('clarity.rhythm_sinus')}</h5>
               </div>
               <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-all duration-300">
                 <span className="material-symbols-outlined text-xl">monitor_heart</span>
@@ -320,7 +292,7 @@ function DetailedClarityHubPage() {
           to="/overview" 
           className="inline-block w-full sm:w-auto text-center bg-white/5 text-slate-400 border border-white/10 py-4 px-8 rounded-full font-bold hover:bg-white/10 hover:text-white transition-all"
         >
-          Back to Clarity Overview
+          {t('clarity.back_overview')}
         </Link>
       </div>
 
@@ -344,8 +316,8 @@ function DetailedClarityHubPage() {
                   <span className={`absolute -right-1 -bottom-1 w-3 h-3 rounded-full border-2 border-[#0c1d2a] ${isListening ? "bg-rose-400 animate-pulse" : "bg-emerald-400"}`}></span>
                 </div>
                 <div>
-                  <p className="text-white text-sm font-bold tracking-wide">Clarity Assistant</p>
-                  <p className="text-teal-200/90 text-xs">Text & Voice • Bilingual</p>
+                  <p className="text-white text-sm font-bold tracking-wide">{t('clarity.assistant')}</p>
+                  <p className="text-teal-200/90 text-xs">{t('clarity.text_voice')}</p>
                 </div>
               </div>
 
@@ -359,7 +331,7 @@ function DetailedClarityHubPage() {
             </header>
 
             <div className="px-4 py-3 border-b border-white/10 bg-white/[0.02]">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-teal-200/80 mb-3">Quick Actions</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-teal-200/80 mb-3">{t('clarity.quick_actions')}</p>
               <div className="grid grid-cols-2 gap-2">
                 {quickActions.map((action) => (
                   <button
@@ -368,7 +340,7 @@ function DetailedClarityHubPage() {
                     className="rounded-xl border border-white/10 bg-white/5 hover:bg-teal-400/20 hover:border-teal-300/40 transition-all px-3 py-2 flex items-center gap-2 text-left"
                   >
                     <span className="material-symbols-outlined text-teal-200 text-[18px]">{action.icon}</span>
-                    <span className="text-xs text-white font-medium leading-tight">{action.label}</span>
+                    <span className="text-xs text-white font-medium leading-tight">{t(action.tKey)}</span>
                   </button>
                 ))}
               </div>
@@ -397,7 +369,7 @@ function DetailedClarityHubPage() {
                     <span className="w-2 h-2 rounded-full bg-rose-300/90 animate-bounce [animation-delay:120ms]"></span>
                     <span className="w-2 h-2 rounded-full bg-rose-300/90 animate-bounce [animation-delay:240ms]"></span>
                   </div>
-                  <p className="text-[11px] mt-2 text-rose-100/90">Listening to your voice...</p>
+                  <p className="text-[11px] mt-2 text-rose-100/90">{t('clarity.listening')}</p>
                 </div>
               ) : null}
             </section>
@@ -414,7 +386,7 @@ function DetailedClarityHubPage() {
                       rows="1"
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Type your question..."
+                      placeholder={t('clarity.type_placeholder')}
                       className="flex-1 bg-transparent outline-none text-sm text-white placeholder-slate-400 resize-none"
                     />
                   </div>
@@ -452,8 +424,7 @@ function DetailedClarityHubPage() {
 
           {!isVoicePanelOpen ? (
             <span className="absolute bottom-full right-0 mb-5 px-3 py-2 rounded-xl bg-[#173542]/95 border border-white/10 text-right shadow-lg">
-              <span className="block text-xs font-bold text-white leading-tight">Voice Assistant</span>
-              <span className="block text-[10px] text-teal-300 leading-tight">ভয়েস অ্যাসিস্ট্যান্ট</span>
+              <span className="block text-xs font-bold text-white leading-tight">{t('clarity.voice_assistant')}</span>
             </span>
           ) : null}
         </button>

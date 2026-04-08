@@ -88,12 +88,21 @@ function SettingsPage() {
     setOtpSending(true);
     try {
       const targetPhone = phone || otpPhone || formData.phone.trim();
-      await api.sendOtp(targetPhone, 'whatsapp');
+      const result = await api.sendOtp(targetPhone, 'whatsapp');
       setOtpPhone(targetPhone);
       setShowOtpInput(true);
       setOtpCode('');
-      setStatusMessage(`OTP sent to ${targetPhone} via WhatsApp. Enter the code below.`);
-      setStatusType('info');
+      if (result.demo_mode) {
+        if (result.sandbox_instructions) {
+          setStatusMessage(`Demo OTP: 123456. ${result.sandbox_instructions}`);
+        } else {
+          setStatusMessage(`Demo mode active. Use code 123456 to verify ${targetPhone}.`);
+        }
+        setStatusType('warning');
+      } else {
+        setStatusMessage(`OTP sent to ${targetPhone} via WhatsApp. Enter the code below.`);
+        setStatusType('info');
+      }
     } catch (err) {
       setStatusMessage(err.message || 'Failed to send OTP. Please try again.');
       setStatusType('error');

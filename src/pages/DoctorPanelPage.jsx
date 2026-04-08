@@ -13,6 +13,7 @@ import ToastContainer, { useToasts } from "../components/ToastNotification";
 import { AnimatedStatCard, LivePulseIndicator } from "../components/AnimatedStatCard";
 import { DashboardHero3D } from "../components/DashboardHero3D";
 import { pageTransition, dashboardStagger } from "../utils/animations";
+import { useLanguage } from '../context/LanguageContext';
 
 /**
  * Generate a unique patient ID in format PID-XXXXXX
@@ -39,6 +40,7 @@ const copyToClipboard = (text, callback) => {
 
 function DoctorPanelPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const roleLabel = ROLE_OPTIONS.find((r) => r.value === user?.role)?.label || user?.role || 'User';
   const [analysisMode, setAnalysisMode] = useState("Simplified View");
   const [uploadStatus, setUploadStatus] = useState("Idle");
@@ -338,20 +340,20 @@ function DoctorPanelPage() {
           transition={{ duration: 0.5, delay: 0.1 }}
         >
           <div className="flex items-center gap-3">
-            <span className="text-primary font-bold tracking-[0.24em] uppercase text-xs">{roleLabel} Panel</span>
-            <LivePulseIndicator status="active" label="Online" />
+            <span className="text-primary font-bold tracking-[0.24em] uppercase text-xs">{roleLabel} {t('doctor.panel')}</span>
+            <LivePulseIndicator status="active" label={t('doctor.online')} />
           </div>
           <h2 className="text-4xl lg:text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">
-            Clinical Review Command Desk
+            {t('doctor.command_desk')}
           </h2>
           <p className="text-sm text-teal-200">
-            Signed in as: <span className="font-semibold text-white">{user?.name || "Doctor"}</span>
+            {t('doctor.signed_in')} <span className="font-semibold text-white">{user?.name || "Doctor"}</span>
             {user?.systemId && (
               <span className="ml-2 text-[10px] font-mono text-cyan-300/70 bg-cyan-400/10 px-2 py-0.5 rounded border border-cyan-400/20">{user.systemId}</span>
             )}
           </p>
           <p className="text-slate-300 max-w-3xl">
-            Upload prescriptions &amp; medical reports, track extraction results, and manage your patient communication pipeline.
+            {t('doctor.upload_desc')}
           </p>
           <div className="pt-2">
             <button
@@ -360,7 +362,7 @@ function DoctorPanelPage() {
               className="flex w-full sm:w-auto items-center justify-center gap-2 px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-teal-300 hover:bg-white/10 transition-all text-xs font-bold disabled:opacity-50"
             >
               <span className="material-symbols-outlined text-sm">{exporting ? "progress_activity" : "download_clinical_notes"}</span>
-              {exporting ? "Preparing Report..." : "Export Daily Summary (CSV)"}
+              {exporting ? t('doctor.preparing') : t('doctor.export_csv')}
             </button>
           </div>
         </motion.div>
@@ -370,21 +372,21 @@ function DoctorPanelPage() {
           {...dashboardStagger}
         >
           <AnimatedStatCard
-            title="Pending"
+            title={t('doctor.pending')}
             value={stats.pending}
             icon="hourglass_top"
             gradient="from-amber-400 to-orange-500"
             delay={0}
           />
           <AnimatedStatCard
-            title="Approved"
+            title={t('doctor.approved')}
             value={stats.approved}
             icon="check_circle"
             gradient="from-emerald-400 to-teal-500"
             delay={0.07}
           />
           <AnimatedStatCard
-            title="Total"
+            title={t('doctor.total')}
             value={prescriptionHistory.length}
             icon="monitoring"
             gradient="from-cyan-400 to-blue-500"
@@ -398,8 +400,8 @@ function DoctorPanelPage() {
         <section className="col-span-12 lg:col-span-4 glass-card rounded-3xl border border-white/10 overflow-hidden">
           <div className="px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
             <div>
-              <p className="text-sm font-bold text-white">Pending Reviews</p>
-              <p className="text-xs text-slate-400">Prescriptions awaiting admin approval</p>
+              <p className="text-sm font-bold text-white">{t('doctor.pending_reviews')}</p>
+              <p className="text-xs text-slate-400">{t('doctor.awaiting_approval')}</p>
             </div>
             <span className="material-symbols-outlined text-teal-300">fact_check</span>
           </div>
@@ -408,7 +410,7 @@ function DoctorPanelPage() {
             {pendingReviews.length === 0 && !pendingLoading && (
               <div className="text-center py-8 text-slate-400 text-sm">
                 <span className="material-symbols-outlined text-3xl block mb-2 text-slate-500">inbox</span>
-                No pending prescriptions
+                {t('doctor.no_pending')}
               </div>
             )}
             {pendingReviews.map((review) => {
@@ -458,8 +460,8 @@ function DoctorPanelPage() {
           <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
             <div className="px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
               <div>
-                <p className="text-sm font-bold text-white">Clinical Discharge Summary</p>
-                <p className="text-xs text-slate-400">Process complex discharge notes to patient-friendly formats</p>
+                <p className="text-sm font-bold text-white">{t('doctor.discharge_title')}</p>
+                <p className="text-xs text-slate-400">{t('doctor.discharge_desc')}</p>
               </div>
               <span className="material-symbols-outlined text-teal-300">summarize</span>
             </div>
@@ -468,7 +470,7 @@ function DoctorPanelPage() {
               {/* Auto-generated Patient ID + Target Role */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Patient ID</label>
+                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t('doctor.patient_id')}</label>
                   <div className="rounded-2xl border border-white/10 bg-[#0d1f2d] px-3 py-3 flex items-center gap-3">
                     <span className="material-symbols-outlined text-teal-200">badge</span>
                     <div className="flex-1">
@@ -490,13 +492,13 @@ function DoctorPanelPage() {
                           </button>
                         )}
                       </div>
-                      <p className="text-[10px] text-slate-500 uppercase tracking-tighter">System-generated clinical ID</p>
+                      <p className="text-[10px] text-slate-500 uppercase tracking-tighter">{t('doctor.system_id')}</p>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Target Role</label>
+                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t('doctor.target_role')}</label>
                   <div className="rounded-2xl border border-white/10 bg-[#0d1f2d] px-3 py-2 flex items-center gap-3">
                     <span className="material-symbols-outlined text-cyan-200">manage_accounts</span>
                     <select
@@ -504,21 +506,21 @@ function DoctorPanelPage() {
                       id="discharge-role-select"
                       className="w-full bg-transparent text-sm text-white outline-none"
                     >
-                      <option value="patient" className="bg-[#0d1f2d] text-white">Patient</option>
-                      <option value="caregiver" className="bg-[#0d1f2d] text-white">Caregiver</option>
-                      <option value="elderly" className="bg-[#0d1f2d] text-white">Elderly Patient</option>
+                      <option value="patient" className="bg-[#0d1f2d] text-white">{t('doctor.role_patient')}</option>
+                      <option value="caregiver" className="bg-[#0d1f2d] text-white">{t('doctor.role_caregiver')}</option>
+                      <option value="elderly" className="bg-[#0d1f2d] text-white">{t('doctor.role_elderly')}</option>
                     </select>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Discharge Notes</label>
+                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t('doctor.discharge_notes')}</label>
                 <textarea
                   id="discharge-text-input"
                   rows="4"
                   className="w-full bg-[#0d1f2d] text-sm text-white border border-white/10 p-4 outline-none rounded-2xl resize-y focus:border-teal-400/50 transition-colors"
-                  placeholder="Paste clinical discharge summary here (min 50 chars)..."
+                  placeholder={t('doctor.discharge_placeholder')}
                 ></textarea>
               </div>
 
@@ -551,7 +553,7 @@ function DoctorPanelPage() {
                 }}
                 className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-300 to-cyan-400 text-[#06383a] font-bold hover:shadow-[0_12px_28px_rgba(20,184,166,0.35)] transition-all"
               >
-                Simplify &amp; Save Discharge Summary
+                {t('doctor.simplify_save')}
               </button>
             </div>
           </div>
@@ -560,8 +562,8 @@ function DoctorPanelPage() {
           <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
             <div className="px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
               <div>
-                <p className="text-sm font-bold text-white">Upload Configuration</p>
-                <p className="text-xs text-slate-400">Select patient, report type, and upload</p>
+                <p className="text-sm font-bold text-white">{t('doctor.upload_config')}</p>
+                <p className="text-xs text-slate-400">{t('doctor.upload_config_desc')}</p>
               </div>
               <span className="material-symbols-outlined text-cyan-300">assignment_ind</span>
             </div>
@@ -569,7 +571,7 @@ function DoctorPanelPage() {
             <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
               {/* Patient Mode Toggle */}
               <div className="space-y-2 md:col-span-2">
-                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Patient Selection</label>
+                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t('doctor.patient_selection')}</label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <button
                     onClick={() => { setPatientMode('new'); setSelectedPatient(null); }}
@@ -580,7 +582,7 @@ function DoctorPanelPage() {
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">person_add</span>
-                    New Patient (Auto-ID)
+                    {t('doctor.new_patient')}
                   </button>
                   <button
                     onClick={() => setPatientMode('existing')}
@@ -591,7 +593,7 @@ function DoctorPanelPage() {
                     }`}
                   >
                     <span className="material-symbols-outlined text-sm">person_search</span>
-                    Existing Patient
+                    {t('doctor.existing_patient')}
                   </button>
                 </div>
               </div>
@@ -599,19 +601,19 @@ function DoctorPanelPage() {
               {/* Existing Patient Selector */}
               {patientMode === 'existing' && (
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Search &amp; Select Patient</label>
+                  <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t('doctor.search_patient')}</label>
                   <input
                     type="text"
                     value={patientSearch}
                     onChange={(e) => setPatientSearch(e.target.value)}
-                    placeholder="Search by name, PID, or email..."
+                    placeholder={t('doctor.search_placeholder')}
                     className="w-full bg-[#0d1f2d] text-sm text-white border border-white/10 px-4 py-2.5 outline-none rounded-xl focus:border-cyan-400/50 transition-colors"
                   />
                   <div className="max-h-40 overflow-y-auto space-y-1 rounded-xl border border-white/10 bg-[#0b1a27] p-2">
                     {patientsLoading ? (
-                      <p className="text-xs text-slate-400 text-center py-3">Loading patients...</p>
+                      <p className="text-xs text-slate-400 text-center py-3">{t('doctor.loading_patients')}</p>
                     ) : filteredPatients.length === 0 ? (
-                      <p className="text-xs text-slate-400 text-center py-3">No patients found</p>
+                      <p className="text-xs text-slate-400 text-center py-3">{t('doctor.no_patients')}</p>
                     ) : (
                       filteredPatients.map((p) => (
                         <button
@@ -635,9 +637,8 @@ function DoctorPanelPage() {
                 </div>
               )}
 
-              {/* Patient ID Display */}
               <div className="space-y-2">
-                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Patient ID</label>
+                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t('doctor.patient_id')}</label>
                 <div className="rounded-2xl border border-white/10 bg-[#0d1f2d] px-3 py-3 flex items-center gap-3">
                   <span className="material-symbols-outlined text-teal-200">badge</span>
                   <div className="flex-1">
@@ -645,7 +646,7 @@ function DoctorPanelPage() {
                       <p className="text-sm text-white font-mono font-bold tracking-wider">
                         {patientMode === 'existing' && selectedPatient?.pid
                           ? selectedPatient.pid
-                          : autoPatientId || <span className="text-slate-400 italic font-normal font-sans">Wait for upload</span>}
+                          : autoPatientId || <span className="text-slate-400 italic font-normal font-sans">{t('doctor.wait_upload')}</span>}
                       </p>
                       {(patientMode === 'existing' ? selectedPatient?.pid : autoPatientId) && (
                         <button 
@@ -662,7 +663,7 @@ function DoctorPanelPage() {
                       )}
                     </div>
                     <p className="text-[10px] text-slate-500 uppercase tracking-tighter">
-                      {patientMode === 'existing' ? 'Linked patient record' : 'System-generated clinical ID'}
+                      {patientMode === 'existing' ? t('doctor.linked_record') : t('doctor.system_id')}
                     </p>
                   </div>
                 </div>
@@ -670,7 +671,7 @@ function DoctorPanelPage() {
 
               {/* Doctor (from auth) */}
               <div className="space-y-2">
-                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Uploaded By</label>
+                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t('doctor.uploaded_by')}</label>
                 <div className="rounded-2xl border border-white/10 bg-[#0d1f2d] px-3 py-3 flex items-center gap-3">
                   <span className="material-symbols-outlined text-cyan-200">stethoscope</span>
                   <div>
@@ -682,7 +683,7 @@ function DoctorPanelPage() {
 
               {/* Report Type */}
               <div className="space-y-2 md:col-span-2">
-                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">Report Type</label>
+                <label className="text-[11px] uppercase tracking-[0.16em] text-slate-400">{t('doctor.report_type')}</label>
                 <div className="flex flex-wrap gap-2">
                   {[
                     { value: 'prescription', label: '💊 Prescription' },
@@ -715,18 +716,18 @@ function DoctorPanelPage() {
             <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
               <div className="px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-bold text-white">Follow-up History — {selectedPatient.full_name || selectedPatient.pid}</p>
-                  <p className="text-xs text-slate-400">Previous prescriptions and visits for this patient</p>
+                  <p className="text-sm font-bold text-white">{t('doctor.followup_title')} — {selectedPatient.full_name || selectedPatient.pid}</p>
+                  <p className="text-xs text-slate-400">{t('doctor.followup_desc')}</p>
                 </div>
                 <span className="material-symbols-outlined text-amber-300">history</span>
               </div>
               <div className="p-4 max-h-72 overflow-y-auto">
                 {followUpLoading ? (
-                  <p className="text-xs text-slate-400 text-center py-6">Loading history...</p>
+                  <p className="text-xs text-slate-400 text-center py-6">{t('doctor.loading_history')}</p>
                 ) : followUpHistory.length === 0 ? (
                   <div className="text-center py-6 text-slate-400 text-sm">
                     <span className="material-symbols-outlined text-2xl block mb-2 text-slate-500">history_toggle_off</span>
-                    No previous records for this patient
+                    {t('doctor.no_records')}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -750,10 +751,10 @@ function DoctorPanelPage() {
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-white font-semibold">{ed.diagnosis || 'No diagnosis recorded'}</p>
+                          <p className="text-xs text-white font-semibold">{ed.diagnosis || t('doctor.no_diagnosis')}</p>
                           {ed.medications?.length > 0 && (
                             <p className="text-[11px] text-slate-400 mt-1">
-                              Medications: {ed.medications.map(m => m.name).filter(Boolean).join(', ') || `${ed.medications.length} item(s)`}
+                              {t('doctor.medications_label')}: {ed.medications.map(m => m.name).filter(Boolean).join(', ') || `${ed.medications.length} item(s)`}
                             </p>
                           )}
                         </div>
@@ -771,14 +772,14 @@ function DoctorPanelPage() {
             <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
               <div className="px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-bold text-white">Document Upload</p>
-                  <p className="text-xs text-slate-400">Upload prescription or medical report</p>
+                  <p className="text-sm font-bold text-white">{t('doctor.doc_upload')}</p>
+                  <p className="text-xs text-slate-400">{t('doctor.doc_upload_desc')}</p>
                 </div>
                 <span className="material-symbols-outlined text-cyan-300">upload_file</span>
               </div>
               <div className="p-5 space-y-4">
                 <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 text-xs text-slate-300 flex flex-wrap items-center gap-2">
-                  <span className="font-semibold text-white">Patient ID:</span> {patientMode === 'existing' && selectedPatient?.pid ? <span className="text-cyan-200 font-mono">{selectedPatient.pid}</span> : autoPatientId || <span className="italic text-slate-400">Will be auto-assigned</span>}
+                  <span className="font-semibold text-white">{t('doctor.patient_id')}:</span> {patientMode === 'existing' && selectedPatient?.pid ? <span className="text-cyan-200 font-mono">{selectedPatient.pid}</span> : autoPatientId || <span className="italic text-slate-400">{t('doctor.auto_assign')}</span>}
                   <span className="w-1 h-1 rounded-full bg-slate-600"></span>
                   <span className="font-semibold text-white">Type:</span> {reportType}
                 </div>
@@ -793,8 +794,8 @@ function DoctorPanelPage() {
                   }`}
                 >
                   <span className="material-symbols-outlined text-4xl text-teal-200">cloud_upload</span>
-                  <p className="text-sm text-slate-100 mt-2">Drag and drop file here</p>
-                  <p className="text-xs text-slate-400 mt-1">Supports JPG, PNG, PDF up to 10MB</p>
+                  <p className="text-sm text-slate-100 mt-2">{t('doctor.drag_drop')}</p>
+                  <p className="text-xs text-slate-400 mt-1">{t('doctor.file_types')}</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -808,7 +809,7 @@ function DoctorPanelPage() {
                       onClick={() => fileInputRef.current?.click()}
                       className="px-4 py-2 rounded-xl bg-white/10 border border-white/15 text-xs text-white font-semibold hover:bg-white/15 transition-all"
                     >
-                      Choose File
+                      {t('doctor.choose_file')}
                     </button>
                     <button
                       type="button"
@@ -816,11 +817,11 @@ function DoctorPanelPage() {
                       className="px-4 py-2 rounded-xl bg-teal-400/15 border border-teal-300/30 text-xs text-teal-200 font-semibold hover:bg-teal-400/25 transition-all flex items-center gap-1.5"
                     >
                       <span className="material-symbols-outlined text-sm">photo_camera</span>
-                      Scan Document
+                      {t('doctor.scan_doc')}
                     </button>
                   </div>
                   {selectedFile && (
-                    <p className="text-xs text-teal-200 mt-3 break-all">Selected: {selectedFile.name}</p>
+                    <p className="text-xs text-teal-200 mt-3 break-all">{t('doctor.selected')} {selectedFile.name}</p>
                   )}
                 </div>
                 <button
@@ -828,10 +829,10 @@ function DoctorPanelPage() {
                   disabled={uploadStatus === "Uploading"}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-teal-300 to-cyan-400 text-[#06383a] font-bold hover:shadow-[0_12px_28px_rgba(20,184,166,0.35)] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {uploadStatus === "Uploading" ? "Extracting Document..." : "Upload & Extract"}
+                  {uploadStatus === "Uploading" ? t('doctor.extracting') : t('doctor.upload_extract')}
                 </button>
                 <div className="rounded-xl bg-white/[0.03] border border-white/10 px-4 py-3 flex items-center justify-between">
-                  <span className="text-xs text-slate-300">Upload status</span>
+                  <span className="text-xs text-slate-300">{t('doctor.upload_status')}</span>
                   <span className={`text-xs font-bold px-2 py-1 rounded-full ${
                     uploadStatus === "Uploaded" ? "bg-emerald-500/20 text-emerald-200"
                     : uploadStatus === "Uploading" ? "bg-amber-500/20 text-amber-200"
@@ -859,8 +860,8 @@ function DoctorPanelPage() {
             <div className="glass-card rounded-3xl border border-white/10 overflow-hidden">
               <div className="px-5 py-4 border-b border-white/10 bg-white/[0.03] flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-bold text-white">Extraction Result</p>
-                  <p className="text-xs text-slate-400">AI-extracted structured data</p>
+                  <p className="text-sm font-bold text-white">{t('doctor.extraction_result')}</p>
+                  <p className="text-xs text-slate-400">{t('doctor.ai_extracted')}</p>
                 </div>
                 <span className="material-symbols-outlined text-teal-300">auto_awesome</span>
               </div>
@@ -868,8 +869,8 @@ function DoctorPanelPage() {
                 {extractionResult?.extracted_data ? (
                   <>
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-[10px] uppercase tracking-wider bg-emerald-500/20 text-emerald-200 px-2 py-1 rounded-full">Live Extraction</span>
-                      <span className="text-[10px] text-slate-400">Confidence: {Math.round((extractionResult.extracted_data.extraction_confidence || 0) * 100)}%</span>
+                      <span className="text-[10px] uppercase tracking-wider bg-emerald-500/20 text-emerald-200 px-2 py-1 rounded-full">{t('doctor.live_extraction')}</span>
+                      <span className="text-[10px] text-slate-400">{t('doctor.confidence')} {Math.round((extractionResult.extracted_data.extraction_confidence || 0) * 100)}%</span>
                     </div>
                     <div className="space-y-2 text-xs">
                       <p className="text-slate-300"><span className="text-white font-semibold">Rx ID:</span> {extractionResult.prescription_id?.slice(0,8)}...</p>
@@ -888,7 +889,7 @@ function DoctorPanelPage() {
                     {/* Medications list */}
                     {extractionResult.extracted_data.medications?.length > 0 && (
                       <div className="mt-3 space-y-2">
-                        <p className="text-[10px] uppercase tracking-wider text-slate-400">Medications</p>
+                        <p className="text-[10px] uppercase tracking-wider text-slate-400">{t('doctor.medications_label')}</p>
                         {extractionResult.extracted_data.medications.map((med, i) => (
                           <div key={i} className="rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2 text-xs">
                             <p className="font-semibold text-white">{med.name} {med.strength || ''}</p>
@@ -902,7 +903,7 @@ function DoctorPanelPage() {
                 ) : (
                   <div className="text-center py-10 text-slate-400 text-sm">
                     <span className="material-symbols-outlined text-4xl block mb-2 text-slate-500">biotech</span>
-                    Upload a document to see extraction results
+                    {t('doctor.upload_to_see')}
                   </div>
                 )}
               </div>

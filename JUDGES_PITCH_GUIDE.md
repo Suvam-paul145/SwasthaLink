@@ -18,19 +18,19 @@ Use it for:
 
 **Tagline:** From discharge paper to patient understanding.
 
-**Short identity statement:** SwasthaLink is an AI-powered healthcare communication platform that converts complex discharge summaries and prescriptions into clear, bilingual, patient-friendly guidance, verifies whether the patient actually understood it, and keeps the care journey connected through WhatsApp, dashboards, and caregiver access.
+**Short identity statement:** SwasthaLink is an AI-powered healthcare communication platform that converts complex discharge summaries and prescriptions into clear, multilingual, patient-friendly guidance (currently English, Bengali, Hindi, Tamil, Telugu, and Marathi), verifies whether the patient actually understood it, and keeps the care journey connected through WhatsApp, dashboards, and caregiver access.
 
 ---
 
 ## 1. One-Line Pitch
 
-SwasthaLink helps hospitals close the gap between treatment and understanding by transforming medical instructions into simple English and Bengali guidance, checking patient comprehension, and continuing support after discharge through WhatsApp, dashboards, and AI-assisted follow-up.
+SwasthaLink helps hospitals close the gap between treatment and understanding by transforming medical instructions into simple multilingual guidance (currently English, Bengali, Hindi, Tamil, Telugu, and Marathi), checking patient comprehension, and continuing support after discharge through WhatsApp, dashboards, and AI-assisted follow-up.
 
 ---
 
 ## 2. 30-Second Pitch
 
-Every day, patients leave hospitals with discharge papers and prescriptions they do not fully understand. That confusion leads to missed medicines, missed follow-ups, anxiety, and preventable readmissions. SwasthaLink solves this by turning complex medical instructions into plain-language, bilingual guidance, then verifying understanding through a quick quiz and extending support through WhatsApp, patient dashboards, caregiver sharing, and doctor-admin review workflows. We are not just digitizing documents; we are making care understandable and actionable.
+Every day, patients leave hospitals with discharge papers and prescriptions they do not fully understand. That confusion leads to missed medicines, missed follow-ups, anxiety, and preventable readmissions. SwasthaLink solves this by turning complex medical instructions into plain-language, multilingual guidance, then verifying understanding through a quick quiz and extending support through WhatsApp, patient dashboards, caregiver sharing, and doctor-admin review workflows. We are not just digitizing documents; we are making care understandable and actionable.
 
 ---
 
@@ -38,7 +38,7 @@ Every day, patients leave hospitals with discharge papers and prescriptions they
 
 The real healthcare problem is not only diagnosis. It is communication after diagnosis. A patient may receive the right treatment in the hospital, but once they go home, they often struggle to understand medicines, warning signs, follow-up schedules, and daily restrictions. This problem becomes even more serious in India, where language barriers, low health literacy, and caregiver dependence are common.
 
-SwasthaLink is our response to that problem. It is a full-stack platform where doctors can upload prescriptions or discharge-related documents, the system extracts and simplifies the medical content using a multi-model AI pipeline, and the patient receives a much clearer explanation in plain English and Bengali. The platform does more than summarize text. It generates medication guidance, highlights warning signs, creates follow-up instructions, asks comprehension questions, and can trigger re-explanation when the patient does not understand.
+SwasthaLink is our response to that problem. It is a full-stack platform where doctors can upload prescriptions or discharge-related documents, the system extracts and simplifies the medical content using a multi-model AI pipeline, and the patient receives a much clearer explanation in plain language across supported languages (English, Bengali, Hindi, Tamil, Telugu, and Marathi). The platform does more than summarize text. It generates medication guidance, highlights warning signs, creates follow-up instructions, asks comprehension questions, and can trigger re-explanation when the patient does not understand.
 
 On top of that, SwasthaLink supports the full care loop. Doctors have an upload and tracking workflow. Admins can review extracted prescriptions before they reach the patient. Patients and families get a dashboard with medical history, reports, chatbot assistance, QR-based sharing tools, and WhatsApp communication. In short, SwasthaLink turns a one-time discharge event into a guided, understandable, and trackable recovery journey.
 
@@ -79,7 +79,7 @@ It does this in four layers:
    Doctors can input discharge text or upload prescription images and PDFs. The system supports OCR, extraction, and structured parsing.
 
 2. **Translate clinical language into human language**
-   The AI pipeline converts medical instructions into simple, role-aware guidance for patients, caregivers, or elderly users, with bilingual support in English and Bengali.
+   The AI pipeline converts medical instructions into simple, role-aware guidance for patients, caregivers, or elderly users, with multilingual support (currently English, Bengali, Hindi, Tamil, Telugu, and Marathi).
 
 3. **Verify understanding instead of assuming it**
    SwasthaLink generates comprehension questions and checks whether the patient actually understood the key instructions. If the score is low, the system can re-explain the instructions more simply.
@@ -112,7 +112,7 @@ That is the real innovation. We are not solving document digitization alone. We 
 From the current codebase, SwasthaLink already includes:
 
 - AI-based discharge summary simplification
-- bilingual English and Bengali output
+- multilingual output across English, Bengali, Hindi, Tamil, Telugu, and Marathi
 - role-aware explanation modes for patient, caregiver, and elderly users
 - OCR-based upload flow for PDFs and images
 - handwritten prescription extraction pipeline
@@ -228,7 +228,7 @@ SwasthaLink addresses the last-mile communication problem in healthcare.
 
 ### A. Clarity Hub
 
-This is the patient understanding engine. It turns complex discharge content into simple, role-aware, bilingual explanations and adds comprehension checks.
+This is the patient understanding engine. It turns complex discharge content into simple, role-aware, multilingual explanations and adds comprehension checks.
 
 ### B. Doctor Panel
 
@@ -339,8 +339,7 @@ The backend uses a multi-provider approach with model fallback and document-proc
 
 Input discharge text goes into the AI simplification flow, which produces:
 
-- simplified English explanation
-- simplified Bengali explanation
+- simplified explanation in supported languages (currently English, Bengali, Hindi, Tamil, Telugu, and Marathi)
 - medication list
 - follow-up plan
 - warning signs
@@ -452,7 +451,7 @@ This section is a pitch suggestion for judges. It is a business framing, not a c
 3. Show the extraction and simplification.
    Demonstrate how the system turns clinical content into clear instructions.
 
-4. Show bilingual and patient-friendly output.
+4. Show multilingual and patient-friendly output.
    Highlight simple language, medicine timing, and warning signs.
 
 5. Show the comprehension loop.
@@ -483,7 +482,7 @@ If four team members are speaking, use this flow:
 ### Speaker 2: Product walkthrough
 
 - explain discharge simplification
-- explain bilingual output
+- explain multilingual output
 - explain quiz and re-explanation
 
 ### Speaker 3: Technical depth
@@ -512,9 +511,9 @@ SwasthaLink is not trying to replace doctors. It is making sure the doctor's ins
 
 Because SwasthaLink is not just translating text. It extracts medical structure, simplifies instructions for specific user types, checks comprehension through quiz logic, supports review workflows, and continues the care journey with dashboards and follow-up channels.
 
-### Q2. Why is bilingual support important?
+### Q2. Why is multilingual support important?
 
-Because healthcare communication fails when the patient understands only fragments of the instructions. English-only discharge papers create real risk. Bilingual support improves usability, especially for patients and caregivers who are more comfortable in regional language contexts.
+Because healthcare communication fails when the patient understands only fragments of the instructions. English-only discharge papers create real risk. Multilingual support improves usability, especially for patients and caregivers who are more comfortable in regional language contexts.
 
 ### Q3. How do you reduce AI risk or hallucination?
 
@@ -526,7 +525,7 @@ No. SwasthaLink is designed as a care ecosystem with separate flows for doctors,
 
 ### Q5. Can this scale beyond Bengali?
 
-Yes. The architecture is language-extensible. The current product story is strongest in English and Bengali, and the platform can be expanded to additional regional languages.
+Yes. The architecture is language-extensible. The current platform supports English, Bengali, Hindi, Tamil, Telugu, and Marathi, and can be expanded to additional regional languages.
 
 ### Q6. What makes this technically strong?
 
@@ -572,6 +571,6 @@ To become the intelligence layer for patient communication after diagnosis, acro
 
 ## 21. Final Judge-Friendly Summary
 
-SwasthaLink is a full-stack, AI-enabled healthcare communication platform built to solve one of the most practical and overlooked problems in medicine: patients often leave with treatment instructions they do not truly understand. By combining OCR, multi-LLM simplification, bilingual support, comprehension checks, doctor-admin workflows, patient dashboards, chatbot assistance, WhatsApp delivery, and continuity tools for families, SwasthaLink transforms discharge and prescription communication into a safer, clearer, and more connected recovery experience.
+SwasthaLink is a full-stack, AI-enabled healthcare communication platform built to solve one of the most practical and overlooked problems in medicine: patients often leave with treatment instructions they do not truly understand. By combining OCR, multi-LLM simplification, multilingual support, comprehension checks, doctor-admin workflows, patient dashboards, chatbot assistance, WhatsApp delivery, and continuity tools for families, SwasthaLink transforms discharge and prescription communication into a safer, clearer, and more connected recovery experience.
 
 If traditional discharge systems only hand over a paper, SwasthaLink hands over understanding.

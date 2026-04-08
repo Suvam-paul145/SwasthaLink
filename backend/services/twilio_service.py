@@ -4,6 +4,7 @@ Handles all WhatsApp message sending via Twilio API
 Supports both sandbox (development) and production WhatsApp Business API
 """
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
@@ -53,6 +54,9 @@ TWILIO_API_KEY_SID = read_env("TWILIO_API_KEY_SID", "TWILIO_API_KEY")
 TWILIO_API_KEY_SECRET = read_env("TWILIO_API_KEY_SECRET", "TWILIO_API_SECRET")
 TWILIO_WHATSAPP_NUMBER = read_env("TWILIO_WHATSAPP_NUMBER") or "whatsapp:+14155238886"
 
+# Twilio WhatsApp Sandbox number
+_SANDBOX_NUMBER = "+14155238886"
+
 # Initialize Twilio client
 twilio_client = None
 TWILIO_AUTH_MODE = "unconfigured"
@@ -86,6 +90,11 @@ def _format_phone_number(phone: str) -> str:
     if phone.startswith("whatsapp:"):
         return phone
     return f"whatsapp:{phone}"
+
+
+def _is_sandbox_mode() -> bool:
+    """Check if using the Twilio sandbox number."""
+    return _SANDBOX_NUMBER in (TWILIO_WHATSAPP_NUMBER or "")
 
 
 def _parse_dt(value: str) -> Optional[datetime]:
@@ -142,12 +151,41 @@ async def send_whatsapp_message(phone_number: str, message: str) -> Dict[str, An
         logger.info(f"WhatsApp message sent successfully. SID: {twilio_message.sid}")
         logger.info(f"Status: {twilio_message.status}")
 
+        # For sandbox mode, poll delivery status to detect failures
+        if _is_sandbox_mode():
+            try:
+                await asyncio.sleep(4)
+                updated = twilio_client.messages(twilio_message.sid).fetch()
+                if updated.status in ("failed", "undelivered"):
+                    error_code = updated.error_code
+                    logger.warning(
+                        f"Sandbox delivery failed for {phone_number}: "
+                        f"status={updated.status}, error_code={error_code}"
+                    )
+                    sandbox_msg = (
+                        "WhatsApp sandbox delivery failed. "
+                        "The recipient must first join the sandbox: "
+                        "open WhatsApp and send 'join <your-keyword>' to +14155238886. "
+                        "Check your Twilio Console for the exact keyword."
+                    )
+                    return {
+                        "success": False,
+                        "sid": twilio_message.sid,
+                        "status": updated.status,
+                        "error": sandbox_msg,
+                        "error_code": error_code,
+                        "sandbox_mode": True,
+                    }
+            except Exception as poll_err:
+                logger.warning(f"Could not poll sandbox delivery status: {poll_err}")
+
         return {
             "success": True,
             "sid": twilio_message.sid,
             "status": twilio_message.status,
             "to": phone_number,
-            "from": TWILIO_WHATSAPP_NUMBER
+            "from": TWILIO_WHATSAPP_NUMBER,
+            "sandbox_mode": _is_sandbox_mode(),
         }
 
     except TwilioRestException as e:

@@ -5,7 +5,7 @@ import { useAuth } from "../context/AuthContext";
 const AmbientDNA = lazy(() => import('../components/effects/AmbientDNA'));
 import { getGroqChatbotReply } from "../services/groq";
 import { speak, stop } from "../utils/tts";
-import { LANGUAGE_LABELS } from "../utils/config";
+import { useLanguage } from '../context/LanguageContext';
 import { isDemoPatient, getMockPrescriptions, getMockAllChunks } from "../utils/mockData";
 
 // -- Bengali digit converter
@@ -157,6 +157,7 @@ function buildDemoAnswer(question, chunks, prescriptions) {
 function ClarityHubPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { language, setLanguage, t, SUPPORTED_LANGUAGES } = useLanguage();
   const patientId = user?.user_id || user?.id || user?.email || "";
   const isDemo = isDemoPatient(user?.email);
   const mockChunks = useMemo(() => isDemo ? getMockAllChunks() : null, [isDemo]);
@@ -168,16 +169,15 @@ function ClarityHubPage() {
     {
       id: "welcome",
       sender: "assistant",
-      text: "Hi, I can help with medicines, diet, warning signs, and follow-up steps. Ask anything about your prescription.",
-      subtext: "হাই, আমি ওষুধ, খাবার, বিপদের লক্ষণ এবং ফলো-আপ বুঝিয়ে দিতে পারি। প্রেসক্রিপশন নিয়ে যেকোনো কিছু জিজ্ঞাসা করুন।"
+      text: t('clarity.welcome_msg'),
     },
   ]);
   const quickActions = useMemo(
     () => [
-      { icon: "medication", label: "Medication plan" },
-      { icon: "restaurant", label: "Diet tips" },
-      { icon: "warning", label: "Danger signs" },
-      { icon: "event", label: "Follow-up dates" },
+      { icon: "medication", label: "Medication plan", tKey: "clarity.qa_medication" },
+      { icon: "restaurant", label: "Diet tips", tKey: "clarity.qa_diet" },
+      { icon: "warning", label: "Danger signs", tKey: "clarity.qa_danger" },
+      { icon: "event", label: "Follow-up dates", tKey: "clarity.qa_followup" },
     ],
     []
   );
@@ -187,22 +187,22 @@ function ClarityHubPage() {
       const allPanels = [
         {
           id: "doctor",
-          title: "Doctor Panel",
-          subtitle: "Upload and extract prescriptions",
+          title: "clarity.doctor_panel",
+          subtitle: "clarity.doctor_panel_desc",
           route: "/doctor-panel",
           icon: "stethoscope",
         },
         {
           id: "admin",
-          title: "Admin Panel",
-          subtitle: "Review extracted prescriptions",
+          title: "clarity.admin_panel",
+          subtitle: "clarity.admin_panel_desc",
           route: "/admin-panel",
           icon: "admin_panel_settings",
         },
         {
           id: "patient",
-          title: "Patient Panel",
-          subtitle: "View patient dashboard",
+          title: "clarity.patient_panel",
+          subtitle: "clarity.patient_panel_desc",
           route: "/family-dashboard",
           icon: "personal_injury",
         },
@@ -224,9 +224,9 @@ function ClarityHubPage() {
     } else {
       try {
         const result = await getGroqChatbotReply(patientId, question);
-        answer = { text: result?.answer || 'Sorry, I could not find an answer.', subtext: null };
+        answer = { text: result?.answer || t('clarity.no_answer'), subtext: null };
       } catch {
-        answer = { text: 'Sorry, there was an error contacting the assistant.', subtext: null };
+        answer = { text: t('clarity.error_contacting'), subtext: null };
       }
     }
     setChatMessages((prev) => [
@@ -247,7 +247,7 @@ function ClarityHubPage() {
       {
         id: `${Date.now()}-user`,
         sender: "user",
-        text: action.label,
+        text: t(action.tKey),
       },
     ]);
     respondToPrompt(action.label);
@@ -270,7 +270,6 @@ function ClarityHubPage() {
   };
 
   const [isSpeakingState, setIsSpeakingState] = useState(false);
-  const [selectedLang, setSelectedLang] = useState('bn');
 
   // Build dynamic treatment items from mock medication data
   const treatmentItems = useMemo(() => {
@@ -283,13 +282,13 @@ function ClarityHubPage() {
       const slotMeds = bySlot[slot.key];
       if (!slotMeds.length) continue;
       const [startH, endH] = slot.hours;
-      let status = 'pending', statusLabel = 'Pending', statusStyle = 'bg-primary-container/20 text-primary-fixed';
+      let status = 'pending', statusKey = 'clarity.pending', statusStyle = 'bg-primary-container/20 text-primary-fixed';
       let timeNote = null;
       if (hour >= endH) {
-        status = 'completed'; statusLabel = 'Completed';
+        status = 'completed'; statusKey = 'clarity.completed';
         statusStyle = 'bg-surface-container-highest text-outline';
       } else if (hour >= startH) {
-        status = 'due'; statusLabel = 'Due now';
+        status = 'due'; statusKey = 'clarity.due_now';
         statusStyle = 'bg-tertiary-container/20 text-tertiary';
         const minsLeft = (endH - hour) * 60 - new Date().getMinutes();
         if (minsLeft > 30) timeNote = `within ${Math.floor(minsLeft / 60)}h ${minsLeft % 60}m`;
@@ -298,8 +297,8 @@ function ClarityHubPage() {
       for (const m of slotMeds) {
         items.push({
           id: `${slot.key}-${m.name}`, name: `${m.name} ${m.strength}`,
-          purpose: m.purpose, slot: slot.label, slotBn: slot.bn,
-          slotIcon: slot.icon, status, statusLabel, statusStyle, timeNote, form: m.form,
+          purpose: m.purpose, slotKey: slot.key,
+          slotIcon: slot.icon, status, statusKey, statusStyle, timeNote, form: m.form,
         });
       }
     }
@@ -308,8 +307,8 @@ function ClarityHubPage() {
     for (const m of asNeeded) {
       items.push({
         id: `prn-${m.name}`, name: `${m.name} ${m.strength}`,
-        purpose: m.purpose, slot: 'As needed', slotBn: 'প্রয়োজনে',
-        slotIcon: '💊', status: 'prn', statusLabel: 'As needed',
+        purpose: m.purpose, slotKey: 'as_needed',
+        slotIcon: '💊', status: 'prn', statusKey: 'clarity.as_needed',
         statusStyle: 'bg-blue-500/20 text-blue-300', timeNote: m.instructions, form: m.form,
       });
     }
@@ -322,19 +321,11 @@ function ClarityHubPage() {
       setIsSpeakingState(false);
     } else {
       // Dynamic speech from actual treatment items
-      let text;
-      if (selectedLang === 'bn' || selectedLang === 'hi') {
-        text = treatmentItems
-          .filter((t) => t.status !== 'completed')
-          .map((t) => `${t.slotBn}: ${t.name}, ${t.purpose}`)
-          .join('। ') || 'আজকের সব ওষুধ সম্পন্ন হয়েছে।';
-      } else {
-        text = treatmentItems
-          .filter((t) => t.status !== 'completed')
-          .map((t) => `${t.slot}: ${t.name}, ${t.purpose}`)
-          .join('. ') || 'All medications for today are completed.';
-      }
-      speak(text, selectedLang, () => setIsSpeakingState(false));
+      const text = treatmentItems
+        .filter((item) => item.status !== 'completed')
+        .map((item) => `${t('clarity.' + item.slotKey)}: ${item.name}, ${item.purpose}`)
+        .join('. ') || t('clarity.all_meds_done');
+      speak(text, language, () => setIsSpeakingState(false));
       setIsSpeakingState(true);
     }
   };
@@ -348,26 +339,25 @@ function ClarityHubPage() {
       {/* Header Section */}
       <header className="mb-10 flex flex-col gap-6 lg:mb-16 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-4">
-          <span className="text-teal-400 font-bold tracking-widest uppercase text-xs">Clarity Hub</span>
+          <span className="text-teal-400 font-bold tracking-widest uppercase text-xs">{t('clarity.badge')}</span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-headline font-extrabold tracking-tight text-white leading-tight">
-            Welcome, {user?.name || 'User'}.<br />
-            <span className="text-2xl sm:text-3xl lg:text-[inherit] text-teal-400/80 font-normal">স্বাগতম, {user?.name || 'ব্যবহারকারী'}।</span>
+            {t('clarity.welcome')} {user?.name || 'User'}.
           </h2>
         </div>
         <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center lg:w-auto">
           <select
-            value={selectedLang}
-            onChange={(e) => setSelectedLang(e.target.value)}
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
             className="bg-white/5 border border-white/10 text-teal-200 text-sm rounded-xl px-3 py-2 backdrop-blur-md focus:border-teal-400/60 focus:outline-none cursor-pointer"
             aria-label="Select language"
           >
-            {LANGUAGE_LABELS.map((l) => (
-              <option key={l.code} value={l.code} className="bg-slate-900 text-white">{l.label}</option>
+            {SUPPORTED_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code} className="bg-slate-900 text-white">{l.nativeName}</option>
             ))}
           </select>
           <div className="bg-white/5 p-4 rounded-xl flex items-center justify-between gap-4 border border-white/5 backdrop-blur-md">
             <div className="text-left sm:text-right">
-              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Role Access</p>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{t('clarity.role_access')}</p>
               <p className="text-xl font-bold text-teal-300">{user?.role?.toUpperCase() || 'GUEST'}</p>
             </div>
             <span className="material-symbols-outlined text-teal-400 text-3xl">verified_user</span>
@@ -378,8 +368,8 @@ function ClarityHubPage() {
       <section className="mb-10 glass-card rounded-2xl border border-white/10 p-4 lg:p-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-teal-200">Management</p>
-            <p className="text-sm text-slate-300 mt-1">Access your dedicated administrative or clinical dashboard.</p>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-teal-200">{t('clarity.management')}</p>
+            <p className="text-sm text-slate-300 mt-1">{t('clarity.management_desc')}</p>
           </div>
           <div className="flex gap-3 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0">
             {rolePanels.map((panel) => (
@@ -390,9 +380,9 @@ function ClarityHubPage() {
               >
                 <div className="flex items-center gap-2 text-teal-200">
                   <span className="material-symbols-outlined text-[20px]">{panel.icon}</span>
-                  <span className="text-sm font-bold text-white">{panel.title}</span>
+                  <span className="text-sm font-bold text-white">{t(panel.title)}</span>
                 </div>
-                <p className="text-xs text-slate-400 mt-1">{panel.subtitle}</p>
+                <p className="text-xs text-slate-400 mt-1">{t(panel.subtitle)}</p>
               </button>
             ))}
           </div>
@@ -407,8 +397,7 @@ function ClarityHubPage() {
           <div className="relative z-10">
             <div className="mb-8 flex flex-col gap-4 sm:mb-12 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="text-2xl font-headline font-bold text-white mb-2">Today's Treatment Plan</h3>
-                <p className="text-outline text-lg">আপনার আজকের চিকিৎসা পরিকল্পনা</p>
+                <h3 className="text-2xl font-headline font-bold text-white mb-2">{t('clarity.treatment_plan')}</h3>
               </div>
               <button onClick={handleSpeak} className={`w-14 h-14 self-start rounded-full ${isSpeakingState ? 'bg-red-500/20 text-red-400' : 'bg-primary/10 text-primary'} flex items-center justify-center hover:bg-primary hover:text-on-primary transition-all duration-300 shadow-xl shadow-primary/5 group/speaker relative`}>
                 {!isSpeakingState && <span className="absolute inset-0 rounded-full bg-primary animate-ping opacity-20 group-hover:hidden"></span>}
@@ -431,19 +420,19 @@ function ClarityHubPage() {
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs text-teal-300/70">{item.slotIcon} {item.slot}</span>
+                    <span className="text-xs text-teal-300/70">{item.slotIcon} {t('clarity.' + item.slotKey)}</span>
                     <p className={`text-lg font-medium mt-0.5 ${item.status === 'completed' ? 'text-white/50 line-through' : 'text-white'}`}>{item.name}</p>
                     <p className={`text-sm ${item.status === 'completed' ? 'text-outline/50' : 'text-outline'}`}>{item.purpose}</p>
                   </div>
                   <div className="flex w-full flex-col items-start text-left sm:w-auto sm:items-end sm:text-right shrink-0">
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${item.statusStyle}`}>{item.statusLabel}</span>
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest ${item.statusStyle}`}>{t(item.statusKey)}</span>
                     {item.timeNote && <span className="text-[10px] text-outline opacity-60 mt-1">{item.timeNote}</span>}
                   </div>
                 </div>
               )) : (
                 <div className="text-center py-12 text-outline">
                   <span className="material-symbols-outlined text-4xl mb-2 block text-primary/40">medication</span>
-                  <p>No medication data available.</p>
+                  <p>{t('clarity.no_medication')}</p>
                 </div>
               )}
             </div>
@@ -457,7 +446,7 @@ function ClarityHubPage() {
             <div className="absolute top-0 right-0 p-4">
               <span className="material-symbols-outlined text-primary/30 text-4xl">water_drop</span>
             </div>
-            <h4 className="text-lg font-headline font-bold text-white mb-8">Hydration Goal</h4>
+            <h4 className="text-lg font-headline font-bold text-white mb-8">{t('clarity.hydration_goal')}</h4>
             {/* Progress Ring */}
             <div className="relative w-40 h-40 sm:w-48 sm:h-48 mb-8">
               <svg className="w-full h-full" viewBox="0 0 100 100">
@@ -466,12 +455,11 @@ function ClarityHubPage() {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-4xl font-headline font-extrabold text-white">75%</span>
-                <span className="text-xs text-outline uppercase tracking-widest">Completed</span>
+                <span className="text-xs text-outline uppercase tracking-widest">{t('clarity.completed')}</span>
               </div>
             </div>
             <div className="space-y-2">
               <p className="text-white font-medium text-xl">1.5L / 2.0L</p>
-              <p className="text-outline text-sm">১.৫ লিটার / ২.০ লিটার</p>
             </div>
           </div>
 
@@ -484,8 +472,8 @@ function ClarityHubPage() {
             />
             <div className="absolute inset-0 bg-gradient-to-t from-surface to-transparent"></div>
             <div className="absolute bottom-0 left-0 p-8">
-              <p className="text-primary font-bold text-sm tracking-widest uppercase mb-1">Heart Health</p>
-              <p className="text-white text-lg font-headline">Rhythm: Sinus</p>
+              <p className="text-primary font-bold text-sm tracking-widest uppercase mb-1">{t('clarity.heart_health')}</p>
+              <p className="text-white text-lg font-headline">{t('clarity.rhythm_sinus')}</p>
             </div>
           </div>
         </section>
@@ -496,7 +484,7 @@ function ClarityHubPage() {
           to="/clarity-hub" 
           className="w-full sm:w-auto text-center bg-primary/10 text-primary border border-primary/20 py-4 px-8 rounded-full font-bold hover:bg-primary hover:text-on-primary transition-all shadow-xl shadow-primary/5"
         >
-          Open Detailed Clarity Center
+          {t('clarity.open_detailed')}
         </Link>
       </div>
 
@@ -520,8 +508,8 @@ function ClarityHubPage() {
                   <span className="absolute -right-1 -bottom-1 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0c1d2a]"></span>
                 </div>
                 <div>
-                  <p className="text-white text-sm font-bold tracking-wide">Clarity Assistant</p>
-                  <p className="text-teal-200/90 text-xs">Online • Bilingual Support</p>
+                  <p className="text-white text-sm font-bold tracking-wide">{t('clarity.assistant')}</p>
+                  <p className="text-teal-200/90 text-xs">{t('clarity.online_support')}</p>
                 </div>
               </div>
 
@@ -540,7 +528,7 @@ function ClarityHubPage() {
             </header>
 
             <div className="relative px-4 py-3 border-b border-white/10 bg-white/[0.02]">
-              <p className="text-[11px] uppercase tracking-[0.18em] text-teal-200/80 mb-2">Quick Actions</p>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-teal-200/80 mb-2">{t('clarity.quick_actions')}</p>
               <div className="grid grid-cols-2 gap-2">
                 {quickActions.map((action) => (
                   <button
@@ -549,7 +537,7 @@ function ClarityHubPage() {
                     className="rounded-xl border border-white/10 bg-white/5 hover:bg-teal-400/20 hover:border-teal-300/40 transition-all px-3 py-2 flex items-center gap-2 text-left"
                   >
                     <span className="material-symbols-outlined text-teal-200 text-[18px]">{action.icon}</span>
-                    <span className="text-xs text-white font-medium leading-tight">{action.label}</span>
+                    <span className="text-xs text-white font-medium leading-tight">{t(action.tKey)}</span>
                   </button>
                 ))}
               </div>
@@ -593,7 +581,7 @@ function ClarityHubPage() {
                     value={chatInput}
                     onChange={(event) => setChatInput(event.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-                    placeholder="Ask anything about your care plan..."
+                    placeholder={t('clarity.ask_placeholder')}
                     className="w-full bg-transparent resize-none outline-none text-sm text-white placeholder:text-slate-400"
                   />
                 </div>

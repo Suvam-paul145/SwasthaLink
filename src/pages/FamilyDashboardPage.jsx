@@ -147,7 +147,7 @@ function FamilyDashboardPage() {
     e.preventDefault();
     if (!linkInput.trim()) return;
     setLinking(true);
-    setLinkStatus({ type: 'info', message: 'Linking your records...' });
+    setLinkStatus({ type: 'info', message: t('link.linking_msg') });
     try {
       const res = await api.linkPatientPid(linkInput);
       setLinkStatus({ type: 'success', message: res.message });
@@ -257,8 +257,14 @@ function FamilyDashboardPage() {
             setReportToast({ type: 'success', message: `${t('toast.report_whatsapp')} ${normalizedPhone}` });
           } catch (whatsErr) {
             console.warn('WhatsApp send failed:', whatsErr.message);
-            const errMsg = whatsErr?.details?.detail || whatsErr.message || t('toast.whatsapp_fail');
-            setReportToast({ type: 'warning', message: errMsg });
+            const detail = whatsErr?.details?.detail || whatsErr.message || '';
+            const isSandbox = detail.toLowerCase().includes('sandbox');
+            setReportToast({
+              type: 'warning',
+              message: isSandbox
+                ? t('toast.sandbox_report')
+                : (detail || t('toast.whatsapp_fail')),
+            });
           }
         } else {
           setReportToast({ type: 'success', message: t('toast.no_phone') });
@@ -308,8 +314,14 @@ function FamilyDashboardPage() {
       await api.sendWhatsApp({ phone_number: normalizedPhone, message: report.summary });
       setReportToast({ type: 'success', message: `${t('toast.whatsapp_sent')}` });
     } catch (err) {
-      const errMsg = err?.details?.detail || err.message || t('toast.whatsapp_delivery_fail');
-      setReportToast({ type: 'error', message: errMsg });
+      const detail = err?.details?.detail || err.message || '';
+      const isSandbox = detail.toLowerCase().includes('sandbox');
+      setReportToast({
+        type: 'error',
+        message: isSandbox
+          ? t('toast.sandbox_share')
+          : (detail || t('toast.whatsapp_delivery_fail')),
+      });
     }
     setTimeout(() => setReportToast(null), 5000);
   };

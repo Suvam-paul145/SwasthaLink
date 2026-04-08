@@ -22,7 +22,11 @@ async def send_whatsapp(request: WhatsAppRequest):
         result = await send_whatsapp_message(request.phone_number, request.message)
 
         if not result.get("success"):
-            raise HTTPException(status_code=500, detail=result.get("error", "WhatsApp delivery failed"))
+            error_msg = result.get("error", "WhatsApp delivery failed")
+            # Return sandbox-specific detail so frontend can guide the user
+            if result.get("sandbox_mode"):
+                raise HTTPException(status_code=422, detail=error_msg)
+            raise HTTPException(status_code=500, detail=error_msg)
         rate_alert_service.track_usage("twilio", context="/api/send-whatsapp")
 
         logger.info(f"WhatsApp message sent successfully. SID: {result.get('sid')}")
