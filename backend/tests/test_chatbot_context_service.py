@@ -37,12 +37,13 @@ def test_answer_from_context_uses_groq_when_configured(monkeypatch):
         fake_get_faq_suggestions,
     )
     monkeypatch.setattr("services.chatbot_context_service.is_groq_configured", lambda: True)
+    monkeypatch.setattr("services.chatbot_context_service.get_preferred_chat_provider_name", lambda: "chat_model")
     monkeypatch.setattr("services.chatbot_context_service.answer_with_groq", fake_answer_with_groq)
 
     result = asyncio.run(answer_from_context("patient-1", "What is Metformin for?"))
 
     assert result["answer"] == "Metformin helps control blood sugar. Take it after food."
-    assert result["source"].startswith("groq")
+    assert result["source"].startswith("chat_model")
     assert result["confidence"] == 0.92
 
 

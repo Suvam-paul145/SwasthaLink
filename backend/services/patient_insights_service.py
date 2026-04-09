@@ -4,7 +4,7 @@ Patient Insights Generation Service.
 Generates patient-friendly explanations from extracted prescription data.
 Called AFTER admin approval — ensures only verified data reaches patients.
 
-Uses a second Gemini call with a patient-education prompt to transform
+Uses a patient-education LLM call to transform
 structured clinical data into:
   - Medication guide (what, why, when, caution)
   - Test guide (why, what to expect)
@@ -158,7 +158,7 @@ async def generate_patient_insights(extracted_data) -> Optional[dict]:
         logger.info("Generating patient insights via LLM...")
         response_text = await _generate_text(
             prompt=prompt,
-            use_qwen=False,
+            use_qwen=True,
             temperature=0.2,
         )
 

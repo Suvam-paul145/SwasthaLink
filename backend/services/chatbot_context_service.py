@@ -11,6 +11,7 @@ from services.groq_chat_service import (
     DEFAULT_NO_CONTEXT_ANSWER,
     answer_with_groq,
     answer_general_question,
+    get_preferred_chat_provider_name,
     is_groq_configured,
 )
 
@@ -188,7 +189,7 @@ async def answer_from_context(patient_id: str, question: str, inline_context: Op
         all_chunks = _build_chunks_from_inline_context(inline_context)
 
     if not all_chunks:
-        # No prescription data — fall back to general knowledge via Groq
+        # No prescription data — fall back to general knowledge via the configured assistant model
         if is_groq_configured():
             try:
                 answer = await answer_general_question(question)
@@ -198,7 +199,7 @@ async def answer_from_context(patient_id: str, question: str, inline_context: Op
                     "confidence": 0.6,
                 }
             except Exception as exc:
-                logger.warning("Groq general knowledge fallback failed: %s", exc)
+                logger.warning("General knowledge fallback failed: %s", exc)
         return {
             "answer": DEFAULT_NO_CONTEXT_ANSWER,
             "source": "none",
@@ -214,6 +215,7 @@ async def answer_from_context(patient_id: str, question: str, inline_context: Op
 
     if is_groq_configured() and (faq_matches or relevant):
         try:
+            provider_label = get_preferred_chat_provider_name()
             answer = await answer_with_groq(
                 patient_id=patient_id,
                 question=question,
@@ -222,11 +224,11 @@ async def answer_from_context(patient_id: str, question: str, inline_context: Op
             )
             return {
                 "answer": answer,
-                "source": f"groq ({_build_source_label(relevant, faq_matches)})",
+                "source": f"{provider_label} ({_build_source_label(relevant, faq_matches)})",
                 "confidence": 0.92 if faq_matches else 0.84,
             }
         except Exception as exc:
-            logger.warning("Groq grounded chat failed; using local fallback: %s", exc)
+            logger.warning("Grounded chat provider failed; using local fallback: %s", exc)
 
     if faq_matches:
         return {
@@ -251,10 +253,10 @@ async def answer_from_context(patient_id: str, question: str, inline_context: Op
             return {
                 "answer": answer,
                 "source": "general_knowledge",
-                "confidence": 0.5,
+                    "confidence": 0.5,
             }
         except Exception as exc:
-            logger.warning("Groq general fallback failed: %s", exc)
+            logger.warning("General fallback failed: %s", exc)
 
     return {
         "answer": DEFAULT_NO_CONTEXT_ANSWER,

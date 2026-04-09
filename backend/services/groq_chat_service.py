@@ -1,9 +1,9 @@
 """
 Chat service for grounded patient chatbot answers.
 
-Uses Cerebras (primary) or Groq (fallback) OpenAI-compatible chat completions
-endpoints and keeps the API key on the backend so patient chat requests never
-expose secrets in the browser.
+Uses Qwen (primary) with Groq as the fast fallback and Cerebras as an extra
+backup. All providers are called from the backend so patient chat requests
+never expose secrets in the browser.
 """
 
 import json
@@ -12,18 +12,25 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from core.config import read_env
+from core.config import FRONTEND_URL, read_env
 
 logger = logging.getLogger(__name__)
 
-CEREBRAS_CHAT_COMPLETIONS_URL = "https://api.cerebras.ai/v1/chat/completions"
+QWEN_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 GROQ_CHAT_COMPLETIONS_URL = "https://api.groq.com/openai/v1/chat/completions"
-DEFAULT_CEREBRAS_CHAT_MODEL = "llama3.1-8b"
+CEREBRAS_CHAT_COMPLETIONS_URL = "https://api.cerebras.ai/v1/chat/completions"
+DEFAULT_QWEN_CHAT_MODEL = read_env("QWEN_MODEL_NAME") or "qwen/qwen-2.5-72b-instruct"
 DEFAULT_GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_CEREBRAS_CHAT_MODEL = "llama3.1-8b"
 DEFAULT_NO_CONTEXT_ANSWER = (
     "I don't have enough information in your approved medical records to answer that. "
     "Please consult your doctor."
 )
+
+
+def get_configured_qwen_api_key() -> Optional[str]:
+    """Return the configured Qwen/OpenRouter API key, if available."""
+    return read_env("QWEN_API_KEY")
 
 
 def get_configured_cerebras_api_key() -> Optional[str]:
@@ -36,42 +43,85 @@ def get_configured_groq_api_key() -> Optional[str]:
     return read_env("GROQ_API_KEY")
 
 
+def get_configured_qwen_chat_model() -> str:
+    """Return the configured Qwen chat model name."""
+    return read_env("QWEN_CHAT_MODEL", "QWEN_MODEL_NAME") or DEFAULT_QWEN_CHAT_MODEL
+
+
 def get_configured_chat_model() -> str:
     """Return the configured chat model name for the active provider."""
+    if get_configured_qwen_api_key():
+        return get_configured_qwen_chat_model()
+    if get_configured_groq_api_key():
+        return read_env("GROQ_CHAT_MODEL") or DEFAULT_GROQ_CHAT_MODEL
     if get_configured_cerebras_api_key():
         return read_env("CEREBRAS_CHAT_MODEL") or DEFAULT_CEREBRAS_CHAT_MODEL
-    return read_env("GROQ_CHAT_MODEL") or DEFAULT_GROQ_CHAT_MODEL
+    return read_env("QWEN_CHAT_MODEL", "QWEN_MODEL_NAME", "GROQ_CHAT_MODEL", "CEREBRAS_CHAT_MODEL") or DEFAULT_QWEN_CHAT_MODEL
 
 
-def _get_chat_providers() -> list[tuple[str, str, str]]:
-    """Return a list of (api_key, base_url, model) for all available chat providers, ordered by priority."""
+def get_preferred_chat_provider_name() -> str:
+    """Return the label for the preferred configured chat provider."""
+    if get_configured_qwen_api_key():
+        return "qwen"
+    if get_configured_groq_api_key():
+        return "groq"
+    if get_configured_cerebras_api_key():
+        return "cerebras"
+    return "chat_model"
+
+
+def _build_chat_completions_url(base_url: str) -> str:
+    trimmed = base_url.rstrip("/")
+    if trimmed.endswith("/chat/completions"):
+        return trimmed
+    return f"{trimmed}/chat/completions"
+
+
+def _build_chat_headers(api_key: str, base_url: str) -> dict[str, str]:
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    if "openrouter.ai" in base_url:
+        headers["HTTP-Referer"] = FRONTEND_URL
+        headers["X-Title"] = "SwasthaLink"
+    return headers
+
+
+def _get_chat_providers() -> list[tuple[str, str, str, str]]:
+    """Return (provider_name, api_key, base_url, model) tuples in priority order."""
     providers = []
 
-    cerebras_key = get_configured_cerebras_api_key()
-    if cerebras_key:
-        model = read_env("CEREBRAS_CHAT_MODEL") or DEFAULT_CEREBRAS_CHAT_MODEL
-        providers.append((cerebras_key, CEREBRAS_CHAT_COMPLETIONS_URL, model))
+    qwen_key = get_configured_qwen_api_key()
+    if qwen_key:
+        qwen_base_url = _build_chat_completions_url(read_env("QWEN_BASE_URL") or "https://openrouter.ai/api/v1")
+        providers.append(("qwen", qwen_key, qwen_base_url, get_configured_qwen_chat_model()))
 
     groq_key = get_configured_groq_api_key()
     if groq_key:
         model = read_env("GROQ_CHAT_MODEL") or DEFAULT_GROQ_CHAT_MODEL
-        providers.append((groq_key, GROQ_CHAT_COMPLETIONS_URL, model))
+        providers.append(("groq", groq_key, GROQ_CHAT_COMPLETIONS_URL, model))
+
+    cerebras_key = get_configured_cerebras_api_key()
+    if cerebras_key:
+        model = read_env("CEREBRAS_CHAT_MODEL") or DEFAULT_CEREBRAS_CHAT_MODEL
+        providers.append(("cerebras", cerebras_key, CEREBRAS_CHAT_COMPLETIONS_URL, model))
 
     if not providers:
-        raise ValueError("No chat LLM API key configured (set CEREBRAS_API_KEY or GROQ_API_KEY)")
+        raise ValueError("No chat LLM API key configured (set QWEN_API_KEY, GROQ_API_KEY, or CEREBRAS_API_KEY)")
 
     return providers
 
 
-def _get_chat_provider() -> tuple[str, str, str]:
-    """Return (api_key, base_url, model) for the best available chat provider."""
+def _get_chat_provider() -> tuple[str, str, str, str]:
+    """Return (provider_name, api_key, base_url, model) for the best available chat provider."""
     providers = _get_chat_providers()
     return providers[0]
 
 
 def is_groq_configured() -> bool:
-    """Return True when a usable chat LLM API key is configured (Cerebras or Groq)."""
-    return bool(get_configured_cerebras_api_key() or get_configured_groq_api_key())
+    """Return True when any usable chat LLM API key is configured."""
+    return bool(get_configured_qwen_api_key() or get_configured_groq_api_key() or get_configured_cerebras_api_key())
 
 
 def _format_faq_matches(faq_matches: List[Dict[str, str]]) -> str:
@@ -137,7 +187,7 @@ async def answer_with_groq(
     faq_matches: List[Dict[str, str]],
     relevant_chunks: List[Dict[str, Any]],
 ) -> str:
-    """Answer a patient question using Cerebras/Groq and only approved patient context."""
+    """Answer a patient question using the configured chat stack and approved patient context."""
     providers = _get_chat_providers()
 
     context_document = build_grounded_chat_context(faq_matches, relevant_chunks)
@@ -164,7 +214,7 @@ async def answer_with_groq(
     )
 
     last_error = None
-    for api_key, base_url, model in providers:
+    for provider_name, api_key, base_url, model in providers:
         payload = {
             "model": model,
             "messages": [
@@ -173,14 +223,11 @@ async def answer_with_groq(
             ],
             "temperature": 0.1,
             "top_p": 1,
-            "max_completion_tokens": 256,
+            "max_tokens": 256,
             "stream": False,
         }
 
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
+        headers = _build_chat_headers(api_key, base_url)
 
         timeout = httpx.Timeout(30.0, connect=10.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -191,8 +238,8 @@ async def answer_with_groq(
             )
 
         if response.status_code in (401, 403):
-            logger.warning("Chat provider %s returned %s, trying next provider...", base_url, response.status_code)
-            last_error = f"Auth failed ({response.status_code}) for {base_url}"
+            logger.warning("Chat provider %s returned %s, trying next provider...", provider_name, response.status_code)
+            last_error = f"Auth failed ({response.status_code}) for {provider_name}"
             continue
 
         try:
@@ -219,7 +266,7 @@ async def answer_with_groq(
 
 
 async def answer_general_question(question: str) -> str:
-    """Answer a general health question using Cerebras/Groq when no patient records exist."""
+    """Answer a general health question using the configured chat stack."""
     providers = _get_chat_providers()
 
     system_prompt = (
@@ -232,7 +279,7 @@ async def answer_general_question(question: str) -> str:
     )
 
     last_error = None
-    for api_key, base_url, model in providers:
+    for provider_name, api_key, base_url, model in providers:
         payload = {
             "model": model,
             "messages": [
@@ -241,14 +288,11 @@ async def answer_general_question(question: str) -> str:
             ],
             "temperature": 0.3,
             "top_p": 1,
-            "max_completion_tokens": 300,
+            "max_tokens": 300,
             "stream": False,
         }
 
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
+        headers = _build_chat_headers(api_key, base_url)
 
         timeout = httpx.Timeout(30.0, connect=10.0)
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -259,8 +303,8 @@ async def answer_general_question(question: str) -> str:
             )
 
         if response.status_code in (401, 403):
-            logger.warning("General chat provider %s returned %s, trying next provider...", base_url, response.status_code)
-            last_error = f"Auth failed ({response.status_code}) for {base_url}"
+            logger.warning("General chat provider %s returned %s, trying next provider...", provider_name, response.status_code)
+            last_error = f"Auth failed ({response.status_code}) for {provider_name}"
             continue
 
         try:
