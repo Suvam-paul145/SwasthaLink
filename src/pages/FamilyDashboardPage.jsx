@@ -262,7 +262,7 @@ function FamilyDashboardPage() {
             setReportToast({
               type: 'warning',
               message: isSandbox
-                ? t('toast.sandbox_report')
+                ? (detail || t('toast.sandbox_report'))
                 : (detail || t('toast.whatsapp_fail')),
             });
           }
@@ -319,7 +319,7 @@ function FamilyDashboardPage() {
       setReportToast({
         type: 'error',
         message: isSandbox
-          ? t('toast.sandbox_share')
+          ? (detail || t('toast.sandbox_share'))
           : (detail || t('toast.whatsapp_delivery_fail')),
       });
     }

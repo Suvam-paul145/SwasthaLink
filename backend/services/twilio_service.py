@@ -97,6 +97,27 @@ def _is_sandbox_mode() -> bool:
     return _SANDBOX_NUMBER in (TWILIO_WHATSAPP_NUMBER or "")
 
 
+def _sandbox_delivery_error(error_code: Optional[int] = None) -> str:
+    """Return a user-facing explanation for common sandbox delivery failures."""
+    if error_code in (21408, 63015):
+        return (
+            "WhatsApp sandbox delivery failed. The recipient must first join the sandbox: "
+            "open WhatsApp and send 'join <your-keyword>' to +14155238886. "
+            "Check your Twilio Console for the exact keyword."
+        )
+    if error_code == 63016:
+        return (
+            "WhatsApp sandbox delivery failed because free-form messages only work inside the "
+            "active 24-hour WhatsApp session. If the recipient already joined the sandbox, ask "
+            "them to send any WhatsApp message to +14155238886 and retry."
+        )
+    return (
+        "WhatsApp sandbox delivery failed. The recipient may need to rejoin the sandbox or send "
+        "a fresh WhatsApp message to reopen the 24-hour session. Check the Twilio Sandbox "
+        "console for the current keyword."
+    )
+
+
 def _parse_dt(value: str) -> Optional[datetime]:
     """Parse ISO datetime safely."""
     if not value:
@@ -162,12 +183,7 @@ async def send_whatsapp_message(phone_number: str, message: str) -> Dict[str, An
                         f"Sandbox delivery failed for {phone_number}: "
                         f"status={updated.status}, error_code={error_code}"
                     )
-                    sandbox_msg = (
-                        "WhatsApp sandbox delivery failed. "
-                        "The recipient must first join the sandbox: "
-                        "open WhatsApp and send 'join <your-keyword>' to +14155238886. "
-                        "Check your Twilio Console for the exact keyword."
-                    )
+                    sandbox_msg = _sandbox_delivery_error(error_code)
                     return {
                         "success": False,
                         "sid": twilio_message.sid,
@@ -198,20 +214,28 @@ async def send_whatsapp_message(phone_number: str, message: str) -> Dict[str, An
             21408: "Recipient not joined Twilio sandbox. Ask them to send 'join <code>' to the sandbox number.",
             21610: "Recipient has unsubscribed from messages. They need to rejoin.",
             63007: "Recipient phone number not capable of receiving WhatsApp messages.",
-            63016: "Message failed due to rate limit or spam filter."
+            63015: "Recipient not joined Twilio sandbox. Ask them to send 'join <code>' to the sandbox number.",
+            63016: (
+                "WhatsApp free-form messages only work inside the active 24-hour session. "
+                "Ask the recipient to send a fresh WhatsApp message and retry."
+            ),
         }
 
-        user_friendly_msg = error_mappings.get(
-            error_code,
-            f"WhatsApp delivery failed: {error_msg}"
-        )
+        if _is_sandbox_mode() and error_code in (21408, 63015, 63016):
+            user_friendly_msg = _sandbox_delivery_error(error_code)
+        else:
+            user_friendly_msg = error_mappings.get(
+                error_code,
+                f"WhatsApp delivery failed: {error_msg}"
+            )
 
         return {
             "success": False,
             "sid": None,
             "status": "failed",
             "error": user_friendly_msg,
-            "error_code": error_code
+            "error_code": error_code,
+            "sandbox_mode": _is_sandbox_mode(),
         }
 
     except Exception as e:
@@ -345,6 +369,12 @@ async def schedule_followup_messages(
     medications: list[str],
 ) -> Dict[str, Any]:
     """Create Day-3 and Day-7 follow-up jobs and enqueue them in APScheduler."""
+    if _is_sandbox_mode():
+        logger.warning(
+            "Scheduling follow-up WhatsApp messages while using the Twilio sandbox. "
+            "Sandbox delivery is limited to the active 24-hour conversation window."
+        )
+
     now_utc = datetime.now(timezone.utc)
     day3_time = now_utc + timedelta(days=3)
     day7_time = now_utc + timedelta(days=7)

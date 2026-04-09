@@ -7,9 +7,10 @@ which trial accounts lack.  SMS OTPs still go through Twilio Verify.
 """
 
 import asyncio
+import json
 import logging
 import secrets
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 from core.config import read_env
 from core.exceptions import OTPServiceError
@@ -36,6 +37,10 @@ TWILIO_API_KEY_SID = read_env("TWILIO_API_KEY_SID", "TWILIO_API_KEY")
 TWILIO_API_KEY_SECRET = read_env("TWILIO_API_KEY_SECRET", "TWILIO_API_SECRET")
 TWILIO_VERIFY_SERVICE_SID = read_env("TWILIO_VERIFY_SERVICE_SID")
 TWILIO_WHATSAPP_NUMBER = read_env("TWILIO_WHATSAPP_NUMBER") or "whatsapp:+14155238886"
+TWILIO_WHATSAPP_OTP_TEMPLATE_SID = read_env(
+    "TWILIO_WHATSAPP_OTP_TEMPLATE_SID",
+    "TWILIO_WHATSAPP_TEMPLATE_SID",
+)
 
 _twilio_client = None
 if TWILIO_SDK_AVAILABLE:
@@ -84,6 +89,13 @@ def _format_whatsapp(phone: str) -> str:
     return f"whatsapp:{phone}"
 
 
+def _build_whatsapp_otp_body(otp_code: str) -> str:
+    return (
+        f"Your SwasthaLink verification code is: *{otp_code}*\n\n"
+        "This code expires in 10 minutes. Do not share it with anyone."
+    )
+
+
 def _should_fallback_to_demo(exc: Exception) -> bool:
     message = str(exc).lower()
     return (
@@ -101,6 +113,27 @@ _SANDBOX_NUMBER = "+14155238886"
 def _is_sandbox_number() -> bool:
     """Check if the configured WhatsApp number is the Twilio sandbox."""
     return _SANDBOX_NUMBER in (TWILIO_WHATSAPP_NUMBER or "")
+
+
+def _can_use_sandbox_otp_template() -> bool:
+    """Business-initiated sandbox sends need a configured Content Template SID."""
+    return _is_sandbox_number() and bool(TWILIO_WHATSAPP_OTP_TEMPLATE_SID)
+
+
+def _build_whatsapp_otp_request(phone_number: str, otp_code: str) -> Tuple[Dict[str, Any], str]:
+    """Build Twilio Messaging API params for OTP delivery."""
+    payload: Dict[str, Any] = {
+        "from_": _format_whatsapp(TWILIO_WHATSAPP_NUMBER),
+        "to": _format_whatsapp(phone_number),
+    }
+
+    if _can_use_sandbox_otp_template():
+        payload["content_sid"] = TWILIO_WHATSAPP_OTP_TEMPLATE_SID
+        payload["content_variables"] = json.dumps({"1": otp_code}, separators=(",", ":"))
+        return payload, "template"
+
+    payload["body"] = _build_whatsapp_otp_body(otp_code)
+    return payload, "freeform"
 
 
 async def _check_message_delivery(msg_sid: str, max_wait: float = 4.0) -> dict | None:
@@ -127,11 +160,20 @@ async def _check_message_delivery(msg_sid: str, max_wait: float = 4.0) -> dict |
 
 
 def _sandbox_instructions() -> str:
+    base = (
+        "To receive WhatsApp OTPs, open WhatsApp and send "
+        "'join <your-sandbox-keyword>' to +14155238886. "
+        "Check your Twilio Console for the exact keyword."
+    )
+    if _can_use_sandbox_otp_template():
+        return (
+            f"{base} Your sandbox verification template is configured, "
+            "so Twilio can send the OTP after the sandbox join succeeds."
+        )
     return (
-        "To receive WhatsApp OTPs, you must first join the Twilio Sandbox: "
-        "open WhatsApp, send 'join <your-sandbox-keyword>' to +14155238886. "
-        "Check your Twilio Console for the exact keyword. "
-        "After joining, resend the OTP."
+        f"{base} For business-initiated OTPs outside the active 24-hour "
+        "WhatsApp session, also set TWILIO_WHATSAPP_OTP_TEMPLATE_SID in "
+        "backend/.env to the Content Template SID shown in the Twilio Sandbox console."
     )
 
 
@@ -150,16 +192,15 @@ async def send_otp(phone_number: str, channel: str = "whatsapp") -> Dict[str, An
     if normalized_channel == "whatsapp":
         if _is_messaging_configured():
             otp_code = _generate_otp()
-            body = f"Your SwasthaLink verification code is: *{otp_code}*\n\nThis code expires in 10 minutes. Do not share it with anyone."
+            message_payload, delivery_mode = _build_whatsapp_otp_request(phone_number, otp_code)
             try:
-                from_number = _format_whatsapp(TWILIO_WHATSAPP_NUMBER)
-                to_number = _format_whatsapp(phone_number)
-                msg = _twilio_client.messages.create(
-                    from_=from_number,
-                    to=to_number,
-                    body=body,
+                msg = _twilio_client.messages.create(**message_payload)
+                logger.info(
+                    "WhatsApp OTP queued for %s using %s delivery; SID: %s",
+                    phone_number,
+                    delivery_mode,
+                    msg.sid,
                 )
-                logger.info(f"WhatsApp OTP queued for {phone_number}; SID: {msg.sid}")
 
                 # Check delivery status to detect sandbox/unverified failures
                 delivery_fail = await _check_message_delivery(msg.sid)
@@ -189,6 +230,7 @@ async def send_otp(phone_number: str, channel: str = "whatsapp") -> Dict[str, An
                             "channel": "whatsapp",
                             "phone_number": phone_number,
                             "configured": True,
+                            "delivery_mode": delivery_mode,
                         }
                     # Other delivery failure — still fall back to demo
                     _WA_OTP_STORE.pop(phone_number, None)
@@ -204,6 +246,7 @@ async def send_otp(phone_number: str, channel: str = "whatsapp") -> Dict[str, An
                         "channel": "whatsapp",
                         "phone_number": phone_number,
                         "configured": True,
+                        "delivery_mode": delivery_mode,
                     }
 
                 _WA_OTP_STORE[phone_number] = otp_code
@@ -215,23 +258,36 @@ async def send_otp(phone_number: str, channel: str = "whatsapp") -> Dict[str, An
                     "channel": "whatsapp",
                     "phone_number": phone_number,
                     "configured": True,
+                    "delivery_mode": delivery_mode,
                 }
             except TwilioRestException as exc:
                 logger.error(f"Twilio WhatsApp message error: {exc}")
-                if _should_fallback_to_demo(exc):
-                    logger.warning(f"Falling back to demo OTP for {phone_number} (WhatsApp trial restriction)")
+                error_code = getattr(exc, "code", None)
+                sandbox_failure = _is_sandbox_number() and error_code in {21408, 63007, 63015, 63016}
+                if _should_fallback_to_demo(exc) or sandbox_failure:
+                    logger.warning(
+                        "Falling back to demo OTP for %s after WhatsApp sandbox/trial restriction",
+                        phone_number,
+                    )
                     _DEMO_OTP_STORE[phone_number] = _DEMO_OTP_CODE
+                    sandbox_msg = _sandbox_instructions()
                     return {
                         "success": True,
                         "message": (
                             f"Demo OTP ({_DEMO_OTP_CODE}) assigned for {phone_number} via WhatsApp. "
-                            "Twilio trial accounts can only send to sandbox-joined numbers."
+                            f"{sandbox_msg}"
                         ),
                         "demo_mode": True,
-                        "fallback_reason": "twilio_trial_unverified_number",
+                        "fallback_reason": (
+                            "whatsapp_sandbox_delivery_blocked"
+                            if sandbox_failure
+                            else "twilio_trial_unverified_number"
+                        ),
                         "channel": "whatsapp",
                         "phone_number": phone_number,
                         "configured": True,
+                        "sandbox_instructions": sandbox_msg,
+                        "delivery_mode": delivery_mode,
                     }
                 detail = getattr(exc, "msg", str(exc))
                 raise OTPServiceError(f"Failed to send OTP via WhatsApp: {detail}", 502)
