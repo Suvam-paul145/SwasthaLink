@@ -348,13 +348,21 @@ function LandingPage() {
                 viewport={{ once: true }}
                 custom={index}
               >
-                <GlassCard className="relative p-6 h-full" hoverScale={1.04} glowColor="45, 212, 191">
-                  {/* step number badge */}
-                  <div className="absolute -top-4 -left-4 h-11 w-11 rounded-full bg-gradient-to-br from-teal-400 via-cyan-400 to-emerald-400 flex items-center justify-center text-sm font-black text-[#04262b] shadow-[0_0_24px_rgba(45,212,191,0.45)]">
-                    {step.number}
+                <GlassCard className="relative h-full p-6 sm:p-7" hoverScale={1.04} glowColor="45, 212, 191">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 via-cyan-400 to-emerald-400 text-sm font-black text-[#04262b] shadow-[0_0_24px_rgba(45,212,191,0.45)]">
+                      {step.number}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-lg font-bold leading-snug text-white sm:text-xl">
+                        {t(step.title)}
+                      </h3>
+                      <p className="mt-2 text-sm leading-7 text-slate-400 sm:text-[15px]">
+                        {t(step.description)}
+                      </p>
+                    </div>
                   </div>
-                  <h3 className="mt-4 text-lg font-bold text-white">{t(step.title)}</h3>
-                  <p className="mt-2 text-sm text-slate-400">{t(step.description)}</p>
 
                   {/* connector */}
                   {index < workflow.length - 1 && (

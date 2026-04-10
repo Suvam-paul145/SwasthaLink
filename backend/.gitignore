@@ -1,4 +1,5 @@
 # Environment variables - CRITICAL: Never commit!
+.docs\FUTURE_FRONTIER_ROADMAP.md
 .env
 .env.local
 .env.production
