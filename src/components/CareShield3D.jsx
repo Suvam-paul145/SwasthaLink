@@ -2,6 +2,7 @@ import { Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { COLORS } from '../utils/three-config';
+import ErrorBoundary from './ErrorBoundary';
 
 function ShieldShape() {
   const ref = useRef();
@@ -75,24 +76,26 @@ function LoadingFallback() {
 
 export default function CareShield3D({ label = 'Protected', className = '' }) {
   return (
-    <div className={`relative ${className}`}>
-      <Suspense fallback={<LoadingFallback />}>
-        <Canvas camera={{ position: [0, 0, 4], fov: 45 }} fallback={<LoadingFallback />}>
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[5, 5, 5]} intensity={1} />
-          <pointLight position={[-5, -3, 3]} color={COLORS.primary} intensity={0.5} />
-          <pointLight position={[3, 5, -3]} color={COLORS.secondary} intensity={0.3} />
-          <ShieldShape />
-        </Canvas>
-      </Suspense>
-      {label && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-4 py-1.5 rounded-lg border border-primary/30 z-10">
-          <span className="text-primary font-semibold text-sm flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-xs">verified_user</span>
-            {label}
-          </span>
-        </div>
-      )}
-    </div>
+    <ErrorBoundary fallbackMessage="Failed to render 3D security shield model.">
+      <div className={`relative ${className}`}>
+        <Suspense fallback={<LoadingFallback />}>
+          <Canvas camera={{ position: [0, 0, 4], fov: 45 }} fallback={<LoadingFallback />}>
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[5, 5, 5]} intensity={1} />
+            <pointLight position={[-5, -3, 3]} color={COLORS.primary} intensity={0.5} />
+            <pointLight position={[3, 5, -3]} color={COLORS.secondary} intensity={0.3} />
+            <ShieldShape />
+          </Canvas>
+        </Suspense>
+        {label && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-sm px-4 py-1.5 rounded-lg border border-primary/30 z-10">
+            <span className="text-primary font-semibold text-sm flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-xs">verified_user</span>
+              {label}
+            </span>
+          </div>
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }

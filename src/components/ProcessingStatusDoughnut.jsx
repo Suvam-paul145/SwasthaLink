@@ -1,5 +1,6 @@
 import { Doughnut } from 'react-chartjs-2';
 import { chartTheme, defaultChartOptions } from '../utils/chartConfig';
+import ErrorBoundary from './ErrorBoundary';
 
 function ProcessingStatusDoughnut({ className = "" }) {
   const chartData = {
@@ -35,19 +36,21 @@ function ProcessingStatusDoughnut({ className = "" }) {
   const totalProcessed = chartData.datasets[0].data.reduce((a, b) => a + b, 0);
 
   return (
-    <div className={`glass-card p-6 rounded-xl border border-white/5 ${className}`}>
-      <div className="mb-6">
-        <h3 className="text-xl font-headline font-bold text-white">Processing Status</h3>
-        <p className="text-slate-400 text-sm mt-1">Document workflow distribution</p>
-      </div>
-      <div className="relative h-80">
-        <Doughnut data={chartData} options={options} />
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <div className="text-4xl font-bold text-white">{totalProcessed}</div>
-          <div className="text-xs text-slate-400 uppercase tracking-wider">Total Documents</div>
+    <ErrorBoundary fallbackMessage="Failed to render status doughnut chart.">
+      <div className={`glass-card p-6 rounded-xl border border-white/5 ${className}`}>
+        <div className="mb-6">
+          <h3 className="text-xl font-headline font-bold text-white">Processing Status</h3>
+          <p className="text-slate-400 text-sm mt-1">Document workflow distribution</p>
+        </div>
+        <div className="relative h-80">
+          <Doughnut data={chartData} options={options} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <div className="text-4xl font-bold text-white">{totalProcessed}</div>
+            <div className="text-xs text-slate-400 uppercase tracking-wider">Total Documents</div>
+          </div>
         </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 

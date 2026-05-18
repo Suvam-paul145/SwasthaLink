@@ -2,6 +2,7 @@ import { Suspense, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Float, MeshDistortMaterial, Sphere } from '@react-three/drei';
 import * as THREE from 'three';
+import ErrorBoundary from './ErrorBoundary';
 
 function ParticleField({ count = 200, color = '#4fdbc8' }) {
   const points = useRef();
@@ -125,48 +126,52 @@ function LoadingFallback3D() {
 
 export function DashboardHero3D({ variant = 'admin', className = '' }) {
   return (
-    <div className={`relative ${className}`}>
-      <Suspense fallback={<LoadingFallback3D />}>
-        <Canvas
-          camera={{ position: [0, 0, 5], fov: 50 }}
-          style={{ background: 'transparent' }}
-          gl={{ alpha: true, antialias: true }}
-        >
-          <DashboardScene variant={variant} />
-        </Canvas>
-      </Suspense>
-    </div>
+    <ErrorBoundary fallbackMessage="Failed to render 3D dashboard hero visualization.">
+      <div className={`relative ${className}`}>
+        <Suspense fallback={<LoadingFallback3D />}>
+          <Canvas
+            camera={{ position: [0, 0, 5], fov: 50 }}
+            style={{ background: 'transparent' }}
+            gl={{ alpha: true, antialias: true }}
+          >
+            <DashboardScene variant={variant} />
+          </Canvas>
+        </Suspense>
+      </div>
+    </ErrorBoundary>
   );
 }
 
 export function FloatingIcon3D({ icon = 'shield', color = '#4fdbc8', className = '' }) {
   return (
-    <div className={`relative ${className}`}>
-      <Suspense fallback={<LoadingFallback3D />}>
-        <Canvas
-          camera={{ position: [0, 0, 3], fov: 50 }}
-          style={{ background: 'transparent' }}
-          gl={{ alpha: true, antialias: true }}
-        >
-          <ambientLight intensity={0.5} />
-          <pointLight position={[3, 3, 3]} intensity={0.8} color={color} />
-          <Float speed={2} rotationIntensity={0.5} floatIntensity={0.8}>
-            <Sphere args={[0.6, 32, 32]}>
-              <MeshDistortMaterial
-                color={color}
-                emissive={color}
-                emissiveIntensity={0.3}
-                roughness={0.2}
-                metalness={0.9}
-                distort={0.2}
-                speed={3}
-              />
-            </Sphere>
-          </Float>
-          <ParticleField count={50} color={color} />
-        </Canvas>
-      </Suspense>
-    </div>
+    <ErrorBoundary fallbackMessage="Failed to render 3D floating icon.">
+      <div className={`relative ${className}`}>
+        <Suspense fallback={<LoadingFallback3D />}>
+          <Canvas
+            camera={{ position: [0, 0, 3], fov: 50 }}
+            style={{ background: 'transparent' }}
+            gl={{ alpha: true, antialias: true }}
+          >
+            <ambientLight intensity={0.5} />
+            <pointLight position={[3, 3, 3]} intensity={0.8} color={color} />
+            <Float speed={2} rotationIntensity={0.5} floatIntensity={0.8}>
+              <Sphere args={[0.6, 32, 32]}>
+                <MeshDistortMaterial
+                  color={color}
+                  emissive={color}
+                  emissiveIntensity={0.3}
+                  roughness={0.2}
+                  metalness={0.9}
+                  distort={0.2}
+                  speed={3}
+                />
+              </Sphere>
+            </Float>
+            <ParticleField count={50} color={color} />
+          </Canvas>
+        </Suspense>
+      </div>
+    </ErrorBoundary>
   );
 }
 

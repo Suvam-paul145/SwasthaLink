@@ -1,5 +1,6 @@
 import { Line } from 'react-chartjs-2';
 import { chartTheme, defaultChartOptions } from '../utils/chartConfig';
+import ErrorBoundary from './ErrorBoundary';
 
 function ReadmissionRiskChart({ data, className = "" }) {
   const chartData = {
@@ -57,21 +58,23 @@ function ReadmissionRiskChart({ data, className = "" }) {
   };
 
   return (
-    <div className={`glass-card p-6 rounded-xl border border-white/5 ${className}`}>
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h3 className="text-xl font-headline font-bold text-white">Readmission Risk Analysis</h3>
-          <p className="text-slate-400 text-sm mt-1">6-month trend analysis</p>
+    <ErrorBoundary fallbackMessage="Failed to render readmission risk trends.">
+      <div className={`glass-card p-6 rounded-xl border border-white/5 ${className}`}>
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h3 className="text-xl font-headline font-bold text-white">Readmission Risk Analysis</h3>
+            <p className="text-slate-400 text-sm mt-1">6-month trend analysis</p>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="material-symbols-outlined text-green-400 text-lg">trending_down</span>
+            <span className="text-green-400 font-bold">-6.1% vs Q1</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <span className="material-symbols-outlined text-green-400 text-lg">trending_down</span>
-          <span className="text-green-400 font-bold">-6.1% vs Q1</span>
+        <div className="h-80">
+          <Line data={chartData} options={options} />
         </div>
       </div>
-      <div className="h-80">
-        <Line data={chartData} options={options} />
-      </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 

@@ -1,6 +1,7 @@
 import { Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { COLORS } from '../utils/three-config';
+import ErrorBoundary from './ErrorBoundary';
 
 function Capsule({ color = COLORS.primary, speed = 1 }) {
   const ref = useRef();
@@ -70,20 +71,22 @@ function LoadingFallback() {
 
 export default function CapsuleFloat3D({ color, speed = 1, label = 'Medication', className = '' }) {
   return (
-    <div className={`relative ${className}`}>
-      <Suspense fallback={<LoadingFallback />}>
-        <Canvas camera={{ position: [0, 0, 3.5], fov: 45 }} fallback={<LoadingFallback />}>
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[5, 5, 5]} intensity={1} />
-          <pointLight position={[-5, -5, -3]} color={COLORS.primary} intensity={0.4} />
-          <Capsule color={color} speed={speed} />
-        </Canvas>
-      </Suspense>
-      {label && (
-        <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-primary/30 z-10">
-          <span className="text-primary font-semibold text-sm">{label}</span>
-        </div>
-      )}
-    </div>
+    <ErrorBoundary fallbackMessage="Failed to render 3D medication capsule model.">
+      <div className={`relative ${className}`}>
+        <Suspense fallback={<LoadingFallback />}>
+          <Canvas camera={{ position: [0, 0, 3.5], fov: 45 }} fallback={<LoadingFallback />}>
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[5, 5, 5]} intensity={1} />
+            <pointLight position={[-5, -5, -3]} color={COLORS.primary} intensity={0.4} />
+            <Capsule color={color} speed={speed} />
+          </Canvas>
+        </Suspense>
+        {label && (
+          <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-primary/30 z-10">
+            <span className="text-primary font-semibold text-sm">{label}</span>
+          </div>
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }

@@ -2,6 +2,7 @@ import { Suspense, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { COLORS } from '../utils/three-config';
+import ErrorBoundary from './ErrorBoundary';
 
 const PARTICLE_COUNT = 60;
 const SPREAD = 4;
@@ -149,26 +150,28 @@ export default function MedicalParticles3D({ count = PARTICLE_COUNT, className =
   );
 
   return (
-    <div className={`relative ${className}`}>
-      <Suspense fallback={<LoadingFallback />}>
-        <Canvas camera={{ position: [0, 0, 4], fov: 50 }} fallback={<LoadingFallback />}>
-          <ambientLight intensity={0.3} />
-          <pointLight position={[0, 0, 5]} color={COLORS.primary} intensity={0.4} />
+    <ErrorBoundary fallbackMessage="Failed to render 3D particle simulation.">
+      <div className={`relative ${className}`}>
+        <Suspense fallback={<LoadingFallback />}>
+          <Canvas camera={{ position: [0, 0, 4], fov: 50 }} fallback={<LoadingFallback />}>
+            <ambientLight intensity={0.3} />
+            <pointLight position={[0, 0, 5]} color={COLORS.primary} intensity={0.4} />
 
-          <Particles count={count} color={COLORS.primary} />
-          <Particles count={Math.floor(count * 0.4)} color={COLORS.secondary} />
-          <ConnectionLines count={count} />
+            <Particles count={count} color={COLORS.primary} />
+            <Particles count={Math.floor(count * 0.4)} color={COLORS.secondary} />
+            <ConnectionLines count={count} />
 
-          {orbPositions.map((pos, i) => (
-            <GlowOrb
-              key={i}
-              position={pos}
-              color={i % 2 === 0 ? COLORS.primary : COLORS.secondary}
-              scale={Math.random() * 0.5 + 0.8}
-            />
-          ))}
-        </Canvas>
-      </Suspense>
-    </div>
+            {orbPositions.map((pos, i) => (
+              <GlowOrb
+                key={i}
+                position={pos}
+                color={i % 2 === 0 ? COLORS.primary : COLORS.secondary}
+                scale={Math.random() * 0.5 + 0.8}
+              />
+            ))}
+          </Canvas>
+        </Suspense>
+      </div>
+    </ErrorBoundary>
   );
 }
