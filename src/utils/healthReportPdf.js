@@ -112,21 +112,32 @@ export function generateHealthReport({ patientName, patientId, diagnosis, medica
       doc.text('Medication Notes:', margin + 2, y);
       y += 5;
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
       doc.setTextColor(60, 60, 60);
       medsWithDetails.forEach(med => {
-        y = checkPageBreak(doc, y, 12);
+        let neededHeight = 5; // title + spacing
+        let pLines = [];
+        let wLines = [];
+        if (med.purpose) {
+          pLines = doc.splitTextToSize(`Purpose: ${med.purpose}`, pageW - margin * 2 - 20);
+          neededHeight += pLines.length * 4;
+        }
+        if (med.warnings) {
+          wLines = doc.splitTextToSize(`Warning: ${med.warnings}`, pageW - margin * 2 - 20);
+          neededHeight += wLines.length * 4;
+        }
+        
+        y = checkPageBreak(doc, y, neededHeight + 5);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.text(`${med.name}:`, margin + 4, y);
         doc.setFont('helvetica', 'normal');
         if (med.purpose) {
-          const pLines = doc.splitTextToSize(`Purpose: ${med.purpose}`, pageW - margin * 2 - 20);
           doc.text(pLines, margin + 6, y + 4);
           y += pLines.length * 4;
         }
         if (med.warnings) {
           doc.setTextColor(180, 80, 0);
-          const wLines = doc.splitTextToSize(`Warning: ${med.warnings}`, pageW - margin * 2 - 20);
           doc.text(wLines, margin + 6, y + 4);
           doc.setTextColor(60, 60, 60);
           y += wLines.length * 4;
@@ -186,10 +197,11 @@ export function generateHealthReport({ patientName, patientId, diagnosis, medica
       doc.setTextColor(60, 60, 60);
       doc.setFontSize(8);
       dos.forEach((item, i) => {
-        y = checkPageBreak(doc, y, 8);
         const lines = doc.splitTextToSize(`${i + 1}. ${item}`, pageW - margin * 2 - 10);
+        const textHeight = lines.length * 4;
+        y = checkPageBreak(doc, y, textHeight + 2);
         doc.text(lines, margin + 6, y);
-        y += lines.length * 4 + 2;
+        y += textHeight + 2;
       });
       y += 3;
     }
@@ -205,10 +217,11 @@ export function generateHealthReport({ patientName, patientId, diagnosis, medica
       doc.setTextColor(60, 60, 60);
       doc.setFontSize(8);
       donts.forEach((item, i) => {
-        y = checkPageBreak(doc, y, 8);
         const lines = doc.splitTextToSize(`${i + 1}. ${item}`, pageW - margin * 2 - 10);
+        const textHeight = lines.length * 4;
+        y = checkPageBreak(doc, y, textHeight + 2);
         doc.text(lines, margin + 6, y);
-        y += lines.length * 4 + 2;
+        y += textHeight + 2;
       });
     }
     y += 4;
@@ -245,8 +258,10 @@ export function generateHealthReport({ patientName, patientId, diagnosis, medica
       doc.setTextColor(60, 60, 60);
       doc.setFontSize(9);
       const fLines = doc.splitTextToSize(`Follow-up: ${latestDischarge.follow_up}`, pageW - margin * 2 - 4);
+      const fHeight = fLines.length * 4.5;
+      y = checkPageBreak(doc, y, fHeight + 4);
       doc.text(fLines, margin + 2, y);
-      y += fLines.length * 4.5 + 4;
+      y += fHeight + 4;
     }
   }
 
