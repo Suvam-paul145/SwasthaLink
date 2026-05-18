@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, Suspense } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useAuth } from "../context/AuthContext";
@@ -8,6 +8,7 @@ import Logo from "./Logo";
 import RoleSwitcher from "./RoleSwitcher";
 import ScrollProgress from "./effects/ScrollProgress";
 import LanguageSelector from "./LanguageSelector";
+import { PageLoader } from "../App";
 
 const navItems = [
   { to: "/family-dashboard", icon: "personal_injury", labelKey: "nav.family_dashboard", roles: ["patient"] },
@@ -189,7 +190,9 @@ function AppShell() {
 
       <main className="flex-1 lg:ml-72 min-h-screen relative flex flex-col pt-[72px] lg:pt-0 bg-[#070e17]/90 backdrop-blur-sm">
         <ScrollProgress />
-        <Outlet />
+        <Suspense fallback={<PageLoader />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

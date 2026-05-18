@@ -6,17 +6,29 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import LoadingScreen from "./components/LoadingScreen";
 import CursorGlow from "./components/effects/CursorGlow";
 import NeuralBackground from "./components/effects/NeuralBackground";
-import AdminPanelPage from "./pages/AdminPanelPage";
-import ClarityHubPage from "./pages/ClarityHubPage";
-import DetailedClarityHubPage from "./pages/DetailedClarityHubPage";
-import FamilyDashboardPage from "./pages/FamilyDashboardPage";
-import SettingsPage from "./pages/SettingsPage";
-import ComponentShowcasePage from "./pages/ComponentShowcasePage";
-import DoctorPanelPage from "./pages/DoctorPanelPage";
-import LoginPage from "./pages/LoginPage";
-import SignupPage from "./pages/SignupPage";
-import ForgotPasswordPage from "./pages/ForgotPasswordPage";
-import LandingPage from "./pages/LandingPage";
+const AdminPanelPage = lazy(() => import("./pages/AdminPanelPage"));
+const ClarityHubPage = lazy(() => import("./pages/ClarityHubPage"));
+const DetailedClarityHubPage = lazy(() => import("./pages/DetailedClarityHubPage"));
+const FamilyDashboardPage = lazy(() => import("./pages/FamilyDashboardPage"));
+const SettingsPage = lazy(() => import("./pages/SettingsPage"));
+const ComponentShowcasePage = lazy(() => import("./pages/ComponentShowcasePage"));
+const DoctorPanelPage = lazy(() => import("./pages/DoctorPanelPage"));
+const LoginPage = lazy(() => import("./pages/LoginPage"));
+const SignupPage = lazy(() => import("./pages/SignupPage"));
+const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+
+export function PageLoader() {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] p-8">
+      <div className="relative w-10 h-10">
+        <div className="absolute inset-0 rounded-full border-4 border-teal-500/10" />
+        <div className="absolute inset-0 rounded-full border-4 border-t-teal-400 animate-spin" />
+      </div>
+    </div>
+  );
+}
+
 
 const pageMotion = {
   initial: { opacity: 0, y: 12, filter: "blur(6px)" },
@@ -43,55 +55,57 @@ function App() {
       <NeuralBackground />
 
       <AnimatePresence mode="wait">
-        <Routes location={location} key={location.pathname}>
-          <Route path="/" element={<AnimatedPage><LandingPage /></AnimatedPage>} />
-          <Route path="/login" element={<AnimatedPage><LoginPage /></AnimatedPage>} />
-          <Route path="/signup" element={<AnimatedPage><SignupPage /></AnimatedPage>} />
-          <Route path="/forgot-password" element={<AnimatedPage><ForgotPasswordPage /></AnimatedPage>} />
-          <Route
-            element={
-              <ProtectedRoute>
-                <AppShell />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/overview" element={<AnimatedPage><ClarityHubPage /></AnimatedPage>} />
-            <Route path="/dashboard" element={<Navigate to="/overview" replace />} />
-            <Route path="/clarity-hub" element={<AnimatedPage><DetailedClarityHubPage /></AnimatedPage>} />
-            <Route path="/clarity-center" element={<Navigate to="/clarity-hub" replace />} />
+        <Suspense fallback={<PageLoader />}>
+          <Routes location={location} key={location.pathname}>
+            <Route path="/" element={<AnimatedPage><LandingPage /></AnimatedPage>} />
+            <Route path="/login" element={<AnimatedPage><LoginPage /></AnimatedPage>} />
+            <Route path="/signup" element={<AnimatedPage><SignupPage /></AnimatedPage>} />
+            <Route path="/forgot-password" element={<AnimatedPage><ForgotPasswordPage /></AnimatedPage>} />
             <Route
-              path="/family-dashboard"
               element={
-                <ProtectedRoute allowedRoles={["patient"]}>
-                  <AnimatedPage><FamilyDashboardPage /></AnimatedPage>
+                <ProtectedRoute>
+                  <AppShell />
                 </ProtectedRoute>
               }
-            />
-            <Route path="/patient-panel" element={<Navigate to="/family-dashboard" replace />} />
-            <Route path="/patient" element={<Navigate to="/family-dashboard" replace />} />
-            <Route path="/family-hub" element={<Navigate to="/family-dashboard" replace />} />
-            <Route
-              path="/admin-panel"
-              element={
-                <ProtectedRoute allowedRoles={["admin"]}>
-                  <AnimatedPage><AdminPanelPage /></AnimatedPage>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/doctor-panel"
-              element={
-                <ProtectedRoute allowedRoles={["doctor"]}>
-                  <AnimatedPage><DoctorPanelPage /></AnimatedPage>
-                </ProtectedRoute>
-              }
-            />
-            <Route path="/patients" element={<Navigate to="/admin-panel" replace />} />
-            <Route path="/showcase" element={<AnimatedPage><ComponentShowcasePage /></AnimatedPage>} />
-            <Route path="/settings" element={<AnimatedPage><SettingsPage /></AnimatedPage>} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+            >
+              <Route path="/overview" element={<AnimatedPage><ClarityHubPage /></AnimatedPage>} />
+              <Route path="/dashboard" element={<Navigate to="/overview" replace />} />
+              <Route path="/clarity-hub" element={<AnimatedPage><DetailedClarityHubPage /></AnimatedPage>} />
+              <Route path="/clarity-center" element={<Navigate to="/clarity-hub" replace />} />
+              <Route
+                path="/family-dashboard"
+                element={
+                  <ProtectedRoute allowedRoles={["patient"]}>
+                    <AnimatedPage><FamilyDashboardPage /></AnimatedPage>
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/patient-panel" element={<Navigate to="/family-dashboard" replace />} />
+              <Route path="/patient" element={<Navigate to="/family-dashboard" replace />} />
+              <Route path="/family-hub" element={<Navigate to="/family-dashboard" replace />} />
+              <Route
+                path="/admin-panel"
+                element={
+                  <ProtectedRoute allowedRoles={["admin"]}>
+                    <AnimatedPage><AdminPanelPage /></AnimatedPage>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/doctor-panel"
+                element={
+                  <ProtectedRoute allowedRoles={["doctor"]}>
+                    <AnimatedPage><DoctorPanelPage /></AnimatedPage>
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/patients" element={<Navigate to="/admin-panel" replace />} />
+              <Route path="/showcase" element={<AnimatedPage><ComponentShowcasePage /></AnimatedPage>} />
+              <Route path="/settings" element={<AnimatedPage><SettingsPage /></AnimatedPage>} />
+            </Route>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </AnimatePresence>
     </>
   );
