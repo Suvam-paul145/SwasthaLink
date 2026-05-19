@@ -16,15 +16,14 @@ from pathlib import Path
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import mm, cm
-from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from reportlab.lib.units import mm
+from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    HRFlowable, PageBreak, KeepTogether,
+    HRFlowable,
 )
-from reportlab.graphics.shapes import Drawing, Rect, String, Circle, Wedge
+from reportlab.graphics.shapes import Drawing, String, Circle, Wedge
 from reportlab.graphics.charts.piecharts import Pie
-from reportlab.graphics import renderPDF
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
@@ -330,10 +329,10 @@ def _trunc(text: str, maxlen: int = 120) -> str:
 def _risk_color(level: Optional[str]) -> colors.Color:
     if not level:
         return GRAY
-    l = level.lower()
-    if l == "high" or l == "critical":
+    lvl = level.lower()
+    if lvl == "high" or lvl == "critical":
         return RED
-    if l == "moderate" or l == "medium":
+    if lvl == "moderate" or lvl == "medium":
         return AMBER
     return GREEN
 
