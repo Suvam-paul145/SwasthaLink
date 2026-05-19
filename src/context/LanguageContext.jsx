@@ -14,7 +14,11 @@ export function LanguageProvider({ children }) {
 
   const setLanguage = useCallback((code) => {
     setLanguageState(code);
-    try { localStorage.setItem(STORAGE_KEY, code); } catch {}
+    try { 
+      localStorage.setItem(STORAGE_KEY, code); 
+    } catch { 
+      // ignore 
+    }
   }, []);
 
   const t = useCallback((key) => translate(key, language), [language]);
