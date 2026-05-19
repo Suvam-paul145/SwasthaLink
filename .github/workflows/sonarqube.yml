@@ -45,9 +45,6 @@ jobs:
         with:
           java-version: 17
           distribution: 'temurin'
-
-      - name: Analyze with SonarQube
-        uses: SonarSource/sonarqube-scan-action@7295e71c9583053f5bf40e9d4068a0c974603ec8
         # ...rest of the configuration remains unchanged
       - name: Analyze with SonarQube
 
