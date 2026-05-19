@@ -39,8 +39,16 @@ permissions:
 jobs:
   Analysis:
     runs-on: ubuntu-latest
-
     steps:
+      - name: Set up JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: 17
+          distribution: 'temurin'
+
+      - name: Analyze with SonarQube
+        uses: SonarSource/sonarqube-scan-action@7295e71c9583053f5bf40e9d4068a0c974603ec8
+        # ...rest of the configuration remains unchanged
       - name: Analyze with SonarQube
 
         # You can pin the exact commit or the version.
