@@ -39,6 +39,7 @@ permissions:
 jobs:
   Analysis:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
     steps:
       # 1. Check out the repository's code so SonarQube can scan it
       - name: Checkout code
