@@ -15,51 +15,44 @@ export default function LanguageSelector({ compact = false }) {
   const current = SUPPORTED_LANGUAGES.find(l => l.code === language) || SUPPORTED_LANGUAGES[0];
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '8px',
-          background: 'rgba(255,255,255,.04)', border: '1px solid rgba(255,255,255,.08)',
-          borderRadius: '12px', padding: compact ? '8px 12px' : '10px 16px',
-          color: '#e2e8f0', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-          transition: 'all .2s', width: compact ? 'auto' : '100%',
-          justifyContent: compact ? 'center' : 'flex-start',
-        }}
+        className={`flex items-center gap-2 bg-white/5 border border-white/[0.08] rounded-xl text-[13px] font-semibold text-slate-200 hover:bg-white/[0.08] active:scale-[0.98] transition-all duration-200 ${
+          compact ? 'px-3 py-2 w-auto justify-center' : 'px-4 py-2.5 w-full justify-start'
+        }`}
         title="Change Language"
       >
-        <span className="material-symbols-outlined" style={{ fontSize: '18px', color: '#5eead4' }}>translate</span>
+        <span className="material-symbols-outlined text-[18px] text-teal-300">translate</span>
         {!compact && <span>{current.nativeName}</span>}
-        {!compact && <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#64748b', marginLeft: 'auto' }}>{open ? 'expand_less' : 'expand_more'}</span>}
+        {!compact && (
+          <span className="material-symbols-outlined text-base text-slate-500 ml-auto">
+            {open ? 'expand_less' : 'expand_more'}
+          </span>
+        )}
       </button>
 
       {open && (
-        <div style={{
-          position: 'absolute', bottom: compact ? 'auto' : '100%', top: compact ? '100%' : 'auto',
-          left: 0, right: compact ? 'auto' : 0, minWidth: '180px',
-          marginBottom: compact ? 0 : '6px', marginTop: compact ? '6px' : 0,
-          background: '#1e293b', border: '1px solid rgba(255,255,255,.12)',
-          borderRadius: '14px', padding: '6px', zIndex: 999,
-          boxShadow: '0 12px 40px rgba(0,0,0,.5)',
-        }}>
+        <div
+          className={`absolute left-0 min-w-[180px] bg-slate-800 border border-white/10 rounded-2xl p-1.5 z-[999] shadow-2xl shadow-black/50 ${
+            compact ? 'top-full right-auto mt-1.5' : 'bottom-full right-0 mb-1.5'
+          }`}
+        >
           {SUPPORTED_LANGUAGES.map(lang => (
             <button
               key={lang.code}
               onClick={() => { setLanguage(lang.code); setOpen(false); }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', width: '100%',
-                padding: '10px 14px', border: 'none', borderRadius: '10px',
-                background: language === lang.code ? 'rgba(13,148,136,.2)' : 'transparent',
-                color: language === lang.code ? '#5eead4' : '#cbd5e1',
-                fontSize: '13px', fontWeight: language === lang.code ? 700 : 400,
-                cursor: 'pointer', textAlign: 'left', transition: 'all .15s',
-              }}
+              className={`flex items-center gap-2.5 w-full px-3.5 py-2.5 border-none rounded-lg text-[13px] text-left transition-all duration-150 ${
+                language === lang.code
+                  ? 'bg-teal-500/20 text-teal-300 font-bold'
+                  : 'bg-transparent text-slate-300 font-normal hover:bg-white/5 hover:text-slate-100'
+              }`}
             >
-              <span style={{ fontSize: '16px' }}>{lang.flag}</span>
+              <span className="text-base">{lang.flag}</span>
               <span>{lang.nativeName}</span>
-              <span style={{ fontSize: '11px', color: '#64748b', marginLeft: 'auto' }}>{lang.name}</span>
+              <span className="text-[11px] text-slate-500 ml-auto">{lang.name}</span>
               {language === lang.code && (
-                <span className="material-symbols-outlined" style={{ fontSize: '16px', color: '#2dd4bf' }}>check</span>
+                <span className="material-symbols-outlined text-base text-teal-400">check</span>
               )}
             </button>
           ))}
