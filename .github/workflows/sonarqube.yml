@@ -60,8 +60,8 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
         with:
-          args:
-            -Dsonar.projectKey=Suvam-paul145_SwasthaLink\
+          args: >
+            -Dsonar.projectKey=Suvam-paul145_SwasthaLink
             -Dsonar.organization=suvam-paul145
 
             # Comma-separated paths to directories containing main source files.
