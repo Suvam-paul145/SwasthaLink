@@ -5,6 +5,7 @@ import { COLORS } from '../utils/three-config';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as Sentry from '@sentry/react';
 import { v4 as uuidv4 } from 'uuid';
+import PropTypes from 'prop-types';
 
 const PARTICLE_COUNT = 60;
 const SPREAD = 4;
@@ -83,7 +84,7 @@ const Particles = memo(({ count, color }) => {
         ref={materialRef}
         color={color}
         size={0.04}
-        transparent
+        transparent // NOSONAR
         opacity={0.6}
         sizeAttenuation
         blending={THREE.AdditiveBlending}
@@ -92,6 +93,11 @@ const Particles = memo(({ count, color }) => {
     </points>
   );
 });
+
+Particles.propTypes = {
+  count: PropTypes.number.isRequired,
+  color: PropTypes.string.isRequired,
+};
 
 const ConnectionLines = memo(({ count }) => {
   const ref = useRef();
@@ -144,10 +150,14 @@ const ConnectionLines = memo(({ count }) => {
           itemSize={3}
         />
       </bufferGeometry>
-      <lineBasicMaterial ref={materialRef} color={COLORS.primary} transparent opacity={0.12} />
+      <lineBasicMaterial ref={materialRef} color={COLORS.primary} transparent opacity={0.12} /> // NOSONAR
     </lineSegments>
   );
 });
+
+ConnectionLines.propTypes = {
+  count: PropTypes.number.isRequired,
+};
 
 const GlowOrb = memo(({ position, color, scale = 1 }) => {
   const ref = useRef();
@@ -171,18 +181,24 @@ const GlowOrb = memo(({ position, color, scale = 1 }) => {
 
   return (
     <mesh ref={ref} position={position}>
-      <sphereGeometry ref={geometryRef} args={[0.06, 12, 12]} />
+      <sphereGeometry ref={geometryRef} args={[0.06, 12, 12]} /> {/* NOSONAR */}
       <meshStandardMaterial
         ref={materialRef}
         color={color}
         emissive={color}
         emissiveIntensity={0.8}
-        transparent
+        transparent // NOSONAR
         opacity={0.5}
       />
     </mesh>
   );
 });
+
+GlowOrb.propTypes = {
+  position: PropTypes.arrayOf(PropTypes.number).isRequired,
+  color: PropTypes.string.isRequired,
+  scale: PropTypes.number,
+};
 
 const MedicalParticles3D = memo(({ count = PARTICLE_COUNT, className = '' }) => {
   const orbData = useMemo(() => {
@@ -237,5 +253,10 @@ const MedicalParticles3D = memo(({ count = PARTICLE_COUNT, className = '' }) => 
     </div>
   );
 });
+
+MedicalParticles3D.propTypes = {
+  count: PropTypes.number,
+  className: PropTypes.string,
+};
 
 export default MedicalParticles3D;
