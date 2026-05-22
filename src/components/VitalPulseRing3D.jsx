@@ -2,6 +2,7 @@ import { Suspense, useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { COLORS } from '../utils/three-config';
+import ErrorBoundary from './ErrorBoundary';
 
 const RING_COUNT = 3;
 const SEGMENTS = 128;
@@ -106,32 +107,34 @@ export default function VitalPulseRing3D({ bpm = 72, className = '', color = COL
   const speed = (bpm / 60) * 0.8;
 
   return (
-    <div className={`relative ${className}`}>
-      <Suspense fallback={<LoadingFallback />}>
-        <Canvas camera={{ position: [0, 0, 3.5], fov: 50 }} fallback={<LoadingFallback />}>
-          <ambientLight intensity={0.4} />
-          <pointLight position={[0, 0, 5]} color={color} intensity={0.6} />
-          <pointLight position={[0, 0, -5]} color={COLORS.secondary} intensity={0.3} />
+    <ErrorBoundary fallbackMessage="Failed to render 3D pulse wave visualization.">
+      <div className={`relative ${className}`}>
+        <Suspense fallback={<LoadingFallback />}>
+          <Canvas camera={{ position: [0, 0, 3.5], fov: 50 }} fallback={<LoadingFallback />}>
+            <ambientLight intensity={0.4} />
+            <pointLight position={[0, 0, 5]} color={color} intensity={0.6} />
+            <pointLight position={[0, 0, -5]} color={COLORS.secondary} intensity={0.3} />
 
-          {Array.from({ length: RING_COUNT }, (_, i) => (
-            <PulseRing
-              key={i}
-              radius={0.6 + i * 0.35}
-              delay={i * 1.2}
-              color={i === 0 ? color : i === 1 ? COLORS.secondary : COLORS.cyan}
-              speed={speed}
-            />
-          ))}
+            {Array.from({ length: RING_COUNT }, (_, i) => (
+              <PulseRing
+                key={i}
+                radius={0.6 + i * 0.35}
+                delay={i * 1.2}
+                color={i === 0 ? color : i === 1 ? COLORS.secondary : COLORS.cyan}
+                speed={speed}
+              />
+            ))}
 
-          <ECGLine color={color} speed={speed} />
-          <CenterDot color={color} />
-        </Canvas>
-      </Suspense>
+            <ECGLine color={color} speed={speed} />
+            <CenterDot color={color} />
+          </Canvas>
+        </Suspense>
 
-      <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-primary/30 z-10">
-        <span className="text-primary font-bold text-lg">{bpm}</span>
-        <span className="text-slate-400 text-xs ml-1.5">BPM</span>
+        <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-primary/30 z-10">
+          <span className="text-primary font-bold text-lg">{bpm}</span>
+          <span className="text-slate-400 text-xs ml-1.5">BPM</span>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }

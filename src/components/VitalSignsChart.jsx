@@ -1,5 +1,6 @@
 import { Line } from 'react-chartjs-2';
 import { chartTheme, defaultChartOptions } from '../utils/chartConfig';
+import ErrorBoundary from './ErrorBoundary';
 
 function VitalSignsChart({ data, className = "" }) {
   const chartData = {
@@ -51,20 +52,22 @@ function VitalSignsChart({ data, className = "" }) {
   };
 
   return (
-    <div className={`glass-card p-6 rounded-xl border border-white/5 ${className}`}>
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h3 className="text-xl font-headline font-bold text-white">Vital Signs Monitor</h3>
-          <p className="text-slate-400 text-sm mt-1">24-hour tracking</p>
+    <ErrorBoundary fallbackMessage="Failed to render vital signs telemetry chart.">
+      <div className={`glass-card p-6 rounded-xl border border-white/5 ${className}`}>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h3 className="text-xl font-headline font-bold text-white">Vital Signs Monitor</h3>
+            <p className="text-slate-400 text-sm mt-1">24-hour tracking</p>
+          </div>
+          <div className="flex gap-2">
+            <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold uppercase">Live</span>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-bold uppercase">Live</span>
+        <div className="h-80">
+          <Line data={chartData} options={options} />
         </div>
       </div>
-      <div className="h-80">
-        <Line data={chartData} options={options} />
-      </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 

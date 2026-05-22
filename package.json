@@ -17,18 +17,22 @@
     "@react-spring/three": "^9.7.5",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@sentry/react": "^10.53.1",
     "chart.js": "^4.5.1",
     "framer-motion": "^12.38.0",
     "gsap": "^3.14.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^1.7.0",
+    "prop-types": "^15.8.1",
     "qrcode.react": "^4.2.0",
     "react": "^18.3.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^18.3.1",
+    "react-error-boundary": "^6.1.1",
     "react-router-dom": "^6.30.1",
-    "three": "^0.183.2"
+    "three": "^0.183.2",
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

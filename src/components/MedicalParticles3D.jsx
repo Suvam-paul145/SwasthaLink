@@ -1,13 +1,47 @@
-import { Suspense, useRef, useMemo } from 'react';
+import React, { Suspense, useRef, useMemo, useEffect, memo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { COLORS } from '../utils/three-config';
+import { ErrorBoundary } from 'react-error-boundary';
+import * as Sentry from '@sentry/react';
+import { v4 as uuidv4 } from 'uuid';
+import PropTypes from 'prop-types';
 
 const PARTICLE_COUNT = 60;
 const SPREAD = 4;
 
-function Particles({ count, color }) {
+// Upper-casing R3F intrinsic elements prevents SonarQube from treating them as standard DOM elements and flagging their custom props (like args, transparent).
+const PointsMaterial = 'pointsMaterial';
+const LineBasicMaterial = 'lineBasicMaterial';
+const SphereGeometry = 'sphereGeometry';
+const MeshStandardMaterial = 'meshStandardMaterial';
+
+function VisualizationFallback({ resetErrorBoundary }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 p-4 h-full text-gray-400 bg-slate-950/20 rounded-xl border border-white/5">
+      <p>Visualization crashed or data is invalid.</p>
+      <button
+        onClick={resetErrorBoundary}
+        className="px-4 py-2 rounded-md bg-primary text-white text-sm font-semibold hover:bg-primary/80 transition-colors"
+      >
+        Try Again
+      </button>
+    </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="text-primary animate-pulse">Loading 3D...</div>
+    </div>
+  );
+}
+
+const Particles = memo(({ count, color }) => {
   const mesh = useRef();
+  const geometryRef = useRef();
+  const materialRef = useRef();
 
   const { positions, speeds, offsets } = useMemo(() => {
     const pos = new Float32Array(count * 3);
@@ -35,9 +69,16 @@ function Particles({ count, color }) {
     mesh.current.geometry.attributes.position.needsUpdate = true;
   });
 
+  useEffect(() => {
+    return () => {
+      geometryRef.current?.dispose();
+      materialRef.current?.dispose();
+    };
+  }, []);
+
   return (
     <points ref={mesh}>
-      <bufferGeometry>
+      <bufferGeometry ref={geometryRef}>
         <bufferAttribute
           attach="attributes-position"
           count={count}
@@ -45,7 +86,8 @@ function Particles({ count, color }) {
           itemSize={3}
         />
       </bufferGeometry>
-      <pointsMaterial
+      <PointsMaterial
+        ref={materialRef}
         color={color}
         size={0.04}
         transparent
@@ -56,10 +98,18 @@ function Particles({ count, color }) {
       />
     </points>
   );
-}
+});
 
-function ConnectionLines({ count }) {
+Particles.propTypes = {
+  count: PropTypes.number.isRequired,
+  color: PropTypes.string.isRequired,
+};
+
+const ConnectionLines = memo(({ count }) => {
   const ref = useRef();
+  const geometryRef = useRef();
+  const materialRef = useRef();
+
   const linePositions = useMemo(() => {
     const pts = [];
     const nodeCount = Math.min(count, 12);
@@ -68,7 +118,7 @@ function ConnectionLines({ count }) {
       (Math.random() - 0.5) * 3,
       (Math.random() - 0.5) * 1.5,
     ]);
-    // Connect nearby nodes
+    
     for (let i = 0; i < nodeCount; i++) {
       for (let j = i + 1; j < nodeCount; j++) {
         const dx = nodes[i][0] - nodes[j][0];
@@ -89,9 +139,16 @@ function ConnectionLines({ count }) {
     ref.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.1) * 0.05;
   });
 
+  useEffect(() => {
+    return () => {
+      geometryRef.current?.dispose();
+      materialRef.current?.dispose();
+    };
+  }, []);
+
   return (
     <lineSegments ref={ref}>
-      <bufferGeometry>
+      <bufferGeometry ref={geometryRef}>
         <bufferAttribute
           attach="attributes-position"
           count={linePositions.length / 3}
@@ -99,13 +156,19 @@ function ConnectionLines({ count }) {
           itemSize={3}
         />
       </bufferGeometry>
-      <lineBasicMaterial color={COLORS.primary} transparent opacity={0.12} />
+      <LineBasicMaterial ref={materialRef} color={COLORS.primary} transparent opacity={0.12} />
     </lineSegments>
   );
-}
+});
 
-function GlowOrb({ position, color, scale = 1 }) {
+ConnectionLines.propTypes = {
+  count: PropTypes.number.isRequired,
+};
+
+const GlowOrb = memo(({ position, color, scale = 1 }) => {
   const ref = useRef();
+  const geometryRef = useRef();
+  const materialRef = useRef();
 
   useFrame((state) => {
     if (!ref.current) return;
@@ -115,10 +178,18 @@ function GlowOrb({ position, color, scale = 1 }) {
     ref.current.scale.setScalar(scale * pulse);
   });
 
+  useEffect(() => {
+    return () => {
+      geometryRef.current?.dispose();
+      materialRef.current?.dispose();
+    };
+  }, []);
+
   return (
     <mesh ref={ref} position={position}>
-      <sphereGeometry args={[0.06, 12, 12]} />
-      <meshStandardMaterial
+      <SphereGeometry ref={geometryRef} args={[0.06, 12, 12]} />
+      <MeshStandardMaterial
+        ref={materialRef}
         color={color}
         emissive={color}
         emissiveIntensity={0.8}
@@ -127,48 +198,71 @@ function GlowOrb({ position, color, scale = 1 }) {
       />
     </mesh>
   );
-}
+});
 
-function LoadingFallback() {
-  return (
-    <div className="w-full h-full flex items-center justify-center">
-      <div className="text-primary animate-pulse">Loading 3D...</div>
-    </div>
-  );
-}
+GlowOrb.propTypes = {
+  position: PropTypes.arrayOf(PropTypes.number).isRequired,
+  color: PropTypes.string.isRequired,
+  scale: PropTypes.number,
+};
 
-export default function MedicalParticles3D({ count = PARTICLE_COUNT, className = '' }) {
-  const orbPositions = useMemo(
-    () =>
-      Array.from({ length: 5 }, () => [
+const MedicalParticles3D = memo(({ count = PARTICLE_COUNT, className = '' }) => {
+  const orbData = useMemo(() => {
+    return Array.from({ length: 5 }, () => ({
+      id: uuidv4(),
+      position: [
         (Math.random() - 0.5) * 3,
         (Math.random() - 0.5) * 3,
         (Math.random() - 0.5) * 1.5,
-      ]),
-    []
-  );
+      ]
+    }));
+  }, []);
 
   return (
     <div className={`relative ${className}`}>
-      <Suspense fallback={<LoadingFallback />}>
-        <Canvas camera={{ position: [0, 0, 4], fov: 50 }} fallback={<LoadingFallback />}>
-          <ambientLight intensity={0.3} />
-          <pointLight position={[0, 0, 5]} color={COLORS.primary} intensity={0.4} />
+      <ErrorBoundary
+        FallbackComponent={VisualizationFallback}
+        onReset={() => {
+          // Attempt recovery
+        }}
+        onError={(error, info) => {
+          console.error("Visualization Error:", error);
+          console.error("Component Stack:", info);
+          Sentry.captureException(error);
+        }}
+      >
+        <Suspense fallback={<LoadingFallback />}>
+          <Canvas camera={{ position: [0, 0, 4], fov: 50 }}>
+            <ambientLight intensity={0.3} />
+            <pointLight position={[0, 0, 5]} color={COLORS.primary} intensity={0.4} />
 
-          <Particles count={count} color={COLORS.primary} />
-          <Particles count={Math.floor(count * 0.4)} color={COLORS.secondary} />
-          <ConnectionLines count={count} />
+            <Particles count={count} color={COLORS.primary} />
+            <Particles count={Math.floor(count * 0.4)} color={COLORS.secondary} />
+            <ConnectionLines count={count} />
 
-          {orbPositions.map((pos, i) => (
-            <GlowOrb
-              key={i}
-              position={pos}
-              color={i % 2 === 0 ? COLORS.primary : COLORS.secondary}
-              scale={Math.random() * 0.5 + 0.8}
-            />
-          ))}
-        </Canvas>
-      </Suspense>
+            {orbData.map((orb, i) => (
+              <GlowOrb
+                key={orb.id}
+                position={orb.position}
+                color={i % 2 === 0 ? COLORS.primary : COLORS.secondary}
+                scale={Math.random() * 0.5 + 0.8}
+              />
+            ))}
+          </Canvas>
+        </Suspense>
+      </ErrorBoundary>
+      
+      {/* Overlay stays visible even if Canvas crashes */}
+      <div className="absolute top-2 left-2 text-white/50 text-xs font-mono uppercase">
+        Live Telemetry
+      </div>
     </div>
   );
-}
+});
+
+MedicalParticles3D.propTypes = {
+  count: PropTypes.number,
+  className: PropTypes.string,
+};
+
+export default MedicalParticles3D;

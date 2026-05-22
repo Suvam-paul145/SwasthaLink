@@ -1,6 +1,7 @@
 import { Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
+import ErrorBoundary from './ErrorBoundary';
 
 function DNAHelix() {
   const groupRef = useRef();
@@ -61,29 +62,31 @@ function LoadingFallback() {
 
 function DNA3DHelix({ className = "" }) {
   return (
-    <div className={`relative ${className}`}>
-      <Suspense fallback={<LoadingFallback />}>
-        <Canvas
-          camera={{ position: [2, 0, 3], fov: 50 }}
-          fallback={<LoadingFallback />}
-        >
-          <ambientLight intensity={0.3} />
-          <directionalLight position={[5, 5, 5]} intensity={0.8} />
-          <pointLight position={[-5, -5, -5]} color="#4fdbc8" intensity={0.5} />
-          <DNAHelix />
-          <OrbitControls
-            enableZoom={false}
-            enablePan={false}
-            autoRotate
-            autoRotateSpeed={1}
-          />
-        </Canvas>
-      </Suspense>
+    <ErrorBoundary fallbackMessage="Failed to render DNA Helix 3D visualization.">
+      <div className={`relative ${className}`}>
+        <Suspense fallback={<LoadingFallback />}>
+          <Canvas
+            camera={{ position: [2, 0, 3], fov: 50 }}
+            fallback={<LoadingFallback />}
+          >
+            <ambientLight intensity={0.3} />
+            <directionalLight position={[5, 5, 5]} intensity={0.8} />
+            <pointLight position={[-5, -5, -5]} color="#4fdbc8" intensity={0.5} />
+            <DNAHelix />
+            <OrbitControls
+              enableZoom={false}
+              enablePan={false}
+              autoRotate
+              autoRotateSpeed={1}
+            />
+          </Canvas>
+        </Suspense>
 
-      <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-lg border border-primary/30 z-10">
-        <span className="text-primary font-bold text-sm uppercase tracking-wider">Genetic Analysis</span>
+        <div className="absolute top-4 left-4 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-lg border border-primary/30 z-10">
+          <span className="text-primary font-bold text-sm uppercase tracking-wider">Genetic Analysis</span>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 

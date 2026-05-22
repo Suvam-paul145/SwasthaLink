@@ -1,6 +1,7 @@
 import { Suspense, useRef } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Sphere, MeshDistortMaterial } from '@react-three/drei';
+import ErrorBoundary from './ErrorBoundary';
 
 function AnimatedHeart() {
   const meshRef = useRef();
@@ -37,30 +38,32 @@ function LoadingFallback() {
 
 function MedicalHeart3D({ bpm = 72, className = "" }) {
   return (
-    <div className={`relative ${className}`}>
-      <Suspense fallback={<LoadingFallback />}>
-        <Canvas
-          camera={{ position: [0, 0, 3.5], fov: 50 }}
-          fallback={<LoadingFallback />}
-        >
-          <ambientLight intensity={0.5} />
-          <directionalLight position={[10, 10, 5]} intensity={1} />
-          <pointLight position={[-10, -10, -5]} color="#4fdbc8" intensity={0.5} />
-          <AnimatedHeart />
-          <OrbitControls
-            enableZoom={false}
-            enablePan={false}
-            autoRotate
-            autoRotateSpeed={0.5}
-          />
-        </Canvas>
-      </Suspense>
+    <ErrorBoundary fallbackMessage="Failed to render 3D cardiac model.">
+      <div className={`relative ${className}`}>
+        <Suspense fallback={<LoadingFallback />}>
+          <Canvas
+            camera={{ position: [0, 0, 3.5], fov: 50 }}
+            fallback={<LoadingFallback />}
+          >
+            <ambientLight intensity={0.5} />
+            <directionalLight position={[10, 10, 5]} intensity={1} />
+            <pointLight position={[-10, -10, -5]} color="#4fdbc8" intensity={0.5} />
+            <AnimatedHeart />
+            <OrbitControls
+              enableZoom={false}
+              enablePan={false}
+              autoRotate
+              autoRotateSpeed={0.5}
+            />
+          </Canvas>
+        </Suspense>
 
-      <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-lg border border-primary/30 z-10">
-        <span className="text-primary font-bold text-2xl">{bpm}</span>
-        <span className="text-slate-400 text-sm ml-2">BPM</span>
+        <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-lg border border-primary/30 z-10">
+          <span className="text-primary font-bold text-2xl">{bpm}</span>
+          <span className="text-slate-400 text-sm ml-2">BPM</span>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 

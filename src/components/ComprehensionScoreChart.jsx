@@ -1,5 +1,6 @@
 import { Bar } from 'react-chartjs-2';
 import { chartTheme, defaultChartOptions } from '../utils/chartConfig';
+import ErrorBoundary from './ErrorBoundary';
 
 function ComprehensionScoreChart({ data, className = "" }) {
   const chartData = {
@@ -45,21 +46,23 @@ function ComprehensionScoreChart({ data, className = "" }) {
   };
 
   return (
-    <div className={`glass-card p-6 rounded-xl border border-white/5 ${className}`}>
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h3 className="text-xl font-headline font-bold text-white">Comprehension Trends</h3>
-          <p className="text-slate-400 text-sm mt-1">Patient understanding scores over time</p>
+    <ErrorBoundary fallbackMessage="Failed to render comprehension score trends.">
+      <div className={`glass-card p-6 rounded-xl border border-white/5 ${className}`}>
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h3 className="text-xl font-headline font-bold text-white">Comprehension Trends</h3>
+            <p className="text-slate-400 text-sm mt-1">Patient understanding scores over time</p>
+          </div>
+          <div className="text-right">
+            <div className="text-3xl font-bold text-primary">88.5</div>
+            <div className="text-xs text-slate-400 uppercase">Current Avg</div>
+          </div>
         </div>
-        <div className="text-right">
-          <div className="text-3xl font-bold text-primary">88.5</div>
-          <div className="text-xs text-slate-400 uppercase">Current Avg</div>
+        <div className="h-80">
+          <Bar data={chartData} options={options} />
         </div>
       </div>
-      <div className="h-80">
-        <Bar data={chartData} options={options} />
-      </div>
-    </div>
+    </ErrorBoundary>
   );
 }
 
